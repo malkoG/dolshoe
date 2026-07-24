@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+.env
+.env.*
+!.env.example
+!.env.test
+
+apps/api/src/generated/prisma/
+apps/api/prisma/dev.db*
+
+.DS_Store
+.idea/
+.vscode/
+mise.local.toml

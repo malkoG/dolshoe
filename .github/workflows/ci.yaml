@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NODE_ENV: test
+      LOG_LEVEL: warning
+      PORT: 3000
+      DATABASE_URL: postgresql://dolshoe_test:dolshoe_test@localhost:5432/dolshoe_test?schema=public
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: dolshoe_test
+          POSTGRES_USER: dolshoe_test
+          POSTGRES_PASSWORD: dolshoe_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dolshoe_test -d dolshoe_test"
+          --health-interval 1s
+          --health-timeout 3s
+          --health-retries 20
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install pinned tools
+        uses: jdx/mise-action@v3
+        with:
+          cache: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply database migrations
+        run: pnpm db:migrate:deploy
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Run unit tests
+        run: pnpm test:unit
+
+      - name: Run e2e tests
+        run: pnpm --filter @dolshoe/api test:e2e
+
+      - name: Build
+        run: pnpm build

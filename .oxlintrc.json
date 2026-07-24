@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "plugins": ["typescript", "unicorn", "promise", "node", "jest"],
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/coverage/**",
+    "**/node_modules/**",
+    "apps/api/src/generated/prisma/**"
+  ],
+  "rules": {
+    "no-console": "error",
+    "typescript/no-extraneous-class": [
+      "error",
+      {
+        "allowWithDecorator": true
+      }
+    ]
+  }
+}
