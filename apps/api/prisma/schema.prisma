@@ -8,3 +8,28 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model ErrorReport {
+  id              String   @id @default(uuid()) @db.Uuid
+  eventId         String   @unique @db.Uuid
+  schemaVersion   Int
+  occurredAt      DateTime @db.Timestamptz(3)
+  receivedAt      DateTime @default(now()) @db.Timestamptz(3)
+  serviceName     String   @db.VarChar(200)
+  environment     String?  @db.VarChar(100)
+  release         String?  @db.VarChar(200)
+  runtimeName     String   @db.VarChar(100)
+  runtimeVersion  String?  @db.VarChar(100)
+  reporterName    String   @db.VarChar(200)
+  reporterVersion String?  @db.VarChar(100)
+  mechanismType   String?  @db.VarChar(200)
+  handled         Boolean?
+  traceId         String?  @db.Char(32)
+  spanId          String?  @db.Char(16)
+  exception       Json
+  attributes      Json?
+
+  @@index([serviceName, occurredAt(sort: Desc)])
+  @@index([traceId])
+  @@index([receivedAt(sort: Desc)])
+}
