@@ -13,8 +13,8 @@ health endpoint.
 - [mise](https://mise.jdx.dev/)
 - Docker with Docker Compose
 
-Node.js and pnpm are pinned in `mise.toml`; no global NestJS or Prisma CLI is
-required.
+Node.js, pnpm, Deno, and Bun are pinned in `mise.toml`; no global NestJS or
+Prisma CLI is required.
 
 ## Quick start
 
@@ -63,12 +63,71 @@ apps/
     │   ├── health/
     │   └── logging/
     └── test/
-packages/             Reserved for code with multiple real consumers
+packages/
+├── core/             Runtime-neutral JavaScript report DTO and client
+├── node/             Node.js reporter
+├── deno/             Deno reporter
+├── bun/              Bun reporter
+└── logtape/          LogTape-to-Dolshoe bridge
+examples/
+└── logtape-runtimes/  Equivalent Node, Deno, and Bun reporting scenarios
 ```
 
-Prisma remains inside the API while it has only one consumer. Shared packages
-should be introduced when another application actually needs the same code,
-not in anticipation of possible reuse.
+Prisma remains inside the API because it has only one consumer. The reporter
+packages share the versioned ingestion contract because Node, Deno, and Bun are
+concrete consumers of the same payload.
+
+## JavaScript reporters
+
+Applications select their runtime package explicitly. Runtime packages own
+exception normalization, runtime metadata, transport, global error hooks, and
+flush behavior:
+
+```ts
+import * as Dolshoe from "@dolshoe/node";
+
+Dolshoe.init({
+  endpoint: "https://dolshoe.example/api/v1/error-reports",
+  service: {
+    name: "checkout-api",
+    environment: "production",
+    release: "2026.07.24.1",
+  },
+});
+
+Dolshoe.captureException(new Error("Checkout failed"));
+await Dolshoe.flush();
+```
+
+Use `@dolshoe/deno` or `@dolshoe/bun` in those runtimes. Global uncaught error
+capture is enabled by default and can be disabled with
+`captureUnhandledErrors: false`. Call `close()` during graceful application
+shutdown to remove runtime hooks and flush queued reports.
+
+LogTape remains responsible for logger configuration. The Dolshoe bridge only
+translates error records into calls to the selected runtime SDK:
+
+```ts
+import { configure } from "@logtape/logtape";
+import { getDolshoeSink } from "@dolshoe/logtape";
+import * as Dolshoe from "@dolshoe/node";
+
+Dolshoe.init({
+  endpoint: "https://dolshoe.example/api/v1/error-reports",
+  service: { name: "checkout-api" },
+});
+
+await configure({
+  sinks: {
+    dolshoe: getDolshoeSink({ dolshoe: Dolshoe }),
+  },
+  loggers: [{ category: [], sinks: ["dolshoe"], lowestLevel: "error" }],
+});
+```
+
+The bridge checks structured `error` and `err` properties by default. An
+`Error` is sent through `captureException`; error-level records without an
+`Error` use `captureMessage`.
 
 ## Database workflow
 
@@ -115,6 +174,7 @@ pnpm test:e2e        # Reuses the dedicated PostgreSQL test container
 pnpm test            # Unit and e2e tests
 pnpm test:e2e:cold   # Stops the test DB first, then measures a cold run
 pnpm test:coverage
+pnpm sdk:test:runtimes # Compare Node, Deno, and Bun V1 report payloads
 ```
 
 The test database uses an in-memory Docker `tmpfs` and is kept running between

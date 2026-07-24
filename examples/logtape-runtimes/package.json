@@ -1,0 +1,19 @@
+{
+  "name": "@dolshoe/example-logtape-runtimes",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "node": "node node.mjs",
+    "deno": "deno run deno.mjs",
+    "bun": "bun run bun.mjs",
+    "verify": "node verify.mjs"
+  },
+  "dependencies": {
+    "@dolshoe/bun": "workspace:*",
+    "@dolshoe/deno": "workspace:*",
+    "@dolshoe/logtape": "workspace:*",
+    "@dolshoe/node": "workspace:*",
+    "@logtape/logtape": "^2.2.4"
+  }
+}
