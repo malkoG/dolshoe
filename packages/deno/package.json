@@ -1,0 +1,28 @@
+{
+  "name": "@dolshoe/deno",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dolshoe reporter for Deno",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "pnpm build && deno test test"
+  },
+  "dependencies": {
+    "@dolshoe/core": "workspace:*"
+  }
+}
