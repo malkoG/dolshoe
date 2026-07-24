@@ -1,0 +1,33 @@
+{
+  "name": "@dolshoe/node",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dolshoe reporter for Node.js",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.cts"
+      },
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "pnpm build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@dolshoe/core": "workspace:*"
+  }
+}
