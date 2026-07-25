@@ -104,13 +104,29 @@ Dolshoe.init({
 });
 
 Dolshoe.captureException(new Error("Checkout failed"));
+Dolshoe.captureLog("info", "Payment authorization completed", {
+  category: ["checkout", "payment"],
+  attributes: {
+    paymentMethod: "card",
+    amount: 45_000,
+    currency: "KRW",
+  },
+});
 await Dolshoe.flush();
 ```
 
 Use `@dolshoe/deno` or `@dolshoe/bun` in those runtimes. Global uncaught error
 capture is enabled by default and can be disabled with
 `captureUnhandledErrors: false`. Call `close()` during graceful application
-shutdown to remove runtime hooks and flush queued reports.
+shutdown to remove runtime hooks and flush queued reports and log records.
+
+`captureLog()` is exposed consistently by the Node.js, Deno, and Bun packages.
+It accepts the levels `trace`, `debug`, `info`, `warning`, `error`, and `fatal`.
+The SDK fills in the event ID, timestamp, service, runtime, and reporter fields,
+redacts sensitive structured attributes, and sends records to `logEndpoint` in
+batches of at most 100. Configure `beforeSendLogRecord` to transform or discard
+individual records before they are queued. Custom transports can be supplied
+with `logTransport`.
 
 LogTape remains responsible for logger configuration. The Dolshoe bridge
 routes error records into error reports and lower-severity records into
@@ -138,11 +154,13 @@ await configure({
 });
 ```
 
-The bridge checks structured `error` and `err` properties by default. An
-`Error` is sent through `captureException`; error-level records without an
-`Error` use `captureMessage`. Records below `error` use `captureLog` and are
-sent to `/api/v1/log-records` in batches of up to 100. `flush()` and `close()`
-send any partial batch immediately.
+The bridge checks structured `error` and `err` properties by default. Error and
+fatal records containing an `Error` use the existing error-report endpoint so
+their stack traces remain first-class. All other records use `captureLog()` and
+retain their LogTape level, category, timestamp, and structured properties,
+and are sent to `/api/v1/log-records` in batches of up to 100. `flush()` and
+`close()` send any partial batch immediately. LogTape's own meta logger
+(`logtape.meta`) is never forwarded, avoiding feedback loops.
 
 Applications can also capture a structured record directly:
 
