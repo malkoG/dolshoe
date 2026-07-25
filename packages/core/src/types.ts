@@ -77,10 +77,39 @@ export interface ErrorReport {
   attributes?: Record<string, JsonValue>;
 }
 
+export type LogLevel = "trace" | "debug" | "info" | "warning" | "error" | "fatal";
+
+export interface LogRecord {
+  eventId: string;
+  occurredAt: string;
+  level: LogLevel;
+  message: string;
+  category?: string[];
+  service: ServiceInfo;
+  runtime: RuntimeInfo;
+  reporter: ReporterInfo;
+  trace?: TraceContext;
+  errorReportEventId?: string;
+  attributes?: Record<string, JsonValue>;
+}
+
+export interface LogRecordBatch {
+  schemaVersion: 1;
+  records: LogRecord[];
+}
+
 export interface CaptureOptions {
   attributes?: Readonly<Record<string, unknown>>;
   mechanism?: CaptureMechanism;
   trace?: TraceContext;
+  occurredAt?: Date | number | string;
+}
+
+export interface CaptureLogOptions {
+  attributes?: Readonly<Record<string, unknown>>;
+  category?: readonly string[];
+  trace?: TraceContext;
+  errorReportEventId?: string;
   occurredAt?: Date | number | string;
 }
 
@@ -90,21 +119,36 @@ export interface Transport {
   close?(): Promise<boolean>;
 }
 
+export interface LogTransport {
+  send(records: readonly LogRecord[]): Promise<void>;
+  flush?(): Promise<boolean>;
+  close?(): Promise<boolean>;
+}
+
 export interface TransportErrorContext {
   error: unknown;
   report: ErrorReport;
 }
 
+export interface LogTransportErrorContext {
+  error: unknown;
+  records: readonly LogRecord[];
+}
+
 export interface ClientOptions {
   endpoint?: string | URL;
+  logEndpoint?: string | URL;
   service: ServiceInfo;
   runtime: RuntimeInfo;
   reporter: ReporterInfo;
   headers?: Readonly<Record<string, string>>;
   transport?: Transport;
+  logTransport?: LogTransport;
   fetch?: typeof globalThis.fetch;
   beforeSend?: (report: ErrorReport) => ErrorReport | null | Promise<ErrorReport | null>;
+  beforeSendLogRecord?: (record: LogRecord) => LogRecord | null | Promise<LogRecord | null>;
   onTransportError?: (context: TransportErrorContext) => void;
+  onLogTransportError?: (context: LogTransportErrorContext) => void;
   generateEventId?: () => string;
   now?: () => Date;
 }
@@ -116,6 +160,7 @@ export interface RuntimeInitOptions extends Omit<ClientOptions, "runtime" | "rep
 export interface ReporterNamespace {
   captureException(exception: unknown, options?: CaptureOptions): string | undefined;
   captureMessage(message: string, options?: CaptureOptions): string | undefined;
+  captureLog(level: LogLevel, message: string, options?: CaptureLogOptions): string | undefined;
   flush(timeoutMilliseconds?: number): Promise<boolean>;
   close(timeoutMilliseconds?: number): Promise<boolean>;
 }

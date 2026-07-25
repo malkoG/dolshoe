@@ -1,6 +1,7 @@
 export {
   Client,
   captureException,
+  captureLog,
   captureMessage,
   close,
   flush,
@@ -8,14 +9,20 @@ export {
   setCurrentClient,
 } from "./client.js";
 export { normalizeException, parseJavaScriptStack, sanitizeAttributes } from "./normalize.js";
-export { HttpTransport } from "./transport.js";
+export { HttpLogTransport, HttpTransport } from "./transport.js";
 export type {
   CaptureMechanism,
+  CaptureLogOptions,
   CaptureOptions,
   ClientOptions,
   ErrorReport,
   JsonPrimitive,
   JsonValue,
+  LogLevel,
+  LogRecord,
+  LogRecordBatch,
+  LogTransport,
+  LogTransportErrorContext,
   NormalizedException,
   ReporterInfo,
   ReporterNamespace,

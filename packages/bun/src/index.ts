@@ -73,10 +73,21 @@ export async function close(timeoutMilliseconds?: number): Promise<boolean> {
 
 export {
   captureException,
+  captureLog,
   captureMessage,
   flush,
   getClient,
   normalizeException,
   parseJavaScriptStack,
 } from "@dolshoe/core";
-export type { CaptureOptions, ErrorReport, RuntimeInitOptions, Transport } from "@dolshoe/core";
+export type {
+  CaptureLogOptions,
+  CaptureOptions,
+  ErrorReport,
+  LogLevel,
+  LogRecord,
+  LogRecordBatch,
+  LogTransport,
+  RuntimeInitOptions,
+  Transport,
+} from "@dolshoe/core";

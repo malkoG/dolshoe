@@ -109,3 +109,154 @@ test("posts reports through the default HTTP transport", async () => {
   assert.equal(requests[0].init.headers["content-type"], "application/json");
   assert.equal(JSON.parse(requests[0].init.body).exception.message, "worker stopped");
 });
+
+test("creates and batches structured V1 log records", async () => {
+  const batches = [];
+  const eventIds = ["6608e55d-1b24-4d9a-951f-7e7211f92f44", "b1a7f5ba-f9fd-4ebd-818f-8ce499273cac"];
+  const client = new Client({
+    endpoint: "https://dolshoe.example/api/v1/error-reports",
+    service: {
+      name: "checkout-api",
+      environment: "production",
+      release: "2026.07.25.1",
+    },
+    runtime: { name: "node", version: "24.0.0" },
+    reporter: { name: "dolshoe-node", version: "0.1.0" },
+    logTransport: {
+      async send(records) {
+        batches.push(records);
+      },
+    },
+    generateEventId: () => eventIds.shift(),
+    now: () => new Date("2026-07-25T05:30:01.123Z"),
+  });
+
+  const firstEventId = client.captureLog("info", "Payment authorization completed", {
+    category: ["checkout", "payment"],
+    trace: {
+      traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+      spanId: "00f067aa0ba902b7",
+    },
+    attributes: {
+      amount: 45_000,
+      authorization: "do-not-send",
+    },
+  });
+  client.captureLog("warning", "Payment response was slow");
+
+  assert.equal(firstEventId, "6608e55d-1b24-4d9a-951f-7e7211f92f44");
+  assert.equal(await client.flush(), true);
+  assert.equal(batches.length, 1);
+  assert.equal(batches[0].length, 2);
+  assert.deepEqual(batches[0][0], {
+    eventId: "6608e55d-1b24-4d9a-951f-7e7211f92f44",
+    occurredAt: "2026-07-25T05:30:01.123Z",
+    level: "info",
+    message: "Payment authorization completed",
+    category: ["checkout", "payment"],
+    service: {
+      name: "checkout-api",
+      environment: "production",
+      release: "2026.07.25.1",
+    },
+    runtime: { name: "node", version: "24.0.0" },
+    reporter: { name: "dolshoe-node", version: "0.1.0" },
+    trace: {
+      traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+      spanId: "00f067aa0ba902b7",
+    },
+    attributes: {
+      amount: 45_000,
+      authorization: "[REDACTED]",
+    },
+  });
+});
+
+test("posts log batches through the default HTTP log transport", async () => {
+  const requests = [];
+  const client = new Client({
+    endpoint: "https://dolshoe.example/api/v1/error-reports",
+    logEndpoint: "https://dolshoe.example/api/v1/log-records",
+    service: { name: "checkout-api" },
+    runtime: { name: "node" },
+    reporter: { name: "dolshoe-node" },
+    fetch: async (input, init) => {
+      requests.push({ input, init });
+      return new Response(null, { status: 201 });
+    },
+  });
+
+  client.captureLog("info", "worker started");
+  client.captureLog("debug", "worker polling");
+
+  assert.equal(await client.flush(), true);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].input, "https://dolshoe.example/api/v1/log-records");
+  assert.equal(requests[0].init.method, "POST");
+  assert.equal(requests[0].init.headers["content-type"], "application/json");
+  const body = JSON.parse(requests[0].init.body);
+  assert.equal(body.schemaVersion, 1);
+  assert.equal(body.records.length, 2);
+  assert.equal(body.records[0].message, "worker started");
+});
+
+test("splits log delivery into batches of at most 100 records", async () => {
+  const batchSizes = [];
+  const client = new Client({
+    endpoint: "https://dolshoe.example/api/v1/error-reports",
+    service: { name: "checkout-api" },
+    runtime: { name: "node" },
+    reporter: { name: "dolshoe-node" },
+    logTransport: {
+      async send(records) {
+        batchSizes.push(records.length);
+      },
+    },
+  });
+
+  for (let index = 0; index < 101; index += 1) {
+    client.captureLog("info", `record ${index}`);
+  }
+
+  assert.equal(await client.flush(), true);
+  assert.deepEqual(batchSizes, [100, 1]);
+});
+
+test("lets beforeSendLogRecord transform or discard log records", async () => {
+  const records = [];
+  const client = new Client({
+    endpoint: "https://dolshoe.example/api/v1/error-reports",
+    service: { name: "checkout-api" },
+    runtime: { name: "node" },
+    reporter: { name: "dolshoe-node" },
+    logTransport: {
+      async send(batch) {
+        records.push(...batch);
+      },
+    },
+    beforeSendLogRecord: (record) =>
+      record.level === "debug" ? null : { ...record, attributes: { transformed: true } },
+  });
+
+  client.captureLog("debug", "discarded");
+  client.captureLog("info", "kept");
+
+  assert.equal(await client.flush(), true);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].message, "kept");
+  assert.deepEqual(records[0].attributes, { transformed: true });
+});
+
+test("requires an explicit log transport boundary", () => {
+  const client = new Client({
+    endpoint: "https://dolshoe.example/api/v1/error-reports",
+    service: { name: "checkout-api" },
+    runtime: { name: "node" },
+    reporter: { name: "dolshoe-node" },
+  });
+
+  assert.throws(
+    () => client.captureLog("info", "cannot be delivered"),
+    /requires logEndpoint or logTransport/,
+  );
+});
