@@ -1,4 +1,4 @@
-import type { ReporterNamespace } from "@dolshoe/core";
+import type { LogLevel, ReporterNamespace } from "@dolshoe/core";
 import { compareLogLevel, getLogger, type LogRecord, type Sink } from "@logtape/logtape";
 
 export interface DolshoeSinkOptions {
@@ -63,29 +63,24 @@ export function getDolshoeSink(options: DolshoeSinkOptions): Sink {
 
   return (record: LogRecord): void => {
     try {
-      if (
-        record.category[0] === "logtape" &&
-        record.category[1] === "meta" &&
-        record.category[2] === "dolshoe"
-      ) {
+      if (record.category[0] === "logtape" && record.category[1] === "meta") {
         return;
       }
 
       const transformed = options.beforeSend?.(record) ?? record;
       if (transformed == null) return;
-      if (compareLogLevel(transformed.level, "error") < 0) return;
 
       const message = renderMessage(transformed);
       const exceptionProperty = findException(transformed.properties, propertyNames);
-      const attributes: Record<string, unknown> = {
-        ...transformed.properties,
-        "logtape.category": transformed.category.join("."),
-        "logtape.level": transformed.level,
-        "logtape.message": message,
-      };
 
-      if (exceptionProperty != null) {
+      if (exceptionProperty != null && compareLogLevel(transformed.level, "error") >= 0) {
         const [propertyName, exception] = exceptionProperty;
+        const attributes: Record<string, unknown> = {
+          ...transformed.properties,
+          "logtape.category": transformed.category.join("."),
+          "logtape.level": transformed.level,
+          "logtape.message": message,
+        };
         delete attributes[propertyName];
         options.dolshoe.captureException(exception, {
           occurredAt: transformed.timestamp,
@@ -96,13 +91,10 @@ export function getDolshoeSink(options: DolshoeSinkOptions): Sink {
           attributes,
         });
       } else {
-        options.dolshoe.captureMessage(message, {
+        options.dolshoe.captureLog(transformed.level as LogLevel, message, {
           occurredAt: transformed.timestamp,
-          mechanism: {
-            type: "logtape",
-            handled: true,
-          },
-          attributes,
+          category: transformed.category,
+          attributes: transformed.properties,
         });
       }
     } catch (error) {

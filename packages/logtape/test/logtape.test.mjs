@@ -27,6 +27,7 @@ test("routes Error properties to captureException", () => {
         return "event-id";
       },
       captureMessage: () => undefined,
+      captureLog: () => undefined,
       flush: async () => true,
       close: async () => true,
     },
@@ -48,12 +49,13 @@ test("routes Error properties to captureException", () => {
   });
 });
 
-test("routes error-level messages without Error properties to captureMessage", () => {
+test("routes error-level messages without Error properties to captureLog", () => {
   const calls = [];
   const sink = getDolshoeSink({
     dolshoe: {
       captureException: () => undefined,
-      captureMessage: (...args) => {
+      captureMessage: () => undefined,
+      captureLog: (...args) => {
         calls.push(args);
         return "event-id";
       },
@@ -65,10 +67,61 @@ test("routes error-level messages without Error properties to captureMessage", (
   sink(record({ properties: { orderId: "order-123" } }));
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], "Order order-123 failed");
+  assert.deepEqual(calls[0], [
+    "error",
+    "Order order-123 failed",
+    {
+      occurredAt: Date.parse("2026-07-24T08:30:00.000Z"),
+      category: ["checkout", "orders"],
+      attributes: { orderId: "order-123" },
+    },
+  ]);
 });
 
-test("ignores records below the error level", () => {
+test("routes records below the error level to captureLog", () => {
+  const calls = [];
+  const sink = getDolshoeSink({
+    dolshoe: {
+      captureException: () => undefined,
+      captureMessage: () => undefined,
+      captureLog: (...args) => {
+        calls.push(args);
+        return "event-id";
+      },
+      flush: async () => true,
+      close: async () => true,
+    },
+  });
+
+  sink(record({ level: "info" }));
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "info");
+});
+
+test("keeps warning-level Error properties as structured log attributes", () => {
+  const calls = [];
+  const sink = getDolshoeSink({
+    dolshoe: {
+      captureException: () => undefined,
+      captureMessage: () => undefined,
+      captureLog: (...args) => {
+        calls.push(args);
+        return "event-id";
+      },
+      flush: async () => true,
+      close: async () => true,
+    },
+  });
+
+  sink(record({ level: "warning" }));
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "warning");
+  assert.equal(calls[0][2].attributes.error.message, "invalid order");
+});
+
+test("ignores LogTape meta records", () => {
   let called = false;
   const sink = getDolshoeSink({
     dolshoe: {
@@ -76,7 +129,8 @@ test("ignores records below the error level", () => {
         called = true;
         return undefined;
       },
-      captureMessage: () => {
+      captureMessage: () => undefined,
+      captureLog: () => {
         called = true;
         return undefined;
       },
@@ -85,6 +139,7 @@ test("ignores records below the error level", () => {
     },
   });
 
-  sink(record({ level: "info" }));
+  sink(record({ category: ["logtape", "meta"], level: "info" }));
+
   assert.equal(called, false);
 });
