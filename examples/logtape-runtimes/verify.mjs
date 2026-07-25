@@ -33,7 +33,7 @@ function normalizeException(exception) {
   return normalized;
 }
 
-function comparable(report) {
+function comparableReport(report) {
   return {
     ...report,
     occurredAt: "<runtime timestamp>",
@@ -49,7 +49,22 @@ function comparable(report) {
   };
 }
 
-const reports = Object.fromEntries(
+function comparableLogRecord(record) {
+  return {
+    ...record,
+    occurredAt: "<runtime timestamp>",
+    runtime: {
+      name: "<runtime>",
+      version: "<runtime version>",
+    },
+    reporter: {
+      name: "<runtime reporter>",
+      version: record.reporter.version,
+    },
+  };
+}
+
+const results = Object.fromEntries(
   Object.entries(scenarios).map(([runtime, [command, arguments_]]) => [
     runtime,
     execute(runtime, command, arguments_),
@@ -57,19 +72,38 @@ const reports = Object.fromEntries(
 );
 
 for (const runtime of Object.keys(scenarios)) {
-  assert.equal(reports[runtime].runtime.name, runtime);
-  assert.equal(typeof reports[runtime].runtime.version, "string");
-  assert.equal(reports[runtime].reporter.name, `dolshoe-${runtime}`);
-  assert.equal(reports[runtime].schemaVersion, 1);
-  assert.equal(reports[runtime].eventId, "bf695c6d-8a75-4b1d-8434-9ddb1ce54ee7");
-  assert.equal(typeof reports[runtime].exception.stacktrace, "string");
-  assert.ok(reports[runtime].exception.frames.length > 0);
-  assert.equal(reports[runtime].exception.cause.message, "Cart was not loaded");
-  assert.equal(reports[runtime].exception.children.length, 2);
+  const reports = results[runtime];
+  const report = reports.report;
+  const logRecord = reports.logRecord;
+  assert.equal(report.runtime.name, runtime);
+  assert.equal(typeof report.runtime.version, "string");
+  assert.equal(report.reporter.name, `dolshoe-${runtime}`);
+  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.eventId, "bf695c6d-8a75-4b1d-8434-9ddb1ce54ee7");
+  assert.equal(typeof report.exception.stacktrace, "string");
+  assert.ok(report.exception.frames.length > 0);
+  assert.equal(report.exception.cause.message, "Cart was not loaded");
+  assert.equal(report.exception.children.length, 2);
+
+  assert.equal(logRecord.runtime.name, runtime);
+  assert.equal(typeof logRecord.runtime.version, "string");
+  assert.equal(logRecord.reporter.name, `dolshoe-${runtime}`);
+  assert.equal(logRecord.eventId, "6608e55d-1b24-4d9a-951f-7e7211f92f44");
+  assert.equal(logRecord.level, "info");
+  assert.equal(logRecord.message, "Submitting order order-123");
+  assert.deepEqual(logRecord.category, ["checkout", "orders"]);
 }
 
-assert.deepEqual(comparable(reports.deno), comparable(reports.node));
-assert.deepEqual(comparable(reports.bun), comparable(reports.node));
+assert.deepEqual(comparableReport(results.deno.report), comparableReport(results.node.report));
+assert.deepEqual(comparableReport(results.bun.report), comparableReport(results.node.report));
+assert.deepEqual(
+  comparableLogRecord(results.deno.logRecord),
+  comparableLogRecord(results.node.logRecord),
+);
+assert.deepEqual(
+  comparableLogRecord(results.bun.logRecord),
+  comparableLogRecord(results.node.logRecord),
+);
 
 // eslint-disable-next-line no-console
-console.log("Node, Deno, and Bun produced equivalent Dolshoe V1 reports.");
+console.log("Node, Deno, and Bun produced equivalent Dolshoe V1 reports and log records.");
