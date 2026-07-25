@@ -5,8 +5,8 @@ It favors a small implementation and an easy deployment story over external
 search engines or a large infrastructure footprint.
 
 The project currently contains the minimum backend foundation: a NestJS API,
-Prisma, PostgreSQL, structured logging with LogTape, and a database-aware
-health endpoint.
+Prisma, PostgreSQL, a PostgreSQL-backed message queue, structured logging with
+LogTape, and a database-aware health endpoint.
 
 ## Requirements
 
@@ -61,7 +61,8 @@ apps/
     │   ├── config/
     │   ├── database/
     │   ├── health/
-    │   └── logging/
+    │   ├── logging/
+    │   └── message-queue/
     └── test/
 packages/
 ├── core/             Runtime-neutral JavaScript report DTO and client
@@ -128,6 +129,27 @@ await configure({
 The bridge checks structured `error` and `err` properties by default. An
 `Error` is sent through `captureException`; error-level records without an
 `Error` use `captureMessage`.
+
+## Message queue
+
+The API exposes an internal, at-least-once `MessageQueue` contract. Application
+code depends on that abstract class, while `PostgresMessageQueue` provides the
+current implementation through Nest dependency injection.
+
+Messages follow a lease-based lifecycle:
+
+1. `enqueue` stores a JSON payload, optionally with a queue-scoped
+   deduplication key or future availability time.
+2. `claim` atomically leases available messages with PostgreSQL
+   `FOR UPDATE SKIP LOCKED`.
+3. The consumer calls `acknowledge` after success or `retry` after failure.
+4. An expired lease becomes claimable by another consumer. Its stale lease
+   token cannot acknowledge or retry the newer delivery.
+
+Acknowledged messages are deleted. Delivery is therefore at least once, and
+handlers must remain idempotent. The contract lives in
+`apps/api/src/message-queue/message-queue.contract.ts`; consumers should inject
+`MessageQueue` rather than the PostgreSQL implementation.
 
 ## Database workflow
 
