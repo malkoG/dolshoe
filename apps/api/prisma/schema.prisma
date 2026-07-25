@@ -33,3 +33,21 @@ model ErrorReport {
   @@index([traceId])
   @@index([receivedAt(sort: Desc)])
 }
+
+model QueueMessage {
+  id               String    @id @default(uuid()) @db.Uuid
+  queue            String    @db.VarChar(200)
+  payload          Json
+  deduplicationKey String?   @db.VarChar(200)
+  enqueuedAt       DateTime  @default(dbgenerated("date_trunc('milliseconds', CURRENT_TIMESTAMP)")) @db.Timestamptz(3)
+  availableAt      DateTime  @default(dbgenerated("date_trunc('milliseconds', CURRENT_TIMESTAMP)")) @db.Timestamptz(3)
+  attempt          Int       @default(0)
+  claimedBy        String?   @db.VarChar(200)
+  leaseToken       String?   @db.Uuid
+  leaseExpiresAt   DateTime? @db.Timestamptz(3)
+  lastError        String?
+
+  @@unique([queue, deduplicationKey])
+  @@index([queue, availableAt, leaseExpiresAt])
+  @@index([leaseExpiresAt])
+}
