@@ -4,9 +4,9 @@ Dolshoe is a simple, self-hosted error reporting and stack tracing service.
 It favors a small implementation and an easy deployment story over external
 search engines or a large infrastructure footprint.
 
-The project currently contains the minimum backend foundation: a NestJS API,
-Prisma, PostgreSQL, a PostgreSQL-backed message queue, structured logging with
-LogTape, and a database-aware health endpoint.
+The project currently contains a NestJS ingestion API, Prisma, PostgreSQL, a
+PostgreSQL-backed message queue, runtime reporting SDKs, structured logging
+with LogTape, and a database-aware health endpoint.
 
 ## Requirements
 
@@ -60,7 +60,10 @@ apps/
     ├── src/
     │   ├── config/
     │   ├── database/
+    │   ├── error-reporting/
     │   ├── health/
+    │   ├── ingestion/
+    │   ├── log-recording/
     │   ├── logging/
     │   └── message-queue/
     └── test/
@@ -89,10 +92,14 @@ import * as Dolshoe from "@dolshoe/node";
 
 Dolshoe.init({
   endpoint: "https://dolshoe.example/api/v1/error-reports",
+  logEndpoint: "https://dolshoe.example/api/v1/log-records",
   service: {
     name: "checkout-api",
     environment: "production",
     release: "2026.07.24.1",
+  },
+  headers: {
+    authorization: `Bearer ${process.env.DOLSHOE_INGEST_TOKEN}`,
   },
 });
 
@@ -105,8 +112,9 @@ capture is enabled by default and can be disabled with
 `captureUnhandledErrors: false`. Call `close()` during graceful application
 shutdown to remove runtime hooks and flush queued reports.
 
-LogTape remains responsible for logger configuration. The Dolshoe bridge only
-translates error records into calls to the selected runtime SDK:
+LogTape remains responsible for logger configuration. The Dolshoe bridge
+routes error records into error reports and lower-severity records into
+structured log batches:
 
 ```ts
 import { configure } from "@logtape/logtape";
@@ -115,20 +123,42 @@ import * as Dolshoe from "@dolshoe/node";
 
 Dolshoe.init({
   endpoint: "https://dolshoe.example/api/v1/error-reports",
+  logEndpoint: "https://dolshoe.example/api/v1/log-records",
   service: { name: "checkout-api" },
+  headers: {
+    authorization: `Bearer ${process.env.DOLSHOE_INGEST_TOKEN}`,
+  },
 });
 
 await configure({
   sinks: {
     dolshoe: getDolshoeSink({ dolshoe: Dolshoe }),
   },
-  loggers: [{ category: [], sinks: ["dolshoe"], lowestLevel: "error" }],
+  loggers: [{ category: [], sinks: ["dolshoe"], lowestLevel: "info" }],
 });
 ```
 
 The bridge checks structured `error` and `err` properties by default. An
 `Error` is sent through `captureException`; error-level records without an
-`Error` use `captureMessage`.
+`Error` use `captureMessage`. Records below `error` use `captureLog` and are
+sent to `/api/v1/log-records` in batches of up to 100. `flush()` and `close()`
+send any partial batch immediately.
+
+Applications can also capture a structured record directly:
+
+```ts
+Dolshoe.captureLog("info", "Payment authorization completed", {
+  category: ["checkout", "payment"],
+  attributes: {
+    "payment.method": "card",
+    "payment.amount": 45_000,
+    "payment.currency": "KRW",
+  },
+});
+```
+
+Configure `logEndpoint` explicitly when structured logs are enabled. Log
+requests are limited to 1 MiB and each batch is validated atomically.
 
 ## Message queue
 
@@ -235,15 +265,19 @@ production build. CI additionally runs the PostgreSQL e2e suite.
 
 ## Configuration
 
-| Variable       | Default in `.env.example` | Description                            |
-| -------------- | ------------------------- | -------------------------------------- |
-| `NODE_ENV`     | `development`             | `development`, `test`, or `production` |
-| `PORT`         | `3000`                    | HTTP listen port                       |
-| `LOG_LEVEL`    | `debug`                   | Minimum LogTape level                  |
-| `DATABASE_URL` | local PostgreSQL          | Prisma and application connection URL  |
+| Variable             | Default in `.env.example` | Description                                       |
+| -------------------- | ------------------------- | ------------------------------------------------- |
+| `NODE_ENV`           | `development`             | `development`, `test`, or `production`            |
+| `PORT`               | `3000`                    | HTTP listen port                                  |
+| `LOG_LEVEL`          | `debug`                   | Minimum LogTape level                             |
+| `INGEST_TOKEN`       | empty                     | Bearer token; required when `NODE_ENV=production` |
+| `LOG_RETENTION_DAYS` | `14`                      | Days to retain logs, based on server receipt time |
+| `DATABASE_URL`       | local PostgreSQL          | Prisma and application connection URL             |
 
 Development logs use a readable colored formatter. Production logs are emitted
-as JSON Lines.
+as JSON Lines. When configured, the same ingestion bearer token protects both
+`/api/v1/error-reports` and `/api/v1/log-records`. Request bodies and tokens are
+never written to the API's operational logs.
 
 ## License
 

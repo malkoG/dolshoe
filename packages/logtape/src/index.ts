@@ -71,11 +71,18 @@ export function getDolshoeSink(options: DolshoeSinkOptions): Sink {
         return;
       }
 
-      const transformed = options.beforeSend?.(record) ?? record;
+      const transformed = options.beforeSend == null ? record : options.beforeSend(record);
       if (transformed == null) return;
-      if (compareLogLevel(transformed.level, "error") < 0) return;
-
       const message = renderMessage(transformed);
+      if (compareLogLevel(transformed.level, "error") < 0) {
+        options.dolshoe.captureLog(transformed.level, message, {
+          occurredAt: transformed.timestamp,
+          category: transformed.category,
+          attributes: transformed.properties,
+        });
+        return;
+      }
+
       const exceptionProperty = findException(transformed.properties, propertyNames);
       const attributes: Record<string, unknown> = {
         ...transformed.properties,

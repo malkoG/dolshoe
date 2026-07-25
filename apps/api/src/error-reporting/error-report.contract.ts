@@ -157,7 +157,7 @@ export const normalizedExceptionSchema: z.ZodType<NormalizedException> = z
       "A recursive, runtime-neutral exception tree that preserves raw text and structured details.",
   });
 
-const runtimeSchema = z
+export const runtimeSchema = z
   .object({
     name: nonEmptyText(100).meta({
       description: "Runtime family. This remains an open string for forward compatibility.",
@@ -169,7 +169,7 @@ const runtimeSchema = z
   })
   .strict();
 
-const reporterSchema = z
+export const reporterSchema = z
   .object({
     name: nonEmptyText(200).meta({
       description: "Reporter library or adapter name.",
@@ -181,7 +181,7 @@ const reporterSchema = z
   })
   .strict();
 
-const serviceSchema = z
+export const serviceSchema = z
   .object({
     name: nonEmptyText(200).meta({
       description: "Stable logical service name.",

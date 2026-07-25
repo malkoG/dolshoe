@@ -2,14 +2,23 @@ import { INestApplication } from "@nestjs/common";
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from "@nestjs/swagger";
 
 import { errorReportOpenApiSchemas } from "../error-reporting/error-report.contract";
+import { logRecordOpenApiSchemas } from "../log-recording/log-record.contract";
 
 function createOpenApiDocument(app: INestApplication): OpenAPIObject {
   const configuration = new DocumentBuilder()
     .setTitle("Dolshoe API")
     .setDescription(
-      "Self-hosted error-report ingestion API. Runtime adapters normalize Python and JavaScript failures into versioned contracts.",
+      "Self-hosted error-report and structured-log ingestion API. Runtime adapters normalize records into versioned contracts.",
     )
     .setVersion("1")
+    .addBearerAuth(
+      {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "ingestion token",
+      },
+      "ingest-token",
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, configuration);
@@ -18,6 +27,9 @@ function createOpenApiDocument(app: INestApplication): OpenAPIObject {
   document.components.schemas = {
     ...document.components.schemas,
     ...(errorReportOpenApiSchemas as NonNullable<
+      NonNullable<OpenAPIObject["components"]>["schemas"]
+    >),
+    ...(logRecordOpenApiSchemas as NonNullable<
       NonNullable<OpenAPIObject["components"]>["schemas"]
     >),
   };

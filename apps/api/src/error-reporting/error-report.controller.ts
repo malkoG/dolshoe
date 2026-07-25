@@ -1,6 +1,14 @@
-import { Body, Controller, Post } from "@nestjs/common";
-import { ApiBadRequestResponse, ApiBody, ApiCreatedResponse, ApiTags } from "@nestjs/swagger";
+import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
 
+import { IngestAuthGuard } from "../ingestion/ingest-auth.guard";
 import {
   ErrorReportReceipt,
   ErrorReportRequest,
@@ -11,6 +19,9 @@ import { ErrorReportService } from "./error-report.service";
 import { ZodValidationPipe } from "./zod-validation.pipe";
 
 @ApiTags("Error reporting")
+@ApiBearerAuth("ingest-token")
+@ApiUnauthorizedResponse({ description: "The ingestion bearer token is missing or invalid." })
+@UseGuards(IngestAuthGuard)
 @Controller({ path: "error-reports", version: "1" })
 export class ErrorReportController {
   constructor(private readonly errorReportService: ErrorReportService) {}

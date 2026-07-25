@@ -68,7 +68,39 @@ test("routes error-level messages without Error properties to captureMessage", (
   assert.equal(calls[0][0], "Order order-123 failed");
 });
 
-test("ignores records below the error level", () => {
+test("routes records below the error level to captureLog", () => {
+  const calls = [];
+  const sink = getDolshoeSink({
+    dolshoe: {
+      captureException: () => undefined,
+      captureMessage: () => undefined,
+      captureLog: (...args) => {
+        calls.push(args);
+        return "event-id";
+      },
+      flush: async () => true,
+      close: async () => true,
+    },
+  });
+
+  sink(record({ level: "info" }));
+  assert.deepEqual(calls, [
+    [
+      "info",
+      "Order order-123 failed",
+      {
+        occurredAt: Date.parse("2026-07-24T08:30:00.000Z"),
+        category: ["checkout", "orders"],
+        attributes: {
+          orderId: "order-123",
+          error: record().properties.error,
+        },
+      },
+    ],
+  ]);
+});
+
+test("drops a record when beforeSend returns null", () => {
   let called = false;
   const sink = getDolshoeSink({
     dolshoe: {
@@ -80,11 +112,17 @@ test("ignores records below the error level", () => {
         called = true;
         return undefined;
       },
+      captureLog: () => {
+        called = true;
+        return undefined;
+      },
       flush: async () => true,
       close: async () => true,
     },
+    beforeSend: () => null,
   });
 
-  sink(record({ level: "info" }));
+  sink(record());
+
   assert.equal(called, false);
 });
