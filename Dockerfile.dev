@@ -1,0 +1,39 @@
+# Development-only image for the Nest API and Vite web workspaces.
+# Not intended for production use. Application source is expected to be
+# bind-mounted over /app at runtime (see the DEV-02 Compose service graph);
+# this build stage exists so `docker build` alone also produces a runnable
+# image.
+FROM node:24.18.0-slim
+
+ENV PNPM_HOME=/pnpm
+ENV PATH="$PNPM_HOME:$PATH"
+
+# openssl is required by Prisma's engine postinstall/CLI (migrate, etc.);
+# without it Prisma falls back to guessing the libssl version. procps
+# provides `ps`, which @nestjs/cli's watch mode shells out to (via the
+# tree-kill package) to kill the previous child on rebuild; without it the
+# old process is never killed and every rebuild after the first fails with
+# EADDRINUSE.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl procps \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable && corepack prepare pnpm@11.17.0 --activate
+
+WORKDIR /app
+
+COPY . .
+
+RUN pnpm install --frozen-lockfile
+
+# Docker Desktop's virtualized filesystem (osxfs/virtiofs, WSL2 9p) does not
+# reliably deliver fs-change events for bind-mounted host edits, so both
+# watchers fall back to polling here. This is scoped to the container only:
+# tsconfig.json and vite.config.ts keep event-based watching as the default
+# for native/CI dev, and only switch to polling when these are set.
+ENV TSC_WATCHFILE=PriorityPollingInterval
+ENV TSC_WATCHDIRECTORY=DynamicPriorityPolling
+ENV VITE_WATCH_USE_POLLING=true
+
+EXPOSE 3000
+
+CMD ["pnpm", "--filter", "@dolshoe/api", "dev"]
