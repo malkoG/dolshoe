@@ -1,15 +1,17 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
+  ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 
 import { IngestAuthGuard } from "../ingestion/ingest-auth.guard";
 import {
+  ErrorReportListResponse,
   ErrorReportReceipt,
   ErrorReportRequest,
   errorReportRequestSchema,
@@ -19,12 +21,25 @@ import { ErrorReportService } from "./error-report.service";
 import { ZodValidationPipe } from "./zod-validation.pipe";
 
 @ApiTags("Error reporting")
-@ApiBearerAuth("ingest-token")
-@ApiUnauthorizedResponse({ description: "The ingestion bearer token is missing or invalid." })
-@UseGuards(IngestAuthGuard)
 @Controller({ path: "error-reports", version: "1" })
 export class ErrorReportController {
   constructor(private readonly errorReportService: ErrorReportService) {}
+
+  /**
+   * List the most recently received error reports for the web inbox.
+   *
+   * @remarks
+   * Returns newest-first summaries bounded to the documented limit. Unauthenticated: no
+   * viewer-auth system exists yet, so this read endpoint is not gated by the ingestion guard.
+   */
+  @Get()
+  @ApiOkResponse({
+    description: "Newest-first error report summaries, bounded to the documented limit.",
+    schema: { $ref: "#/components/schemas/ErrorReportListResponseV1" },
+  })
+  list(): Promise<ErrorReportListResponse> {
+    return this.errorReportService.list();
+  }
 
   /**
    * Receive a normalized error report.
@@ -36,6 +51,9 @@ export class ErrorReportController {
    * @returns The server identifier and the timestamp at which the event was first received.
    */
   @Post()
+  @ApiBearerAuth("ingest-token")
+  @ApiUnauthorizedResponse({ description: "The ingestion bearer token is missing or invalid." })
+  @UseGuards(IngestAuthGuard)
   @ApiBody({
     schema: { $ref: "#/components/schemas/ErrorReportRequestV1" },
     examples: {

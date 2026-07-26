@@ -2,7 +2,13 @@ import { Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../database/prisma.service";
 import { Prisma } from "../generated/prisma/client";
-import { ErrorReportReceipt, ErrorReportRequest } from "./error-report.contract";
+import {
+  ERROR_REPORT_LIST_LIMIT,
+  ErrorReportListResponse,
+  ErrorReportReceipt,
+  ErrorReportRequest,
+} from "./error-report.contract";
+import { summarizeException } from "./summarize-exception";
 
 function asPrismaJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
@@ -45,6 +51,44 @@ export class ErrorReportService {
     return {
       id: stored.id,
       receivedAt: stored.receivedAt.toISOString(),
+    };
+  }
+
+  async list(): Promise<ErrorReportListResponse> {
+    const rows = await this.database.errorReport.findMany({
+      orderBy: { receivedAt: "desc" },
+      take: ERROR_REPORT_LIST_LIMIT,
+      select: {
+        id: true,
+        eventId: true,
+        occurredAt: true,
+        receivedAt: true,
+        serviceName: true,
+        environment: true,
+        release: true,
+        runtimeName: true,
+        runtimeVersion: true,
+        exception: true,
+      },
+    });
+
+    return {
+      reports: rows.map((row) => ({
+        id: row.id,
+        eventId: row.eventId,
+        occurredAt: row.occurredAt.toISOString(),
+        receivedAt: row.receivedAt.toISOString(),
+        service: {
+          name: row.serviceName,
+          environment: row.environment ?? undefined,
+          release: row.release ?? undefined,
+        },
+        runtime: {
+          name: row.runtimeName,
+          version: row.runtimeVersion ?? undefined,
+        },
+        exception: summarizeException(row.exception),
+      })),
     };
   }
 }
