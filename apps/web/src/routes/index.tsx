@@ -47,7 +47,9 @@ function fileBaseName(fileName: string): string {
   return segments[segments.length - 1] ?? fileName;
 }
 
-function formatSourceLocation(source: ErrorReportSummary["exception"]["source"]): string | undefined {
+function formatSourceLocation(
+  source: ErrorReportSummary["exception"]["source"],
+): string | undefined {
   if (!source) return undefined;
 
   const place = source.fileName
@@ -111,6 +113,7 @@ function Home() {
     fetchErrorReports({ signal: controller.signal })
       .then((reports) => {
         if (!cancelled) setState({ status: "ready", reports });
+        return;
       })
       .catch((error: unknown) => {
         if (!cancelled) setState({ status: "error", error });
@@ -129,6 +132,7 @@ function Home() {
     for (const report of reports) {
       if (report.service.environment) values.add(report.service.environment);
     }
+    // oxlint-disable-next-line unicorn/no-array-sort -- freshly created array, not a shared reference
     return Array.from(values).sort();
   }, [reports]);
 
@@ -160,8 +164,9 @@ function Home() {
     return {
       total: reports.length,
       services: new Set(reports.map((report) => report.service.name)).size,
-      occurredToday: reports.filter((report) => new Date(report.occurredAt).toDateString() === today)
-        .length,
+      occurredToday: reports.filter(
+        (report) => new Date(report.occurredAt).toDateString() === today,
+      ).length,
     };
   }, [state.status, reports]);
 

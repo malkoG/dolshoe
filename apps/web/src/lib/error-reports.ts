@@ -61,9 +61,9 @@ export class ErrorReportsFetchError extends Error {
  * Fetches the newest-first error report list from the API and validates it against the
  * web-owned mirror of the API-01 response contract before returning typed values.
  */
-export async function fetchErrorReports(init?: { signal?: AbortSignal }): Promise<
-  ErrorReportSummary[]
-> {
+export async function fetchErrorReports(init?: {
+  signal?: AbortSignal;
+}): Promise<ErrorReportSummary[]> {
   let response: Response;
   try {
     response = await fetch(ERROR_REPORTS_URL, { signal: init?.signal });

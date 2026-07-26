@@ -327,7 +327,9 @@ export const errorReportExceptionSummarySchema = z
 export const errorReportSummarySchema = z
   .object({
     id: z.uuid().meta({ description: "Server-assigned error report identifier." }),
-    eventId: z.uuid().meta({ description: "Client-generated idempotency key the reporter supplied." }),
+    eventId: z
+      .uuid()
+      .meta({ description: "Client-generated idempotency key the reporter supplied." }),
     occurredAt: z.iso
       .datetime()
       .meta({ description: "UTC timestamp at which the failure occurred." }),
@@ -346,9 +348,12 @@ export const errorReportSummarySchema = z
 
 export const errorReportListResponseSchema = z
   .object({
-    reports: z.array(errorReportSummarySchema).max(ERROR_REPORT_LIST_LIMIT).meta({
-      description: `Newest-first error report summaries, bounded to ${ERROR_REPORT_LIST_LIMIT} entries.`,
-    }),
+    reports: z
+      .array(errorReportSummarySchema)
+      .max(ERROR_REPORT_LIST_LIMIT)
+      .meta({
+        description: `Newest-first error report summaries, bounded to ${ERROR_REPORT_LIST_LIMIT} entries.`,
+      }),
   })
   .strict()
   .register(contractRegistry, {

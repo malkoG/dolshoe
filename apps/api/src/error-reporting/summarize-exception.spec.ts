@@ -6,13 +6,23 @@ describe("summarizeException", () => {
       summarizeException({
         type: "TypeError",
         message: "Cannot read properties of undefined",
-        source: { fileName: "order.ts", lineNumber: 42, columnNumber: 18, functionName: "submitOrder" },
+        source: {
+          fileName: "order.ts",
+          lineNumber: 42,
+          columnNumber: 18,
+          functionName: "submitOrder",
+        },
         frames: [{ fileName: "should-be-ignored.ts", lineNumber: 1 }],
       }),
     ).toEqual({
       type: "TypeError",
       message: "Cannot read properties of undefined",
-      source: { fileName: "order.ts", lineNumber: 42, columnNumber: 18, functionName: "submitOrder" },
+      source: {
+        fileName: "order.ts",
+        lineNumber: 42,
+        columnNumber: 18,
+        functionName: "submitOrder",
+      },
     });
   });
 
@@ -46,10 +56,26 @@ describe("summarizeException", () => {
   });
 
   it("returns an empty summary for non-object exception JSON without throwing", () => {
-    expect(summarizeException(null)).toEqual({ type: undefined, message: undefined, source: undefined });
-    expect(summarizeException("boom")).toEqual({ type: undefined, message: undefined, source: undefined });
-    expect(summarizeException(undefined)).toEqual({ type: undefined, message: undefined, source: undefined });
-    expect(summarizeException([1, 2, 3])).toEqual({ type: undefined, message: undefined, source: undefined });
+    expect(summarizeException(null)).toEqual({
+      type: undefined,
+      message: undefined,
+      source: undefined,
+    });
+    expect(summarizeException("boom")).toEqual({
+      type: undefined,
+      message: undefined,
+      source: undefined,
+    });
+    expect(summarizeException(undefined)).toEqual({
+      type: undefined,
+      message: undefined,
+      source: undefined,
+    });
+    expect(summarizeException([1, 2, 3])).toEqual({
+      type: undefined,
+      message: undefined,
+      source: undefined,
+    });
   });
 
   it("ignores malformed field types and out-of-range numbers", () => {
