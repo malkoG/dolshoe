@@ -300,8 +300,73 @@ export const errorReportReceiptSchema = z
     description: "Idempotent ingestion receipt.",
   });
 
+export const ERROR_REPORT_LIST_LIMIT = 50;
+
+export const errorReportExceptionSummarySchema = z
+  .object({
+    type: nonEmptyText(512)
+      .optional()
+      .meta({ description: "Runtime exception class or constructor name, when present." }),
+    message: z
+      .string()
+      .max(16_384)
+      .optional()
+      .meta({ description: "Human-readable exception message, when present." }),
+    source: sourceLocationSchema.optional().meta({
+      description:
+        "Best-effort source location: the exception's own location, or its first stack frame.",
+    }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "ErrorReportExceptionSummaryV1",
+    description:
+      "Summary of a stored exception's type, message, and location, derived defensively from persisted JSON.",
+  });
+
+export const errorReportSummarySchema = z
+  .object({
+    id: z.uuid().meta({ description: "Server-assigned error report identifier." }),
+    eventId: z
+      .uuid()
+      .meta({ description: "Client-generated idempotency key the reporter supplied." }),
+    occurredAt: z.iso
+      .datetime()
+      .meta({ description: "UTC timestamp at which the failure occurred." }),
+    receivedAt: z.iso.datetime().meta({
+      description: "UTC timestamp at which the server first accepted the event.",
+    }),
+    service: serviceSchema.meta({ description: "Service that reported the failure." }),
+    runtime: runtimeSchema.meta({ description: "Runtime that reported the failure." }),
+    exception: errorReportExceptionSummarySchema,
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "ErrorReportSummaryV1",
+    description: "Newest-first summary of a persisted error report for the web inbox.",
+  });
+
+export const errorReportListResponseSchema = z
+  .object({
+    reports: z
+      .array(errorReportSummarySchema)
+      .max(ERROR_REPORT_LIST_LIMIT)
+      .meta({
+        description: `Newest-first error report summaries, bounded to ${ERROR_REPORT_LIST_LIMIT} entries.`,
+      }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "ErrorReportListResponseV1",
+    description: "Bounded, newest-first list of persisted error report summaries.",
+  });
+
 export type ErrorReportRequest = z.infer<typeof errorReportRequestSchema>;
 export type ErrorReportReceipt = z.infer<typeof errorReportReceiptSchema>;
+export type SourceLocation = z.infer<typeof sourceLocationSchema>;
+export type ErrorReportExceptionSummary = z.infer<typeof errorReportExceptionSummarySchema>;
+export type ErrorReportSummary = z.infer<typeof errorReportSummarySchema>;
+export type ErrorReportListResponse = z.infer<typeof errorReportListResponseSchema>;
 
 function adaptJsonSchemaToOpenApi(value: unknown): unknown {
   if (Array.isArray(value)) {

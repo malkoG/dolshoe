@@ -1,145 +1,140 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Activity,
+  AlertTriangle,
   Bell,
   Boxes,
   ChevronDown,
-  ChevronRight,
   CircleAlert,
   Clock3,
   Command,
+  Inbox,
   LifeBuoy,
+  Loader2,
+  RefreshCw,
   Search,
-  SlidersHorizontal,
   Sparkles,
+  SlidersHorizontal,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { ErrorReportsFetchError, fetchErrorReports } from "../lib/error-reports";
+import type { ErrorReportSummary } from "../lib/error-reports";
 
 export const Route = createFileRoute("/")({ component: Home });
 
-type ReportStatus = "new" | "ongoing" | "resolved";
-type FilterStatus = "all" | ReportStatus;
+type LoadState =
+  | { status: "loading" }
+  | { status: "error"; error: unknown }
+  | { status: "ready"; reports: ErrorReportSummary[] };
 
-type ErrorReport = {
-  id: string;
-  status: ReportStatus;
-  exceptionType: string;
-  message: string;
-  service: string;
-  environment: "production" | "staging";
-  runtime: string;
-  location: string;
-  occurredAt: string;
-  relativeTime: string;
-  occurrences: number;
+const RUNTIME_DISPLAY_NAMES: Record<string, string> = {
+  node: "Node",
+  cpython: "Python",
+  python: "Python",
+  deno: "Deno",
+  bun: "Bun",
 };
 
-const reports: ErrorReport[] = [
-  {
-    id: "DSH-1842",
-    status: "new",
-    exceptionType: "TypeError",
-    message: "Cannot read properties of undefined (reading 'items')",
-    service: "checkout-api",
-    environment: "production",
-    runtime: "Node 24.4",
-    location: "submitOrder · order.ts:42",
-    occurredAt: "2026-07-25T09:42:00+09:00",
-    relativeTime: "2 min ago",
-    occurrences: 48,
-  },
-  {
-    id: "DSH-1841",
-    status: "ongoing",
-    exceptionType: "TimeoutError",
-    message: "Payment provider did not respond within 10s",
-    service: "billing-worker",
-    environment: "production",
-    runtime: "Python 3.14",
-    location: "settle_invoice · settle.py:73",
-    occurredAt: "2026-07-25T09:37:00+09:00",
-    relativeTime: "7 min ago",
-    occurrences: 326,
-  },
-  {
-    id: "DSH-1839",
-    status: "ongoing",
-    exceptionType: "PostgresError",
-    message: "Deadlock detected while updating inventory",
-    service: "inventory-api",
-    environment: "production",
-    runtime: "Node 24.4",
-    location: "reserveStock · inventory.ts:118",
-    occurredAt: "2026-07-25T09:26:00+09:00",
-    relativeTime: "18 min ago",
-    occurrences: 17,
-  },
-  {
-    id: "DSH-1838",
-    status: "new",
-    exceptionType: "ConnectionResetError",
-    message: "Socket closed before TLS handshake completed",
-    service: "webhook-gateway",
-    environment: "staging",
-    runtime: "Deno 2.4",
-    location: "deliverWebhook · delivery.ts:91",
-    occurredAt: "2026-07-25T09:13:00+09:00",
-    relativeTime: "31 min ago",
-    occurrences: 4,
-  },
-  {
-    id: "DSH-1835",
-    status: "resolved",
-    exceptionType: "ValidationError",
-    message: "Currency code must be a valid ISO 4217 value",
-    service: "checkout-api",
-    environment: "production",
-    runtime: "Node 24.4",
-    location: "validateCart · validation.ts:29",
-    occurredAt: "2026-07-25T08:28:00+09:00",
-    relativeTime: "1 hr ago",
-    occurrences: 82,
-  },
-  {
-    id: "DSH-1833",
-    status: "ongoing",
-    exceptionType: "MemoryError",
-    message: "Worker exceeded the 512 MB memory limit",
-    service: "billing-worker",
-    environment: "production",
-    runtime: "Python 3.14",
-    location: "render_statement · statement.py:204",
-    occurredAt: "2026-07-25T07:51:00+09:00",
-    relativeTime: "2 hr ago",
-    occurrences: 9,
-  },
-  {
-    id: "DSH-1828",
-    status: "resolved",
-    exceptionType: "AbortError",
-    message: "Request was aborted while fetching tax rates",
-    service: "checkout-api",
-    environment: "staging",
-    runtime: "Bun 1.3",
-    location: "getTaxRate · tax.ts:64",
-    occurredAt: "2026-07-25T06:44:00+09:00",
-    relativeTime: "3 hr ago",
-    occurrences: 12,
-  },
+function formatRuntimeLabel(runtime: ErrorReportSummary["runtime"]): string {
+  const family = RUNTIME_DISPLAY_NAMES[runtime.name.toLowerCase()] ?? runtime.name;
+  return runtime.version ? `${family} ${runtime.version}` : family;
+}
+
+function fileBaseName(fileName: string): string {
+  const segments = fileName.split(/[/\\]/).filter(Boolean);
+  return segments[segments.length - 1] ?? fileName;
+}
+
+function formatSourceLocation(
+  source: ErrorReportSummary["exception"]["source"],
+): string | undefined {
+  if (!source) return undefined;
+
+  const place = source.fileName
+    ? source.lineNumber !== undefined
+      ? `${fileBaseName(source.fileName)}:${source.lineNumber}`
+      : fileBaseName(source.fileName)
+    : undefined;
+
+  if (source.functionName && place) return `${source.functionName} · ${place}`;
+  return source.functionName ?? place;
+}
+
+const relativeTimeFormatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+const RELATIVE_TIME_DIVISIONS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+  ["second", 60],
+  ["minute", 60],
+  ["hour", 24],
+  ["day", 30],
+  ["month", 12],
+  ["year", Number.POSITIVE_INFINITY],
 ];
 
-const statusOptions: Array<{ label: string; value: FilterStatus }> = [
-  { label: "All reports", value: "all" },
-  { label: "New", value: "new" },
-  { label: "Ongoing", value: "ongoing" },
-  { label: "Resolved", value: "resolved" },
-];
+function formatRelativeTime(isoTimestamp: string): string {
+  let duration = (new Date(isoTimestamp).getTime() - Date.now()) / 1000;
+
+  for (const [unit, amount] of RELATIVE_TIME_DIVISIONS) {
+    if (Math.abs(duration) < amount) {
+      return relativeTimeFormatter.format(Math.round(duration), unit);
+    }
+    duration /= amount;
+  }
+
+  return relativeTimeFormatter.format(Math.round(duration), "year");
+}
+
+function formatShortId(id: string): string {
+  return id.slice(0, 8);
+}
+
+function pluralizeReports(count: number): string {
+  return `${count} ${count === 1 ? "report" : "reports"}`;
+}
+
+function describeLoadError(error: unknown): string {
+  if (error instanceof ErrorReportsFetchError) return error.message;
+  if (error instanceof Error) return error.message;
+  return "Something went wrong while loading error reports.";
+}
 
 function Home() {
+  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [reloadToken, setReloadToken] = useState(0);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<FilterStatus>("all");
   const [environment, setEnvironment] = useState("all");
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    setState({ status: "loading" });
+
+    fetchErrorReports({ signal: controller.signal })
+      .then((reports) => {
+        if (!cancelled) setState({ status: "ready", reports });
+        return;
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setState({ status: "error", error });
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [reloadToken]);
+
+  const reports = state.status === "ready" ? state.reports : [];
+
+  const environmentOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const report of reports) {
+      if (report.service.environment) values.add(report.service.environment);
+    }
+    // oxlint-disable-next-line unicorn/no-array-sort -- freshly created array, not a shared reference
+    return Array.from(values).sort();
+  }, [reports]);
 
   const filteredReports = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -147,22 +142,43 @@ function Home() {
     return reports.filter((report) => {
       const matchesQuery =
         normalizedQuery.length === 0 ||
-        [report.exceptionType, report.message, report.service, report.location, report.id].some(
-          (value) => value.toLowerCase().includes(normalizedQuery),
-        );
-      const matchesStatus = status === "all" || report.status === status;
-      const matchesEnvironment = environment === "all" || report.environment === environment;
+        [
+          report.exception.type,
+          report.exception.message,
+          report.service.name,
+          formatSourceLocation(report.exception.source),
+        ]
+          .filter((value): value is string => Boolean(value))
+          .some((value) => value.toLowerCase().includes(normalizedQuery));
+      const matchesEnvironment =
+        environment === "all" || report.service.environment === environment;
 
-      return matchesQuery && matchesStatus && matchesEnvironment;
+      return matchesQuery && matchesEnvironment;
     });
-  }, [environment, query, status]);
+  }, [reports, query, environment]);
 
-  const hasActiveFilters = query.length > 0 || status !== "all" || environment !== "all";
+  const metrics = useMemo(() => {
+    if (state.status !== "ready") return null;
+
+    const today = new Date().toDateString();
+    return {
+      total: reports.length,
+      services: new Set(reports.map((report) => report.service.name)).size,
+      occurredToday: reports.filter(
+        (report) => new Date(report.occurredAt).toDateString() === today,
+      ).length,
+    };
+  }, [state.status, reports]);
+
+  const hasActiveFilters = query.length > 0 || environment !== "all";
 
   function resetFilters() {
     setQuery("");
-    setStatus("all");
     setEnvironment("all");
+  }
+
+  function retry() {
+    setReloadToken((token) => token + 1);
   }
 
   return (
@@ -212,8 +228,8 @@ function Home() {
         <section className="page-heading">
           <div>
             <div className="eyebrow">
-              <span className="live-dot" />
-              Live error stream
+              <span className="live-dot" aria-hidden="true" />
+              Newest reports first
             </div>
             <h1>Error reports</h1>
             <p>Investigate failures across every service from one focused inbox.</p>
@@ -224,66 +240,43 @@ function Home() {
           </button>
         </section>
 
-        <section className="metrics" aria-label="Error report summary">
-          <article className="metric metric-critical">
-            <div className="metric-label">
-              Open issues
-              <CircleAlert size={15} />
-            </div>
-            <div className="metric-value-row">
-              <strong>28</strong>
-              <span className="metric-trend metric-trend-bad">+6 today</span>
-            </div>
-          </article>
-          <article className="metric">
-            <div className="metric-label">
-              Events today
-              <Sparkles size={15} />
-            </div>
-            <div className="metric-value-row">
-              <strong>1,284</strong>
-              <span className="metric-trend">12.4% vs. yesterday</span>
-            </div>
-          </article>
-          <article className="metric">
-            <div className="metric-label">
-              Unhandled
-              <Activity size={15} />
-            </div>
-            <div className="metric-value-row">
-              <strong>91.8%</strong>
-              <span className="metric-trend">1,179 events</span>
-            </div>
-          </article>
-          <article className="metric">
-            <div className="metric-label">
-              Affected services
-              <Boxes size={15} />
-            </div>
-            <div className="metric-value-row">
-              <strong>4</strong>
-              <span className="metric-trend">of 7 monitored</span>
-            </div>
-          </article>
-        </section>
+        {metrics && (
+          <section className="metrics" aria-label="Error report summary">
+            <article className="metric metric-critical">
+              <div className="metric-label">
+                Reports loaded
+                <CircleAlert size={15} />
+              </div>
+              <div className="metric-value-row">
+                <strong>{metrics.total.toLocaleString()}</strong>
+              </div>
+            </article>
+            <article className="metric">
+              <div className="metric-label">
+                Events today
+                <Sparkles size={15} />
+              </div>
+              <div className="metric-value-row">
+                <strong>{metrics.occurredToday.toLocaleString()}</strong>
+              </div>
+            </article>
+            <article className="metric">
+              <div className="metric-label">
+                Affected services
+                <Boxes size={15} />
+              </div>
+              <div className="metric-value-row">
+                <strong>{metrics.services.toLocaleString()}</strong>
+              </div>
+            </article>
+          </section>
+        )}
 
         <section className="report-panel">
           <div className="filter-bar">
-            <div className="status-tabs" aria-label="Filter reports by status">
-              {statusOptions.map((option) => (
-                <button
-                  className={
-                    status === option.value ? "status-tab status-tab-active" : "status-tab"
-                  }
-                  key={option.value}
-                  onClick={() => setStatus(option.value)}
-                  type="button"
-                >
-                  {option.label}
-                  {option.value === "new" && <span className="new-count">2</span>}
-                </button>
-              ))}
-            </div>
+            <span className="filter-summary">
+              {state.status === "ready" ? pluralizeReports(filteredReports.length) : "Reports"}
+            </span>
 
             <div className="filter-controls">
               <label className="search-field">
@@ -315,69 +308,64 @@ function Home() {
                   value={environment}
                 >
                   <option value="all">All environments</option>
-                  <option value="production">Production</option>
-                  <option value="staging">Staging</option>
+                  {environmentOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown className="select-chevron" size={14} />
               </label>
             </div>
           </div>
 
-          <div className="list-header" aria-hidden="true">
-            <span>Issue</span>
-            <span>Service</span>
-            <span>Last seen</span>
-            <span>Events</span>
-            <span />
-          </div>
+          {state.status === "ready" && reports.length > 0 && (
+            <div className="list-header" aria-hidden="true">
+              <span>Issue</span>
+              <span>Service</span>
+              <span>Occurred</span>
+              <span>Report</span>
+            </div>
+          )}
 
           <div className="report-list" aria-live="polite">
-            {filteredReports.map((report) => (
-              <a className="report-row" href={`#${report.id}`} key={report.id}>
-                <div className="issue-cell">
-                  <span className={`status-indicator status-${report.status}`} />
-                  <div className="issue-copy">
-                    <div className="issue-title-line">
-                      <strong>{report.exceptionType}</strong>
-                      <span className={`status-chip status-chip-${report.status}`}>
-                        {report.status}
-                      </span>
-                    </div>
-                    <p>{report.message}</p>
-                    <span className="issue-location">{report.location}</span>
-                  </div>
-                </div>
+            {state.status === "loading" && (
+              <div className="state-panel state-panel-loading" role="status">
+                <span className="state-icon">
+                  <Loader2 className="spin" size={19} />
+                </span>
+                <strong>Loading error reports…</strong>
+                <p>Fetching the newest events from the API.</p>
+              </div>
+            )}
 
-                <div className="service-cell">
-                  <strong>{report.service}</strong>
-                  <div>
-                    <span
-                      className={`environment-dot environment-${report.environment}`}
-                      aria-hidden="true"
-                    />
-                    {report.environment}
-                    <span className="meta-separator">·</span>
-                    {report.runtime}
-                  </div>
-                </div>
+            {state.status === "error" && (
+              <div className="state-panel state-panel-error" role="alert">
+                <span className="state-icon">
+                  <AlertTriangle size={19} />
+                </span>
+                <strong>Couldn't load error reports</strong>
+                <p>{describeLoadError(state.error)}</p>
+                <button onClick={retry} type="button">
+                  <RefreshCw size={13} />
+                  Try again
+                </button>
+              </div>
+            )}
 
-                <div className="time-cell">
-                  <Clock3 size={14} />
-                  <time dateTime={report.occurredAt}>{report.relativeTime}</time>
-                </div>
+            {state.status === "ready" && reports.length === 0 && (
+              <div className="state-panel">
+                <span className="state-icon">
+                  <Inbox size={19} />
+                </span>
+                <strong>No error reports yet</strong>
+                <p>Once a connected service reports a failure, it will show up here.</p>
+              </div>
+            )}
 
-                <div className="events-cell">
-                  <strong>{report.occurrences.toLocaleString()}</strong>
-                  <span>{report.id}</span>
-                </div>
-
-                <ChevronRight className="row-arrow" size={18} />
-              </a>
-            ))}
-
-            {filteredReports.length === 0 && (
-              <div className="empty-state">
-                <span className="empty-icon">
+            {state.status === "ready" && reports.length > 0 && filteredReports.length === 0 && (
+              <div className="state-panel">
+                <span className="state-icon">
                   <Search size={19} />
                 </span>
                 <strong>No matching reports</strong>
@@ -389,17 +377,61 @@ function Home() {
                 )}
               </div>
             )}
+
+            {state.status === "ready" &&
+              filteredReports.map((report) => {
+                const sourceLabel = formatSourceLocation(report.exception.source);
+
+                return (
+                  <div className="report-row" key={report.id}>
+                    <div className="issue-copy">
+                      <div className="issue-title-line">
+                        <strong>{report.exception.type ?? "Unknown exception"}</strong>
+                      </div>
+                      {report.exception.message && <p>{report.exception.message}</p>}
+                      {sourceLabel && (
+                        <span className="issue-location" title={report.exception.source?.fileName}>
+                          {sourceLabel}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="service-cell">
+                      <strong>{report.service.name}</strong>
+                      <div>
+                        <span
+                          className={`environment-dot environment-${report.service.environment ?? "unspecified"}`}
+                          aria-hidden="true"
+                        />
+                        {report.service.environment ?? "Unspecified environment"}
+                        <span className="meta-separator">·</span>
+                        {formatRuntimeLabel(report.runtime)}
+                      </div>
+                    </div>
+
+                    <div className="time-cell">
+                      <Clock3 size={14} />
+                      <time dateTime={report.occurredAt} title={report.occurredAt}>
+                        {formatRelativeTime(report.occurredAt)}
+                      </time>
+                    </div>
+
+                    <div className="report-id-cell">
+                      <span title={report.id}>#{formatShortId(report.id)}</span>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
 
-          <footer className="panel-footer">
-            <span>
-              Showing <strong>{filteredReports.length}</strong> of {reports.length} reports
-            </span>
-            <div className="sync-status">
-              <span />
-              Updated just now
-            </div>
-          </footer>
+          {state.status === "ready" && (
+            <footer className="panel-footer">
+              <span>
+                Showing <strong>{filteredReports.length}</strong> of {reports.length} reports
+              </span>
+              <span className="panel-footer-note">Sorted newest first</span>
+            </footer>
+          )}
         </section>
       </main>
     </div>
