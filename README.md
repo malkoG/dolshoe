@@ -22,15 +22,29 @@ Prisma CLI is required.
 mise install
 cp .env.example .env
 pnpm install
-pnpm docker:up
-pnpm db:migrate
-pnpm dev
+docker compose up
 ```
 
-The API is available at `http://localhost:3000`. Verify it with:
+`docker compose up` is the primary way to run the full stack: it starts
+PostgreSQL, applies pending migrations, and runs the API and web dev servers
+with hot reload. `pnpm install` is only for host-side tooling (linting, type
+checking, host-run tests); each app installs its own dependencies inside its
+container image.
+
+PostgreSQL and the API are intentionally kept off the host network. Browser
+traffic reaches the API through the web dev server's proxy, so only `web` is
+published — on a loopback-only, Docker-assigned port by default, to avoid
+colliding with other projects. Look it up once containers are up:
 
 ```sh
-curl http://localhost:3000/api/v1/health
+docker compose port web 5173
+```
+
+Open `http://localhost:<port>` in a browser, and verify the API through the
+same origin:
+
+```sh
+curl http://localhost:<port>/api/v1/health
 ```
 
 Expected response:
@@ -43,13 +57,57 @@ Expected response:
 }
 ```
 
-Stop the development database with:
+To use a stable, predictable port instead of the Docker-assigned one, set
+`DOLSHOE_WEB_PORT` (uncomment it in `.env`, or pass it inline):
 
 ```sh
-pnpm docker:down
+DOLSHOE_WEB_PORT=5173 docker compose up
 ```
 
-The named development volume is kept when the container stops.
+If that port is already taken by another process, Compose fails immediately
+with a clear "address already in use" error rather than silently falling back
+to a different port — pick another value and retry.
+
+### Rebuilds, logs, and shutdown
+
+Rebuild the dev image after changing `Dockerfile.dev`, the pnpm lockfile, or a
+workspace `package.json`:
+
+```sh
+docker compose up --build
+```
+
+Editing files under `apps/api/src` or `apps/web/src` does not need a rebuild:
+both are bind-mounted into their containers, so the API watcher restarts and
+Vite's HMR updates the browser directly.
+
+Follow a single service's logs:
+
+```sh
+docker compose logs -f api
+docker compose logs -f web
+```
+
+Stop the stack while keeping its data:
+
+```sh
+docker compose down
+```
+
+This removes the containers but keeps the named volumes (`postgres-data`,
+`api-node-modules`, `web-node-modules`), so the database and installed
+dependencies survive the next `docker compose up`. Only add `-v` when you
+intentionally want to discard that data.
+
+### Running multiple checkouts at once
+
+Compose derives its project name from the current directory by default, so
+running `docker compose up` from separate clones or worktrees — each in its
+own directory — gets its own isolated networks, volumes, and containers with
+no extra configuration, and stacks can run concurrently without port,
+network, or volume collisions. To pin an explicit, shared name instead (for
+example, if two checkouts happen to share a directory name), set
+`COMPOSE_PROJECT_NAME` or pass `-p <name>` to `docker compose`.
 
 ## Workspace
 
@@ -201,8 +259,10 @@ handlers must remain idempotent. The contract lives in
 
 ## Database workflow
 
-PostgreSQL is the only supported database. The default development database
-runs on port `5432`; the isolated test database runs on port `5433`.
+PostgreSQL is the only supported database. The development database is
+reachable only from other containers on the Compose network, at
+`postgres:5432`; the isolated test database is published to the host at
+`localhost:5433` for local tooling.
 
 After changing `apps/api/prisma/schema.prisma`, create and apply a migration:
 
