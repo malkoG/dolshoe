@@ -1,5 +1,12 @@
 # Dolshoe
 
+<p align="center">
+  <img src="./apps/web/public/dolshoe-mascot.png" alt="Dolshoe mascot holding an error alert" width="320">
+</p>
+
+Dolshoe takes its name from “돌쇠,” reimagined here as a dependable helper who
+catches software errors and carries the load.
+
 Dolshoe is a simple, self-hosted error reporting and stack tracing service.
 It favors a small implementation and an easy deployment story over external
 search engines or a large infrastructure footprint.
