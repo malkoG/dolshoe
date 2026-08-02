@@ -185,9 +185,7 @@ function Home() {
     <div className="app-shell">
       <header className="topbar">
         <a className="brand" href="/" aria-label="Dolshoe home">
-          <span className="brand-mark" aria-hidden="true">
-            D
-          </span>
+          <img className="brand-mark" src="/dolshoe-mark-reversed.svg" alt="" />
           <span>dolshoe</span>
         </a>
 

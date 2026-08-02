@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 410 96" role="img" aria-labelledby="title desc">
+  <title id="title">Dolshoe</title>
+  <desc id="desc">Dolshoe logo: a rounded frame catches a coral error signal beside the product name.</desc>
+  <g transform="translate(8 16)">
+    <path fill="#171719" d="M18 6h30c5.5 0 10 4.5 10 10v6H22v4H8V16C8 10.5 12.5 6 18 6Z"/>
+    <path fill="#171719" d="M8 30h15l6.5 8h9L45 30h13v18c0 5.5-4.5 10-10 10H18C12.5 58 8 53.5 8 48V30Z"/>
+    <circle cx="34" cy="31" r="4.5" fill="#ff4d59"/>
+  </g>
+  <text x="88" y="67" fill="#171719" font-family="Manrope, Avenir Next, Avenir, Arial, sans-serif" font-size="54" font-weight="700" letter-spacing="-2.25">dolshoe</text>
+</svg>

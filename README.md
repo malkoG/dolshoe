@@ -1,7 +1,7 @@
 # Dolshoe
 
 <p align="center">
-  <img src="./apps/web/public/dolshoe-mascot.png" alt="Dolshoe mascot holding an error alert" width="320">
+  <img src="./apps/web/public/dolshoe-logo.svg" alt="Dolshoe" width="360">
 </p>
 
 Dolshoe takes its name from “돌쇠,” reimagined here as a dependable helper who
