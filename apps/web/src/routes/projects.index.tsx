@@ -3,6 +3,7 @@ import { AlertTriangle, Boxes, ChevronRight, Loader2, Plus, RefreshCw } from "lu
 import { useEffect, useState } from "react";
 
 import { PageShell } from "../components/page-shell";
+import { dateFormatter } from "../lib/format";
 import { ProjectsFetchError, createProject, fetchProjects } from "../lib/projects";
 import type { Project } from "../lib/projects";
 
@@ -12,8 +13,6 @@ type LoadState =
   | { status: "loading" }
   | { status: "error"; error: unknown }
   | { status: "ready"; projects: Project[] };
-
-const dateFormatter = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
 
 function describeError(error: unknown): string {
   if (error instanceof ProjectsFetchError) return error.message;
@@ -74,7 +73,7 @@ function Projects() {
   const projects = state.status === "ready" ? state.projects : [];
 
   return (
-    <PageShell active="projects">
+    <PageShell projects={projects}>
       <section className="page-heading">
         <div>
           <div className="eyebrow">
@@ -161,7 +160,7 @@ function Projects() {
                 className="project-row"
                 key={project.id}
                 params={{ projectId: project.id }}
-                to="/projects/$projectId"
+                to="/projects/$projectId/reports"
               >
                 <div>
                   <strong>{project.name}</strong>

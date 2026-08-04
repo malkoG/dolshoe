@@ -1,50 +1,64 @@
-import { Link } from "@tanstack/react-router";
-import { Activity, Bell, Boxes, CircleAlert, Command } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Bell, Boxes, ChevronDown, Command } from "lucide-react";
 import type { ReactNode } from "react";
 
-type NavSection = "reports" | "projects";
-
-function navLinkClass(section: NavSection, active: NavSection): string {
-  return section === active ? "nav-link nav-link-active" : "nav-link";
-}
+import type { Project } from "../lib/projects";
 
 /**
- * The chrome every page shares: brand, primary navigation, and account actions.
- * Pages own everything inside `<main>`.
+ * The chrome every page shares.
+ *
+ * @remarks
+ * Navigation is project-first: the top bar switches projects, and each project
+ * page carries its own Reports / Logs / Tokens tabs. `projects` is what the
+ * caller has managed to load — an empty list simply leaves the switcher out
+ * rather than blocking the page behind it.
  */
 export function PageShell({
-  active,
+  activeProjectId,
   children,
-}: Readonly<{ active: NavSection; children: ReactNode }>) {
+  projects = [],
+}: Readonly<{
+  activeProjectId?: string;
+  children: ReactNode;
+  projects?: Project[];
+}>) {
+  const navigate = useNavigate();
+
   return (
     <div className="app-shell">
       <header className="topbar">
-        <Link className="brand" to="/" aria-label="Dolshoe home">
+        <Link className="brand" to="/projects" aria-label="Dolshoe home">
           <img className="brand-mark" src="/dolshoe-mark-reversed.svg" alt="" />
           <span>dolshoe</span>
         </Link>
 
         <nav className="topnav" aria-label="Primary navigation">
-          <Link
-            className={navLinkClass("reports", active)}
-            to="/"
-            {...(active === "reports" ? { "aria-current": "page" as const } : {})}
-          >
-            <CircleAlert size={16} />
-            Reports
-          </Link>
-          <Link
-            className={navLinkClass("projects", active)}
-            to="/projects"
-            {...(active === "projects" ? { "aria-current": "page" as const } : {})}
-          >
+          <Link className="nav-link" to="/projects">
             <Boxes size={16} />
             Projects
           </Link>
-          <a className="nav-link" href="#activity">
-            <Activity size={16} />
-            Activity
-          </a>
+
+          {activeProjectId != null && projects.length > 0 && (
+            <label className="project-switcher">
+              <span className="sr-only">Switch project</span>
+              <select
+                onChange={(event) =>
+                  void navigate({
+                    to: "/projects/$projectId/reports",
+                    params: { projectId: event.target.value },
+                  })
+                }
+                value={activeProjectId}
+              >
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="select-chevron" size={14} />
+            </label>
+          )}
         </nav>
 
         <div className="topbar-actions">
