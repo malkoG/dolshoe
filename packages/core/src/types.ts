@@ -64,6 +64,79 @@ export interface TraceContext {
   spanId?: string;
 }
 
+/** OpenTelemetry's span kinds, minus its unspecified placeholder. */
+export type SpanKind = "internal" | "server" | "client" | "producer" | "consumer";
+export type SpanStatusCode = "unset" | "ok" | "error";
+
+/** Where a span sits in its trace. Usable directly as `CaptureOptions.trace`. */
+export interface SpanContext {
+  readonly traceId: string;
+  readonly spanId: string;
+}
+
+export interface SpanOptions {
+  kind?: SpanKind;
+  attributes?: Readonly<Record<string, unknown>>;
+  /**
+   * What to nest under. Defaults to whichever span is active; pass `null` to
+   * start a new trace regardless.
+   */
+  parent?: SpanContext | null;
+  startTime?: Date | number;
+}
+
+export interface Span {
+  readonly traceId: string;
+  readonly spanId: string;
+  readonly parentSpanId?: string;
+  readonly context: SpanContext;
+  setAttributes(attributes: Readonly<Record<string, unknown>>): void;
+  setStatus(code: SpanStatusCode, message?: string): void;
+  /** Reports the error against this span, and marks the span failed. */
+  recordException(exception: unknown): void;
+  /** Ending twice is a no-op: the first end is the one that counts. */
+  end(endTime?: Date | number): void;
+}
+
+/** A span that has ended and is on its way to the transport. */
+export interface FinishedSpan {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  name: string;
+  kind: SpanKind;
+  /** Decimal nanoseconds since the epoch: past what a number can hold exactly. */
+  startTimeUnixNano: string;
+  endTimeUnixNano: string;
+  status: { code: SpanStatusCode; message?: string };
+  attributes?: Record<string, JsonValue>;
+}
+
+export interface SpanTransport {
+  send(spans: readonly FinishedSpan[]): Promise<void>;
+  flush?(): Promise<boolean>;
+  close?(): Promise<boolean>;
+}
+
+export interface SpanTransportErrorContext {
+  error: unknown;
+  spans: readonly FinishedSpan[];
+}
+
+/**
+ * Where the active span lives.
+ *
+ * @remarks
+ * Core cannot reach for `node:async_hooks` — it runs on Deno, Bun, and
+ * eventually a browser — so it defines the seam and each runtime package fills
+ * it in. This is the same arrangement LogTape uses for its implicit contexts,
+ * where the application hands `configure()` an `AsyncLocalStorage`.
+ */
+export interface SpanScope {
+  active(): Span | undefined;
+  run<T>(span: Span, callback: () => T): T;
+}
+
 export interface ErrorReport {
   schemaVersion: 1;
   eventId: string;
@@ -144,17 +217,27 @@ export interface ClientOptions {
   dsn?: string;
   endpoint?: string | URL;
   logEndpoint?: string | URL;
+  spanEndpoint?: string | URL;
   service: ServiceInfo;
   runtime: RuntimeInfo;
   reporter: ReporterInfo;
   headers?: Readonly<Record<string, string>>;
   transport?: Transport;
   logTransport?: LogTransport;
+  spanTransport?: SpanTransport;
+  /**
+   * Where the active span is kept. Defaults to a synchronous store, which is
+   * correct for straight-line code; the runtime packages supply one backed by
+   * `AsyncLocalStorage` so concurrent work cannot steal each other's parent.
+   */
+  spanScope?: SpanScope;
   fetch?: typeof globalThis.fetch;
   beforeSend?: (report: ErrorReport) => ErrorReport | null | Promise<ErrorReport | null>;
   beforeSendLogRecord?: (record: LogRecord) => LogRecord | null | Promise<LogRecord | null>;
+  beforeSendSpan?: (span: FinishedSpan) => FinishedSpan | null | Promise<FinishedSpan | null>;
   onTransportError?: (context: TransportErrorContext) => void;
   onLogTransportError?: (context: LogTransportErrorContext) => void;
+  onSpanTransportError?: (context: SpanTransportErrorContext) => void;
   generateEventId?: () => string;
   now?: () => Date;
 }
@@ -167,6 +250,9 @@ export interface ReporterNamespace {
   captureException(exception: unknown, options?: CaptureOptions): string | undefined;
   captureMessage(message: string, options?: CaptureOptions): string | undefined;
   captureLog(level: LogLevel, message: string, options?: CaptureLogOptions): string | undefined;
+  startSpan(name: string, options?: SpanOptions): Span | undefined;
+  withSpan<T>(name: string, run: (span: Span | undefined) => T, options?: SpanOptions): T;
+  activeSpan(): Span | undefined;
   flush(timeoutMilliseconds?: number): Promise<boolean>;
   close(timeoutMilliseconds?: number): Promise<boolean>;
 }

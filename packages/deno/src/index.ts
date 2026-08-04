@@ -7,6 +7,8 @@ import {
   type RuntimeInitOptions,
 } from "@dolshoe/core";
 
+import { createAsyncSpanScope } from "./span-scope.js";
+
 const REPORTER_VERSION = "0.1.0";
 
 interface DenoGlobal {
@@ -59,6 +61,10 @@ export function init(options: RuntimeInitOptions): Client {
   const version = getDenoVersion();
   const client = new Client({
     ...clientOptions,
+    // After the spread: spreading clientOptions first would write an absent
+    // spanScope straight over this default. An application may still bring its
+    // own, which the ?? preserves.
+    spanScope: clientOptions.spanScope ?? createAsyncSpanScope(),
     runtime: {
       name: "deno",
       ...(version == null ? {} : { version }),
@@ -81,6 +87,7 @@ export async function close(timeoutMilliseconds?: number): Promise<boolean> {
 }
 
 export {
+  activeSpan,
   captureException,
   captureLog,
   captureMessage,
@@ -88,15 +95,25 @@ export {
   getClient,
   normalizeException,
   parseJavaScriptStack,
+  startSpan,
+  withSpan,
 } from "@dolshoe/core";
 export type {
   CaptureLogOptions,
   CaptureOptions,
   ErrorReport,
+  FinishedSpan,
   LogLevel,
   LogRecord,
   LogRecordBatch,
   LogTransport,
   RuntimeInitOptions,
+  Span,
+  SpanContext,
+  SpanKind,
+  SpanOptions,
+  SpanScope,
+  SpanStatusCode,
+  SpanTransport,
   Transport,
 } from "@dolshoe/core";

@@ -19,7 +19,7 @@
     "format:check": "oxfmt --check .",
     "typecheck": "pnpm sdk:build && pnpm --filter './packages/*' -r typecheck && pnpm --filter @dolshoe/api typecheck && pnpm --filter @dolshoe/web typecheck",
     "test": "pnpm test:unit && pnpm test:e2e",
-    "test:unit": "pnpm --filter @dolshoe/api test:unit && pnpm --filter @dolshoe/core test:unit && pnpm --filter @dolshoe/logtape test:unit && pnpm sdk:test:runtimes",
+    "test:unit": "pnpm --filter @dolshoe/api test:unit && pnpm --filter @dolshoe/core test:unit && pnpm --filter @dolshoe/node test:unit && pnpm --filter @dolshoe/logtape test:unit && pnpm sdk:test:runtimes",
     "test:watch": "pnpm --filter @dolshoe/api test:watch",
     "test:coverage": "pnpm --filter @dolshoe/api test:coverage",
     "test:e2e": "pnpm db:test:up && pnpm db:test:migrate && pnpm test:e2e:run",

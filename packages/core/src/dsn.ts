@@ -7,6 +7,7 @@ export interface ParsedDsn {
   readonly token: string;
   readonly errorReportEndpoint: string;
   readonly logEndpoint: string;
+  readonly spanEndpoint: string;
 }
 
 /**
@@ -70,5 +71,8 @@ export function parseDsn(dsn: string): ParsedDsn {
     token,
     errorReportEndpoint: `${projectPath}/error-reports`,
     logEndpoint: `${projectPath}/log-records`,
+    // The route an OpenTelemetry exporter would also be pointed at, so a DSN
+    // and an OTEL_EXPORTER_OTLP_TRACES_ENDPOINT reach the same place.
+    spanEndpoint: `${projectPath}/traces`,
   };
 }

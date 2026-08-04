@@ -8,6 +8,7 @@ const DSN = `https://${TOKEN}@dolshoe.example/${PROJECT_ID}`;
 export async function runScenario(dolshoe) {
   const reports = [];
   const logRecords = [];
+  const exportedSpans = [];
   const requests = [];
   const eventIds = ["6608e55d-1b24-4d9a-951f-7e7211f92f44", "bf695c6d-8a75-4b1d-8434-9ddb1ce54ee7"];
 
@@ -27,6 +28,14 @@ export async function runScenario(dolshoe) {
       requests.push({ url, authorization: init.headers.authorization });
       if (url.endsWith("/log-records")) {
         logRecords.push(...body.records);
+      } else if (url.endsWith("/traces")) {
+        for (const resourceSpans of body.resourceSpans) {
+          for (const scopeSpans of resourceSpans.scopeSpans) {
+            exportedSpans.push(
+              ...scopeSpans.spans.map((span) => ({ ...span, resource: resourceSpans.resource })),
+            );
+          }
+        }
       } else {
         reports.push(body);
       }
@@ -57,22 +66,39 @@ export async function runScenario(dolshoe) {
   );
   const logger = getLogger(["checkout", "orders"]);
 
-  logger.info("Submitting order {orderId}", {
-    orderId: "order-123",
-    route: "/orders",
-  });
-  logger.error("Order {orderId} failed", {
-    orderId: "order-123",
-    route: "/orders",
-    retryCount: 0,
-    error,
-  });
+  // Inside a span, and across an await, so each runtime has to keep the active
+  // span through async context rather than only within one synchronous stretch.
+  await dolshoe.withSpan(
+    "POST /orders",
+    async (span) => {
+      span.setAttributes({ "http.request.method": "POST", "http.route": "/orders" });
+
+      logger.info("Submitting order {orderId}", {
+        orderId: "order-123",
+        route: "/orders",
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+
+      await dolshoe.withSpan("authorize payment", (child) => {
+        child.setStatus("error", "payment was declined");
+      });
+
+      logger.error("Order {orderId} failed", {
+        orderId: "order-123",
+        route: "/orders",
+        retryCount: 0,
+        error,
+      });
+    },
+    { kind: "server" },
+  );
 
   await dispose();
   const flushed = await dolshoe.flush();
-  if (!flushed || reports.length !== 1 || logRecords.length !== 1) {
+  if (!flushed || reports.length !== 1 || logRecords.length !== 1 || exportedSpans.length !== 2) {
     throw new Error(
-      `Expected one report and one log record, received ${reports.length} and ${logRecords.length}.`,
+      `Expected one report, one log record, and two spans; received ${reports.length}, ${logRecords.length}, and ${exportedSpans.length}.`,
     );
   }
 
@@ -87,6 +113,38 @@ export async function runScenario(dolshoe) {
     );
   }
 
+  // Trace and span ids are random, so they cannot be compared across runtimes
+  // directly. What can be compared is the shape they form: which span is whose
+  // parent, and whether the log and the report landed on the span that was
+  // active when they were written.
+  const [child, root] = exportedSpans;
+  const identifiers = new Map([
+    [root.traceId, "<trace>"],
+    [root.spanId, "<root span>"],
+    [child.spanId, "<child span>"],
+  ]);
+  const label = (id) => identifiers.get(id) ?? `<unknown ${id}>`;
+
+  const trace = {
+    root: {
+      name: root.name,
+      kind: root.kind,
+      parentSpanId: root.parentSpanId ?? null,
+      status: root.status,
+      attributes: root.attributes,
+      resource: root.resource,
+    },
+    child: {
+      name: child.name,
+      kind: child.kind,
+      parent: label(child.parentSpanId),
+      sameTrace: child.traceId === root.traceId,
+      status: child.status,
+    },
+    logRecordSpan: label(logRecords[0].trace?.spanId),
+    reportSpan: label(reports[0].trace?.spanId),
+  };
+
   // eslint-disable-next-line no-console
-  console.log(JSON.stringify({ report: reports[0], logRecord: logRecords[0] }));
+  console.log(JSON.stringify({ report: reports[0], logRecord: logRecords[0], trace }));
 }
