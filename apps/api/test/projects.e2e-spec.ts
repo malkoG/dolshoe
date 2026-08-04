@@ -17,6 +17,24 @@ interface IssuedToken {
   token: string;
 }
 
+function logBatch(level: string, message: string): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    records: [
+      {
+        eventId: randomUUID(),
+        occurredAt: "2026-08-04T09:00:00.000Z",
+        level,
+        message,
+        category: ["checkout"],
+        service: { name: "checkout-api" },
+        runtime: { name: "node" },
+        reporter: { name: "dolshoe-node" },
+      },
+    ],
+  };
+}
+
 describe("Projects", () => {
   let app: INestApplication;
   let database: PrismaService;
@@ -237,6 +255,48 @@ describe("Projects", () => {
 
     expect(stored?.projectId).toBe(project.id);
     expect(stored?.message).toBe("Payment authorized");
+  });
+
+  it("reads back only the requesting project's logs, and filters by severity", async () => {
+    const owner = await createProject("Checkout API");
+    const other = await createProject("Billing Worker");
+    const ownerToken = await issueToken(owner.id);
+    const otherToken = await issueToken(other.id);
+
+    for (const [token, projectId, payload] of [
+      [ownerToken.token, owner.id, logBatch("info", "Payment authorized")],
+      [ownerToken.token, owner.id, logBatch("error", "Payment gateway timed out")],
+      [otherToken.token, other.id, logBatch("info", "Invoice generated")],
+    ] as const) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/projects/${projectId}/log-records`)
+        .set("authorization", `Bearer ${token}`)
+        .send(payload)
+        .expect(201);
+    }
+
+    const mine = await request(app.getHttpServer())
+      .get(`/api/v1/log-records?projectId=${owner.id}`)
+      .expect(200);
+    const errorsOnly = await request(app.getHttpServer())
+      .get(`/api/v1/log-records?projectId=${owner.id}&level=error`)
+      .expect(200);
+
+    expect(
+      mine.body.records.map((record: { message: string }) => record.message).toSorted(),
+    ).toEqual(["Payment authorized", "Payment gateway timed out"]);
+    expect(errorsOnly.body.records).toHaveLength(1);
+    expect(errorsOnly.body.records[0]).toMatchObject({
+      level: "error",
+      message: "Payment gateway timed out",
+      category: ["checkout"],
+      service: { name: "checkout-api" },
+    });
+
+    await request(app.getHttpServer()).get("/api/v1/log-records").expect(400);
+    await request(app.getHttpServer())
+      .get(`/api/v1/log-records?projectId=${owner.id}&level=critical`)
+      .expect(400);
   });
 
   it("lets the same eventId be reported independently by two projects", async () => {

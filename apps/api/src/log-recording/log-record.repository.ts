@@ -10,6 +10,21 @@ interface StoredLogRecordRow {
   receivedAt: Date;
 }
 
+export interface LogRecordSummaryRow {
+  id: string;
+  eventId: string;
+  occurredAt: Date;
+  receivedAt: Date;
+  level: string;
+  message: string;
+  category: string[];
+  serviceName: string;
+  environment: string | null;
+  release: string | null;
+  errorReportEventId: string | null;
+  attributes: unknown;
+}
+
 function postgresTextArray(values: readonly string[]): Prisma.Sql {
   if (values.length === 0) return Prisma.sql`ARRAY[]::text[]`;
   return Prisma.sql`ARRAY[${Prisma.join(values)}]::text[]`;
@@ -90,6 +105,32 @@ export class LogRecordRepository {
         id: row.id,
         receivedAt: row.receivedAt.toISOString(),
       };
+    });
+  }
+
+  async listForProject(
+    projectId: string,
+    level: string | undefined,
+    limit: number,
+  ): Promise<LogRecordSummaryRow[]> {
+    return this.database.logRecord.findMany({
+      where: { projectId, ...(level == null ? {} : { level }) },
+      orderBy: { receivedAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        eventId: true,
+        occurredAt: true,
+        receivedAt: true,
+        level: true,
+        message: true,
+        category: true,
+        serviceName: true,
+        environment: true,
+        release: true,
+        errorReportEventId: true,
+        attributes: true,
+      },
     });
   }
 

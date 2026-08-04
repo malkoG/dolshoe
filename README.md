@@ -157,6 +157,10 @@ Every instance starts with one project, `default`. It owns everything recorded
 before projects existed, and it is what the legacy `INGEST_TOKEN` authenticates
 as.
 
+The web app is organized the same way. `/projects` lists them; opening one gives
+you its **Reports**, **Logs**, and **Tokens**, and the top bar switches between
+projects without leaving the section you are in.
+
 Create a project and issue a token from the **Projects** screen in the web app,
 or over the API:
 
