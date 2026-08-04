@@ -39,6 +39,22 @@ services:
       LOG_LEVEL: debug
       LOG_RETENTION_DAYS: 14
       DATABASE_URL: postgresql://dolshoe:dolshoe@postgres:5432/dolshoe?schema=public
+      # Everything below is taken from `.env`, and empty unless it is set there.
+      # Naming each one is what makes it reach the API at all: the container is
+      # given an explicit environment rather than the host's, so a variable that
+      # is missing here is a variable the documentation promises and the API
+      # never sees.
+      #
+      # Empty is a value these are meant to take. All three OAuth variables unset
+      # is the shipped state — the API starts, warns, and the sign-in page
+      # explains that nobody can sign in yet — while a partial set is refused at
+      # startup, so leaving one blank locally fails loudly rather than at the
+      # redirect.
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_CALLBACK_URL: ${GITHUB_CALLBACK_URL:-}
+      GITHUB_ALLOWED_LOGINS: ${GITHUB_ALLOWED_LOGINS:-}
+      MOCK_LOGIN: ${MOCK_LOGIN:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
