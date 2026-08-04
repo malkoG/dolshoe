@@ -38,7 +38,12 @@ export function PageShell({
             Projects
           </Link>
 
-          {activeProjectId != null && projects.length > 0 && (
+          {/*
+            Only shown when the active project is actually one of the options.
+            A select whose value matches nothing falls back to displaying the
+            first option, which would name a project the page is not showing.
+          */}
+          {projects.some((project) => project.id === activeProjectId) && (
             <label className="project-switcher">
               <span className="sr-only">Switch project</span>
               <select
