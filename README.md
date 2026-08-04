@@ -181,6 +181,27 @@ registration closes permanently after that.
 > This is narrower than what it replaces: before viewer auth, anyone who could
 > reach the API could mint an ingestion token for any project, indefinitely.
 
+### Adding people
+
+Everyone after the first arrives by invitation. An owner or admin invites an
+address from the **Members** screen and gets back a one-time link:
+
+```sh
+curl -b cookies.txt -X POST http://localhost:<port>/api/v1/orgs/<orgSlug>/invitations \
+  -H 'content-type: application/json' -d '{"email":"colleague@example.com","role":"MEMBER"}'
+```
+
+**Dolshoe sends no email.** There is no SMTP to configure, no delivery queue,
+and no bounces to chase — you copy the link into whatever you already use to
+talk to your colleagues. Like an ingestion token, the link is shown once and
+only its digest is stored, so a link that is not recorded at that moment has to
+be reissued.
+
+Links expire after seven days, can be withdrawn at any time, and work exactly
+once. Accepting is bound to the address the invitation names, so forwarding one
+does not quietly add whoever opens it. Re-inviting the same address withdraws
+any outstanding link for it, so there is never more than one live link per seat.
+
 Sessions are 30-day `HttpOnly` cookies. Signing out ends the session on the
 server, so a copy of the cookie is worthless afterwards.
 

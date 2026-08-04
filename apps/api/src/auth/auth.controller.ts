@@ -17,12 +17,18 @@ import {
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 
 import { ZodValidationPipe } from "../error-reporting/zod-validation.pipe";
+import { InvitationService } from "../organizations/invitation.service";
+import {
+  AcceptInvitationRequest,
+  acceptInvitationRequestSchema,
+} from "../organizations/organization.contract";
 import { OrganizationService } from "../organizations/organization.service";
 import { AuthService } from "./auth.service";
 import {
@@ -73,6 +79,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly sessionService: SessionService,
     private readonly organizationService: OrganizationService,
+    private readonly invitationService: InvitationService,
   ) {}
 
   /**
@@ -193,6 +200,45 @@ export class AuthController {
   ): Promise<void> {
     await this.sessionService.revoke(viewer.sessionId);
     response.cookie(SESSION_COOKIE_NAME, "", clearedSessionCookieOptions());
+  }
+
+  /**
+   * Accept an invitation.
+   *
+   * @remarks
+   * Unauthenticated because the common case is somebody who has no account yet:
+   * the link itself is the credential. A signed-in caller only gains the
+   * membership, and only if the invitation names their address — otherwise a
+   * forwarded link would quietly add whoever opened it.
+   */
+  @Post("invitations/accept")
+  @UseGuards(SameOriginGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBody({ schema: { $ref: "#/components/schemas/AcceptInvitationRequestV1" } })
+  @ApiOkResponse({ description: "The invitation was accepted and the caller signed in." })
+  @ApiBadRequestResponse({ description: "The body does not satisfy the invitation contract." })
+  @ApiNotFoundResponse({ description: "That invitation link is not valid or has expired." })
+  @ApiForbiddenResponse({ description: "The invitation was issued for a different address." })
+  @ApiConflictResponse({ description: "An account already exists for that address." })
+  async acceptInvitation(
+    @Req() request: CookieRequest,
+    @Body(
+      new ZodValidationPipe(
+        acceptInvitationRequestSchema,
+        "Request body does not match the invitation contract.",
+      ),
+    )
+    body: AcceptInvitationRequest,
+    @Res({ passthrough: true }) response: CookieResponse,
+  ): Promise<{ organizationSlug: string }> {
+    const viewer = await this.resolveViewer(request);
+    const accepted = await this.invitationService.accept(body, viewer?.id);
+
+    // Signing in here too, so accepting and arriving are one step whether or
+    // not the account already existed.
+    if (viewer == null) await this.startSession(accepted.userId, response);
+
+    return { organizationSlug: accepted.organizationSlug };
   }
 
   private async startSession(userId: string, response: CookieResponse): Promise<void> {

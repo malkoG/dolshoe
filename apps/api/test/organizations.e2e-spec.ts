@@ -21,7 +21,8 @@ import { signIn } from "./viewer-session";
  * Health and the docs are infrastructure. The four ingestion paths authenticate
  * with an ingestion token instead, and must never require a viewer, because SDK
  * DSNs derive them. The auth paths are the ones that exist to get a session in
- * the first place.
+ * the first place — including accepting an invitation, where the link is the
+ * credential and the whole point is that the caller has no account yet.
  */
 const UNAUTHENTICATED_PATHS = new Set([
   "/api/v1/health",
@@ -32,6 +33,7 @@ const UNAUTHENTICATED_PATHS = new Set([
   "/api/v1/auth/session",
   "/api/v1/auth/register",
   "/api/v1/auth/login",
+  "/api/v1/auth/invitations/accept",
 ]);
 
 function uniqueName(label: string): string {

@@ -2,6 +2,7 @@ import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import {
   Bell,
   Boxes,
+  Building2,
   ChevronDown,
   CircleAlert,
   Command,
@@ -172,9 +173,19 @@ export function PageShell({
             activeOptions={{ exact: true }}
             activeProps={{ className: "nav-link nav-link-active" }}
             className="nav-link"
-            to="/orgs"
+            params={{ orgSlug }}
+            to="/orgs/$orgSlug/members"
           >
             <Users size={16} />
+            Members
+          </Link>
+          <Link
+            activeOptions={{ exact: true }}
+            activeProps={{ className: "nav-link nav-link-active" }}
+            className="nav-link"
+            to="/orgs"
+          >
+            <Building2 size={16} />
             Organizations
           </Link>
         </nav>
@@ -207,7 +218,7 @@ export function PageShell({
                   <span>{viewer.email}</span>
                 </div>
                 <Link className="account-action" to="/orgs">
-                  <Users size={14} />
+                  <Building2 size={14} />
                   Organizations
                 </Link>
                 <button className="account-action" onClick={() => void signOut()} type="button">

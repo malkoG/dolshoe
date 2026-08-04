@@ -97,7 +97,88 @@ export const updateMemberRequestSchema = z
     description: "Changes a member's role.",
   });
 
+const invitationEmail = z.string().trim().toLowerCase().pipe(z.email()).pipe(z.string().max(320));
+
+export const invitationSchema = z
+  .object({
+    id: z.uuid().meta({ description: "Server-assigned invitation identifier." }),
+    email: z.email().meta({ description: "The address this invitation was issued for." }),
+    role: membershipRoleSchema.meta({ description: "The role it grants on acceptance." }),
+    invitedBy: nonEmptyText(200).meta({ description: "Who issued it." }),
+    createdAt: z.iso.datetime().meta({ description: "UTC timestamp it was issued." }),
+    expiresAt: z.iso.datetime().meta({ description: "UTC timestamp it stops working." }),
+    acceptedAt: z.iso
+      .datetime()
+      .nullable()
+      .meta({ description: "UTC timestamp it was accepted, or null." }),
+    revokedAt: z.iso
+      .datetime()
+      .nullable()
+      .meta({ description: "UTC timestamp it was revoked, or null." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "InvitationV1",
+    description:
+      "An outstanding offer to join an organization. Never carries its token: only a SHA-256 digest is stored.",
+  });
+
+export const invitationListResponseSchema = z
+  .object({
+    invitations: z.array(invitationSchema).meta({ description: "Newest-first invitations." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "InvitationListResponseV1",
+    description: "Newest-first list of an organization's invitations.",
+  });
+
+export const createInvitationRequestSchema = z
+  .object({
+    email: invitationEmail.meta({ description: "Who to invite." }),
+    role: membershipRoleSchema.meta({ description: "The role they will hold." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "CreateInvitationRequestV1",
+    description: "Invites someone to an organization.",
+  });
+
+export const issuedInvitationSchema = invitationSchema
+  .extend({
+    invitationUrl: z.string().meta({
+      description:
+        "The one-time link to send. Returned exactly once, by this response only: the server stores just a SHA-256 digest and cannot show it again. Dolshoe sends no email, so this has to be delivered by hand.",
+    }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "IssuedInvitationV1",
+    description: "A newly issued invitation, including its one-time link.",
+  });
+
+export const acceptInvitationRequestSchema = z
+  .object({
+    token: z.string().min(1).meta({ description: "The token from the invitation link." }),
+    name: nonEmptyText(200)
+      .optional()
+      .meta({ description: "Required when accepting without being signed in." }),
+    password: z
+      .string()
+      .min(12)
+      .max(200)
+      .optional()
+      .meta({ description: "Required when accepting without being signed in." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "AcceptInvitationRequestV1",
+    description:
+      "Accepts an invitation. Signed in, it only adds the membership; signed out, it also creates the account.",
+  });
+
 export const orgSlugParamSchema = organizationSlug;
+export const invitationIdParamSchema = z.uuid("An invitation id is a UUID.");
 export const userIdParamSchema = z.uuid("A user id is a UUID.");
 
 export type MembershipRoleName = z.infer<typeof membershipRoleSchema>;
@@ -107,6 +188,11 @@ export type CreateOrganizationRequest = z.infer<typeof createOrganizationRequest
 export type Member = z.infer<typeof memberSchema>;
 export type MemberListResponse = z.infer<typeof memberListResponseSchema>;
 export type UpdateMemberRequest = z.infer<typeof updateMemberRequestSchema>;
+export type Invitation = z.infer<typeof invitationSchema>;
+export type InvitationListResponse = z.infer<typeof invitationListResponseSchema>;
+export type CreateInvitationRequest = z.infer<typeof createInvitationRequestSchema>;
+export type IssuedInvitation = z.infer<typeof issuedInvitationSchema>;
+export type AcceptInvitationRequest = z.infer<typeof acceptInvitationRequestSchema>;
 
 function adaptJsonSchemaToOpenApi(value: unknown): unknown {
   if (Array.isArray(value)) {
