@@ -3,8 +3,9 @@ import { AlertTriangle, Boxes, ChevronRight, Loader2, Plus, RefreshCw } from "lu
 import { useEffect, useState } from "react";
 
 import { PageShell } from "../components/page-shell";
+import { ApiError } from "../lib/api-request";
 import { dateFormatter } from "../lib/format";
-import { ProjectsFetchError, createProject, fetchProjects } from "../lib/projects";
+import { createProject, fetchProjects } from "../lib/projects";
 import type { Project } from "../lib/projects";
 
 export const Route = createFileRoute("/projects/")({ component: Projects });
@@ -15,7 +16,7 @@ type LoadState =
   | { status: "ready"; projects: Project[] };
 
 function describeError(error: unknown): string {
-  if (error instanceof ProjectsFetchError) return error.message;
+  if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return "Something went wrong while loading projects.";
 }
@@ -61,7 +62,7 @@ function Projects() {
       // A taken slug is the one failure the operator can fix inline, so it is
       // reported on the field rather than as a page-level error.
       setCreateError(
-        error instanceof ProjectsFetchError && error.status === 409
+        error instanceof ApiError && error.status === 409
           ? "A project with that slug already exists. Try a different name."
           : describeError(error),
       );

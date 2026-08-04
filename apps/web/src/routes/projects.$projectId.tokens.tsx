@@ -11,14 +11,10 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { ApiError } from "../lib/api-request";
 import { buildProjectDsn } from "../lib/dsn";
 import { dateTimeFormatter } from "../lib/format";
-import {
-  ProjectsFetchError,
-  fetchProjectTokens,
-  issueProjectToken,
-  revokeProjectToken,
-} from "../lib/projects";
+import { fetchProjectTokens, issueProjectToken, revokeProjectToken } from "../lib/projects";
 import type { IssuedProjectToken, ProjectToken } from "../lib/projects";
 
 export const Route = createFileRoute("/projects/$projectId/tokens")({ component: Tokens });
@@ -29,7 +25,7 @@ type LoadState =
   | { status: "ready"; tokens: ProjectToken[] };
 
 function describeError(error: unknown): string {
-  if (error instanceof ProjectsFetchError) return error.message;
+  if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return "Something went wrong while loading ingestion tokens.";
 }
