@@ -5,24 +5,24 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
 } from "@nestjs/common";
 import {
-  ApiBadRequestResponse,
   ApiBody,
-  ApiConflictResponse,
   ApiCookieAuth,
-  ApiCreatedResponse,
-  ApiForbiddenResponse,
+  ApiFoundResponse,
   ApiNoContentResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
+import { getLogger } from "@logtape/logtape";
 
+import { cookieHeader } from "./cookies";
 import { ZodValidationPipe } from "../error-reporting/zod-validation.pipe";
 import { InvitationService } from "../organizations/invitation.service";
 import {
@@ -31,16 +31,19 @@ import {
 } from "../organizations/organization.contract";
 import { OrganizationService } from "../organizations/organization.service";
 import { AuthService } from "./auth.service";
+import { SessionResponse, Viewer } from "./auth.contract";
+import { GitHubOAuthClient } from "./github-oauth.client";
 import {
-  LoginRequest,
-  RegisterRequest,
-  SessionResponse,
-  Viewer,
-  loginRequestSchema,
-  registerRequestSchema,
-} from "./auth.contract";
-import { loginExample, registerExample } from "./auth.examples";
-import { SameOriginGuard } from "./same-origin.guard";
+  OAUTH_STATE_COOKIE_NAME,
+  clearedOAuthStateCookieOptions,
+  decodeOAuthState,
+  encodeOAuthState,
+  generateOAuthNonce,
+  nonceMatches,
+  oauthStateCookieOptions,
+  readOAuthStateCookie,
+  safeRedirectPath,
+} from "./oauth-state";
 import { SessionAuthGuard } from "./session-auth.guard";
 import {
   SESSION_COOKIE_NAME,
@@ -49,6 +52,7 @@ import {
   sessionCookieOptions,
 } from "./session-cookie";
 import { SessionService } from "./session.service";
+import { SignInRefusalCode, SignInRefusedError } from "./sign-in-refusal";
 import { CurrentViewer, Viewer as ResolvedViewer } from "./viewer";
 import { parseSessionTokenPrefix } from "./session-token";
 
@@ -62,15 +66,28 @@ interface CookieRequest {
 
 interface CookieResponse {
   cookie(name: string, value: string, options: object): unknown;
+  redirect(url: string): unknown;
 }
 
+/** Where the browser is sent when a sign-in cannot be completed. */
+const SIGN_IN_PATH = "/login";
+
+const logger = getLogger(["dolshoe", "auth"]);
+
 /**
- * Registration, sign-in, sign-out, and "who am I".
+ * Signing in, signing out, and "who am I".
  *
  * @remarks
- * These four are the only session routes that cannot require a session, so they
- * carry `SameOriginGuard` instead: a cross-site sign-in would leave a victim's
- * browser authenticated as an account the attacker controls.
+ * GitHub is the only way in, so signing in is two redirects rather than a form
+ * post: `github/start` sends the browser to GitHub, `github/callback` receives
+ * it back. Neither can require a session — that is the thing being established —
+ * so the pair is protected by the `state` cookie instead, which is what keeps
+ * another site from walking a victim's browser through a sign-in as an account
+ * the attacker controls.
+ *
+ * Both are `GET` because a browser arrives at them by navigation. That is also
+ * why they answer with a redirect rather than JSON: nothing here is called by
+ * `fetch`, so a body would never be read.
  */
 @ApiTags("Authentication")
 @Controller({ path: "auth", version: "1" })
@@ -80,6 +97,7 @@ export class AuthController {
     private readonly sessionService: SessionService,
     private readonly organizationService: OrganizationService,
     private readonly invitationService: InvitationService,
+    private readonly github: GitHubOAuthClient,
   ) {}
 
   /**
@@ -93,91 +111,143 @@ export class AuthController {
    */
   @Get("session")
   @ApiOkResponse({
-    description: "Who the caller is, and whether this instance has been claimed.",
+    description: "Who the caller is, whether this instance is claimed, and whether it can sign in.",
     schema: { $ref: "#/components/schemas/SessionResponseV1" },
   })
   async session(@Req() request: CookieRequest): Promise<SessionResponse> {
     const instanceClaimed = await this.authService.isInstanceClaimed();
+    const githubSignInConfigured = this.github.configuration != null;
     const viewer = await this.resolveViewer(request);
 
-    if (viewer == null) return { viewer: null, organizations: [], instanceClaimed };
+    if (viewer == null) {
+      return { viewer: null, organizations: [], instanceClaimed, githubSignInConfigured };
+    }
 
     // Answered here rather than leaving the browser to ask separately, because
     // every page needs both to decide where the caller even belongs.
     const { organizations } = await this.organizationService.listForViewer(viewer.id);
 
-    return { viewer, organizations, instanceClaimed };
+    return { viewer, organizations, instanceClaimed, githubSignInConfigured };
   }
 
   /**
-   * Claim an unclaimed instance.
+   * Begin signing in with GitHub.
    *
    * @remarks
-   * Succeeds only while the instance has no accounts, and signs the new account
-   * in so claiming and using it are one step.
+   * Remembers where to return to, and any invitation being redeemed, in the
+   * `state` cookie rather than in the `state` parameter GitHub echoes back. Only
+   * an unguessable nonce travels through GitHub, so a crafted callback cannot
+   * choose where somebody lands or which invitation their sign-in spends.
    */
-  @Post("register")
-  @UseGuards(SameOriginGuard)
-  @ApiBody({
-    schema: { $ref: "#/components/schemas/RegisterRequestV1" },
-    examples: { ops: { summary: "First operator", value: registerExample } },
+  @Get("github/start")
+  @ApiQuery({ name: "redirect", required: false, description: "A path on this site to return to." })
+  @ApiQuery({
+    name: "invitation",
+    required: false,
+    description: "An invitation token, when the sign-in started from an invitation link.",
   })
-  @ApiCreatedResponse({
-    description: "The account was created and signed in.",
-    schema: { $ref: "#/components/schemas/ViewerV1" },
-  })
-  @ApiBadRequestResponse({ description: "The body does not satisfy the registration contract." })
-  @ApiConflictResponse({ description: "This instance has already been claimed." })
-  @ApiForbiddenResponse({ description: "The request came from another origin." })
-  async register(
-    @Body(
-      new ZodValidationPipe(
-        registerRequestSchema,
-        "Request body does not match the registration contract.",
-      ),
-    )
-    request: RegisterRequest,
+  @ApiFoundResponse({ description: "Redirects to GitHub's authorization screen." })
+  start(
+    @Query("redirect") redirect: string | undefined,
+    @Query("invitation") invitation: string | undefined,
     @Res({ passthrough: true }) response: CookieResponse,
-  ): Promise<Viewer> {
-    const viewer = await this.authService.register(request);
-    await this.startSession(viewer.id, response);
+  ): void {
+    if (this.github.configuration == null) {
+      // Not an exception: the browser is here by navigation and would be shown a
+      // JSON error page. The sign-in page explains this state properly.
+      this.refuse(response, "not_configured");
+      return;
+    }
 
-    return viewer;
+    const nonce = generateOAuthNonce();
+    const state = {
+      nonce,
+      redirect: safeRedirectPath(redirect) ?? "/",
+      invitationToken: invitation,
+    };
+
+    response.cookie(OAUTH_STATE_COOKIE_NAME, encodeOAuthState(state), oauthStateCookieOptions());
+    response.redirect(this.github.authorizationUrl(nonce));
   }
 
   /**
-   * Sign in.
+   * Finish signing in with GitHub.
+   *
+   * @remarks
+   * Every failure here ends the same way: the state cookie is cleared and the
+   * browser is sent back to the sign-in page with a code naming what went wrong.
+   * Throwing instead would show an API error page to somebody who was in the
+   * middle of a navigation, with no way back into the app.
    */
-  @Post("login")
-  @UseGuards(SameOriginGuard)
-  // Signing in resolves an existing account rather than creating a resource, so
-  // this is not a 201 despite being a POST.
-  @HttpCode(HttpStatus.OK)
-  @ApiBody({
-    schema: { $ref: "#/components/schemas/LoginRequestV1" },
-    examples: { ops: { summary: "Existing operator", value: loginExample } },
+  @Get("github/callback")
+  @ApiQuery({ name: "code", required: false })
+  @ApiQuery({ name: "state", required: false })
+  @ApiQuery({
+    name: "error",
+    required: false,
+    description: "Set when GitHub refused or the person declined.",
   })
-  @ApiOkResponse({
-    description: "Signed in. The session cookie is set on this response.",
-    schema: { $ref: "#/components/schemas/ViewerV1" },
+  @ApiFoundResponse({
+    description:
+      "Redirects into the app on success, or back to the sign-in page with an `error` code.",
   })
-  @ApiBadRequestResponse({ description: "The body does not satisfy the sign-in contract." })
-  @ApiUnauthorizedResponse({ description: "That email and password do not match an account." })
-  @ApiForbiddenResponse({ description: "The request came from another origin." })
-  async login(
-    @Body(
-      new ZodValidationPipe(
-        loginRequestSchema,
-        "Request body does not match the sign-in contract.",
-      ),
-    )
-    request: LoginRequest,
+  async callback(
+    @Req() request: CookieRequest,
+    @Query("code") code: string | undefined,
+    @Query("state") presentedNonce: string | undefined,
+    @Query("error") githubError: string | undefined,
     @Res({ passthrough: true }) response: CookieResponse,
-  ): Promise<Viewer> {
-    const viewer = await this.authService.authenticate(request);
-    await this.startSession(viewer.id, response);
+  ): Promise<void> {
+    const state = decodeOAuthState(readOAuthStateCookie(cookieHeader(request.headers.cookie)));
 
-    return viewer;
+    response.cookie(OAUTH_STATE_COOKIE_NAME, "", clearedOAuthStateCookieOptions());
+
+    // Declining at GitHub's screen is a choice, not a fault. Checked before the
+    // state so somebody who cancelled is told that rather than something odd
+    // about a cookie.
+    if (githubError != null) {
+      this.refuse(response, "denied");
+      return;
+    }
+
+    if (state == null || presentedNonce == null || !nonceMatches(presentedNonce, state.nonce)) {
+      this.refuse(response, "state");
+      return;
+    }
+
+    if (code == null || code.length === 0) {
+      this.refuse(response, "state");
+      return;
+    }
+
+    try {
+      const identity = await this.github.fetchIdentity(await this.github.exchangeCode(code));
+      const { viewer, organizationSlug } = await this.authService.signInWithGitHub(
+        identity,
+        state.invitationToken,
+      );
+
+      await this.startSession(viewer.id, response);
+
+      logger.info("{githubLogin} signed in.", { githubLogin: identity.githubLogin });
+
+      // An invitation decides where somebody lands: they came here to join that
+      // organization, and it beats a remembered path from before they had one.
+      response.redirect(
+        organizationSlug == null ? state.redirect : `/orgs/${organizationSlug}/projects`,
+      );
+    } catch (error) {
+      if (error instanceof SignInRefusedError) {
+        this.refuse(response, error.code);
+        return;
+      }
+
+      // Reaching GitHub, or GitHub itself, failed. Logged here because this is
+      // the boundary that decides to present it as a failed sign-in rather than
+      // as a stack trace.
+      logger.error("A GitHub sign-in could not be completed: {error}", { error });
+      this.refuse(response, "github_unavailable");
+    }
   }
 
   /**
@@ -203,25 +273,23 @@ export class AuthController {
   }
 
   /**
-   * Accept an invitation.
+   * Accept an invitation as the account already signed in.
    *
    * @remarks
-   * Unauthenticated because the common case is somebody who has no account yet:
-   * the link itself is the credential. A signed-in caller only gains the
-   * membership, and only if the invitation names their address — otherwise a
-   * forwarded link would quietly add whoever opened it.
+   * Signed out, there is nothing for this to do: the account does not exist yet
+   * and only GitHub can establish who is asking. That case goes through
+   * `github/start?invitation=…` instead, which redeems the link as part of
+   * signing in.
    */
   @Post("invitations/accept")
-  @UseGuards(SameOriginGuard)
+  @UseGuards(SessionAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiCookieAuth("session")
   @ApiBody({ schema: { $ref: "#/components/schemas/AcceptInvitationRequestV1" } })
-  @ApiOkResponse({ description: "The invitation was accepted and the caller signed in." })
-  @ApiBadRequestResponse({ description: "The body does not satisfy the invitation contract." })
-  @ApiNotFoundResponse({ description: "That invitation link is not valid or has expired." })
-  @ApiForbiddenResponse({ description: "The invitation was issued for a different address." })
-  @ApiConflictResponse({ description: "An account already exists for that address." })
+  @ApiOkResponse({ description: "The invitation was accepted." })
+  @ApiUnauthorizedResponse({ description: "No signed-in session was presented." })
   async acceptInvitation(
-    @Req() request: CookieRequest,
+    @CurrentViewer() viewer: ResolvedViewer,
     @Body(
       new ZodValidationPipe(
         acceptInvitationRequestSchema,
@@ -229,21 +297,17 @@ export class AuthController {
       ),
     )
     body: AcceptInvitationRequest,
-    @Res({ passthrough: true }) response: CookieResponse,
   ): Promise<{ organizationSlug: string }> {
-    const viewer = await this.resolveViewer(request);
-    const accepted = await this.invitationService.accept(body, viewer?.id);
-
-    // Signing in here too, so accepting and arriving are one step whether or
-    // not the account already existed.
-    if (viewer == null) await this.startSession(accepted.userId, response);
-
-    return { organizationSlug: accepted.organizationSlug };
+    return this.invitationService.acceptAsViewer(body.token, viewer);
   }
 
   private async startSession(userId: string, response: CookieResponse): Promise<void> {
     const session = await this.sessionService.create(userId);
     response.cookie(SESSION_COOKIE_NAME, session.token, sessionCookieOptions(session.expiresAt));
+  }
+
+  private refuse(response: CookieResponse, code: SignInRefusalCode): void {
+    response.redirect(`${SIGN_IN_PATH}?error=${code}`);
   }
 
   /**
@@ -252,8 +316,7 @@ export class AuthController {
    * is signed in — so they collapse to null rather than to distinct errors.
    */
   private async resolveViewer(request: CookieRequest): Promise<Viewer | null> {
-    const cookie = request.headers.cookie;
-    const raw = readSessionCookie(Array.isArray(cookie) ? cookie.join("; ") : cookie);
+    const raw = readSessionCookie(cookieHeader(request.headers.cookie));
     if (raw == null) return null;
 
     const prefix = parseSessionTokenPrefix(raw);
@@ -261,7 +324,13 @@ export class AuthController {
 
     try {
       const viewer = await this.sessionService.verify(raw, prefix);
-      return { id: viewer.id, email: viewer.email, name: viewer.name };
+      return {
+        id: viewer.id,
+        email: viewer.email,
+        name: viewer.name,
+        githubLogin: viewer.githubLogin,
+        avatarUrl: viewer.avatarUrl,
+      };
     } catch {
       return null;
     }

@@ -210,12 +210,20 @@ export function PageShell({
           {viewer != null && (
             <details className="account-menu">
               <summary className="avatar" aria-label="Open account menu">
-                {initialsOf(viewer.name)}
+                {viewer.avatarUrl == null ? (
+                  initialsOf(viewer.name)
+                ) : (
+                  // Decorative: the summary already carries the accessible name,
+                  // and the label would otherwise be announced twice.
+                  <img className="avatar-image" src={viewer.avatarUrl} alt="" />
+                )}
               </summary>
               <div className="account-panel">
                 <div className="account-identity">
                   <strong>{viewer.name}</strong>
-                  <span>{viewer.email}</span>
+                  <span>
+                    {viewer.githubLogin == null ? viewer.email : `@${viewer.githubLogin}`}
+                  </span>
                 </div>
                 <Link className="account-action" to="/orgs">
                   <Building2 size={14} />

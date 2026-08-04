@@ -261,6 +261,17 @@ select:focus-visible {
   font-weight: 800;
 }
 
+/*
+ * Fills the summary rather than sitting inside it, so an account with a GitHub
+ * avatar and one falling back to initials occupy the same square.
+ */
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .workspace {
   width: min(1230px, calc(100% - 72px));
   margin: 0 auto;
@@ -1451,6 +1462,35 @@ input[type="search"]::-webkit-search-cancel-button {
   margin: 0;
   color: var(--danger, #b4231f);
   font-size: 13px;
+}
+
+/*
+ * The only way in, so it is sized as the page's one action rather than as a
+ * button in a row of them. An anchor, not a button: the flow leaves this origin
+ * for github.com and has to be a real navigation.
+ */
+.github-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 9px;
+  color: #fff;
+  background: #242427;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.github-button:hover {
+  background: #37373b;
+}
+
+.github-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .centered-shell {

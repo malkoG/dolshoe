@@ -13,6 +13,6 @@ export const updateMemberExample: UpdateMemberRequest = {
 };
 
 export const createInvitationExample: CreateInvitationRequest = {
-  email: "colleague@example.com",
+  githubLogin: "octocat",
   role: "MEMBER",
 };

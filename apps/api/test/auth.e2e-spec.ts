@@ -5,41 +5,50 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 
 import { AppModule } from "../src/app.module";
+import { GitHubIdentity } from "../src/auth/github-identity";
+import { GitHubOAuthClient } from "../src/auth/github-oauth.client";
+import { OAUTH_STATE_COOKIE_NAME } from "../src/auth/oauth-state";
+import {
+  AUTHORIZE_ORIGIN,
+  FakeGitHub,
+  cookieValue,
+  identity,
+  signInWithGitHub as completeSignIn,
+} from "./fake-github";
 import { SESSION_COOKIE_NAME } from "../src/auth/session-cookie";
 import { generateSessionToken } from "../src/auth/session-token";
-import { hashPassword } from "../src/auth/password";
 import { configureApplication } from "../src/configure-application";
 import { PrismaService } from "../src/database/prisma.service";
 import { DEFAULT_ORGANIZATION_ID } from "../src/organizations/default-organization";
 import { DEFAULT_PROJECT_ID } from "../src/projects/default-project";
 import { generateProjectToken } from "../src/projects/project-token";
 
-const PASSWORD = "correct horse battery staple";
-
-function uniqueEmail(): string {
-  return `ops-${randomUUID().slice(0, 8)}@example.com`;
-}
-
-function sessionCookie(token: string): string {
-  return `${SESSION_COOKIE_NAME}=${token}`;
-}
-
 describe("Authentication", () => {
   let app: INestApplication;
   let database: PrismaService;
+  let github: FakeGitHub;
   const createdProjectIds: string[] = [];
 
+  function signInWithGitHub(
+    who: GitHubIdentity,
+    options: { invitation?: string; redirect?: string } = {},
+  ) {
+    return completeSignIn(app, github, who, options);
+  }
+
   /**
-   * Creates a signed-in session directly rather than through the API.
-   *
-   * @remarks
-   * Registration only succeeds while the instance is unclaimed, so a suite that
-   * needs several accounts cannot get them that way. Writing the row here is the
-   * same move `projects.e2e-spec.ts` makes when it hashes a token by hand.
+   * Creates a signed-in session directly rather than through the flow, for the
+   * tests that only need a session to exist.
    */
   async function signIn(): Promise<{ cookie: string; userId: string }> {
+    const who = identity();
     const user = await database.user.create({
-      data: { email: uniqueEmail(), name: "Tester", passwordHash: await hashPassword(PASSWORD) },
+      data: {
+        email: who.email,
+        name: "Tester",
+        githubUserId: who.githubUserId,
+        githubLogin: who.githubLogin,
+      },
       select: { id: true },
     });
 
@@ -54,7 +63,7 @@ describe("Authentication", () => {
       select: { id: true },
     });
 
-    return { cookie: sessionCookie(token.raw), userId: user.id };
+    return { cookie: `${SESSION_COOKIE_NAME}=${token.raw}`, userId: user.id };
   }
 
   /**
@@ -91,7 +100,12 @@ describe("Authentication", () => {
   }
 
   beforeAll(async () => {
-    const moduleReference = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    github = new FakeGitHub();
+
+    const moduleReference = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(GitHubOAuthClient)
+      .useValue(github)
+      .compile();
 
     app = moduleReference.createNestApplication();
     configureApplication(app);
@@ -100,11 +114,12 @@ describe("Authentication", () => {
   });
 
   beforeEach(async () => {
-    // This suite owns the unclaimed-instance state: the registration tests are
-    // only meaningful with zero accounts, and the test database persists between
+    // This suite owns the unclaimed-instance state: the claim tests are only
+    // meaningful with zero accounts, and the test database persists between
     // runs. Safe because the e2e suite runs with --runInBand.
     await database.session.deleteMany({});
     await database.user.deleteMany({});
+    github.reset();
   });
 
   afterEach(async () => {
@@ -123,121 +138,153 @@ describe("Authentication", () => {
     await app.close();
   });
 
-  describe("claiming the instance", () => {
-    it("lets the first account register, and signs it in", async () => {
-      const email = uniqueEmail();
+  describe("starting the flow", () => {
+    it("sends the browser to GitHub and keeps the state in a cookie", async () => {
       const response = await request(app.getHttpServer())
-        .post("/api/v1/auth/register")
-        .send({ email, name: "Ops", password: PASSWORD })
-        .expect(201);
+        .get("/api/v1/auth/github/start")
+        .expect(302);
 
-      expect(response.body).toEqual({ id: expect.any(String), email, name: "Ops" });
+      expect(response.get("Location")).toContain(AUTHORIZE_ORIGIN);
 
-      const cookies = response.get("Set-Cookie") ?? [];
-      expect(cookies.join("; ")).toContain(`${SESSION_COOKIE_NAME}=dsv_`);
+      // Asserted on the raw header, not a parsed convenience object, because
+      // these attributes are the protection.
+      const cookie = (response.get("Set-Cookie") ?? []).join("; ");
+      expect(cookie).toContain(`${OAUTH_STATE_COOKIE_NAME}=`);
+      expect(cookie).toContain("HttpOnly");
+      expect(cookie).toContain("SameSite=Lax");
+    });
+
+    it("explains itself rather than erroring when no OAuth app is configured", async () => {
+      github.configuration = undefined;
+
+      const response = await request(app.getHttpServer())
+        .get("/api/v1/auth/github/start")
+        .expect(302);
+
+      expect(response.get("Location")).toBe("/login?error=not_configured");
+    });
+  });
+
+  describe("claiming the instance", () => {
+    it("lets the first GitHub account in, and signs it in", async () => {
+      const who = identity();
+
+      const { location, sessionCookie } = await signInWithGitHub(who);
+
+      expect(location).toBe("/");
+      expect(sessionCookie).toContain("dsv_");
+
+      const created = await database.user.findUnique({
+        where: { githubUserId: who.githubUserId },
+        select: { id: true, githubLogin: true, email: true },
+      });
+      expect(created).toMatchObject({ githubLogin: who.githubLogin, email: who.email });
 
       // Owner of the default organization, which is where every project an
       // upgraded instance already had was backfilled.
       const membership = await database.membership.findFirst({
-        where: { userId: response.body.id },
+        where: { userId: created?.id },
         select: { organizationId: true, role: true },
       });
       expect(membership).toEqual({ organizationId: DEFAULT_ORGANIZATION_ID, role: "OWNER" });
     });
 
-    it("refuses every registration after the first", async () => {
-      await request(app.getHttpServer())
-        .post("/api/v1/auth/register")
-        .send({ email: uniqueEmail(), name: "Ops", password: PASSWORD })
-        .expect(201);
+    it("refuses every other account once it has been claimed", async () => {
+      await signInWithGitHub(identity());
 
-      await request(app.getHttpServer())
-        .post("/api/v1/auth/register")
-        .send({ email: uniqueEmail(), name: "Second", password: PASSWORD })
-        .expect(409);
+      const { location, sessionCookie } = await signInWithGitHub(identity());
+
+      expect(location).toBe("/login?error=no_account");
+      expect(sessionCookie).toBeUndefined();
+      expect(await database.user.count()).toBe(1);
     });
 
     it("reports whether the instance has been claimed", async () => {
       const before = await request(app.getHttpServer()).get("/api/v1/auth/session").expect(200);
-      expect(before.body).toEqual({ viewer: null, organizations: [], instanceClaimed: false });
+      expect(before.body).toEqual({
+        viewer: null,
+        organizations: [],
+        instanceClaimed: false,
+        githubSignInConfigured: true,
+      });
 
-      await request(app.getHttpServer())
-        .post("/api/v1/auth/register")
-        .send({ email: uniqueEmail(), name: "Ops", password: PASSWORD })
-        .expect(201);
+      await signInWithGitHub(identity());
 
       const after = await request(app.getHttpServer()).get("/api/v1/auth/session").expect(200);
       expect(after.body).toMatchObject({ viewer: null, instanceClaimed: true });
     });
+  });
 
-    it("rejects a password too short to be worth hashing", async () => {
-      await request(app.getHttpServer())
-        .post("/api/v1/auth/register")
-        .send({ email: uniqueEmail(), name: "Ops", password: "short" })
-        .expect(400);
+  describe("returning to the callback", () => {
+    it("returns to where the sign-in started", async () => {
+      const { location } = await signInWithGitHub(identity(), { redirect: "/orgs" });
+
+      expect(location).toBe("/orgs");
+    });
+
+    it("refuses to bounce the browser off this site", async () => {
+      const { location } = await signInWithGitHub(identity(), {
+        redirect: "https://attacker.example/",
+      });
+
+      expect(location).toBe("/");
+    });
+
+    it("refuses a callback whose state does not match the cookie", async () => {
+      const started = await request(app.getHttpServer())
+        .get("/api/v1/auth/github/start")
+        .expect(302);
+      const state = cookieValue(started.get("Set-Cookie") ?? [], OAUTH_STATE_COOKIE_NAME);
+
+      const response = await request(app.getHttpServer())
+        .get("/api/v1/auth/github/callback?code=code&state=not-the-nonce")
+        .set("cookie", `${OAUTH_STATE_COOKIE_NAME}=${state ?? ""}`)
+        .expect(302);
+
+      expect(response.get("Location")).toBe("/login?error=state");
+      expect(await database.user.count()).toBe(0);
+    });
+
+    it("refuses a callback carrying no state cookie at all", async () => {
+      const response = await request(app.getHttpServer())
+        .get("/api/v1/auth/github/callback?code=code&state=anything")
+        .expect(302);
+
+      expect(response.get("Location")).toBe("/login?error=state");
+    });
+
+    it("says so plainly when the person declined at GitHub", async () => {
+      const response = await request(app.getHttpServer())
+        .get("/api/v1/auth/github/callback?error=access_denied")
+        .expect(302);
+
+      expect(response.get("Location")).toBe("/login?error=denied");
     });
   });
 
-  describe("signing in", () => {
-    it("sets a cookie a browser will keep to itself", async () => {
-      const email = uniqueEmail();
-      await request(app.getHttpServer())
-        .post("/api/v1/auth/register")
-        .send({ email, name: "Ops", password: PASSWORD })
-        .expect(201);
+  describe("an account from before GitHub sign-in", () => {
+    it("is adopted by the GitHub account with the same address", async () => {
+      const legacy = await database.user.create({
+        data: { email: "ops@example.com", name: "Ops" },
+        select: { id: true },
+      });
+      await database.membership.create({
+        data: { organizationId: DEFAULT_ORGANIZATION_ID, userId: legacy.id, role: "OWNER" },
+        select: { id: true },
+      });
 
-      const response = await request(app.getHttpServer())
-        .post("/api/v1/auth/login")
-        .send({ email, password: PASSWORD })
-        .expect(200);
+      const who = identity({ email: "ops@example.com" });
+      const { sessionCookie } = await signInWithGitHub(who);
 
-      // Asserted on the raw header, not a parsed convenience object, because
-      // these attributes are the protection.
-      const cookie = (response.get("Set-Cookie") ?? []).join("; ");
-      expect(cookie).toContain("HttpOnly");
-      expect(cookie).toContain("SameSite=Lax");
-      expect(cookie).toContain("Path=/");
-    });
-
-    it("treats an unknown address and a wrong password the same way", async () => {
-      const email = uniqueEmail();
-      await request(app.getHttpServer())
-        .post("/api/v1/auth/register")
-        .send({ email, name: "Ops", password: PASSWORD })
-        .expect(201);
-
-      const wrongPassword = await request(app.getHttpServer())
-        .post("/api/v1/auth/login")
-        .send({ email, password: "not the password" })
-        .expect(401);
-
-      const unknownAddress = await request(app.getHttpServer())
-        .post("/api/v1/auth/login")
-        .send({ email: uniqueEmail(), password: PASSWORD })
-        .expect(401);
-
-      expect(unknownAddress.body.message).toBe(wrongPassword.body.message);
-    });
-
-    it("signs in with an address that differs only in case", async () => {
-      const email = uniqueEmail();
-      await request(app.getHttpServer())
-        .post("/api/v1/auth/register")
-        .send({ email, name: "Ops", password: PASSWORD })
-        .expect(201);
-
-      await request(app.getHttpServer())
-        .post("/api/v1/auth/login")
-        .send({ email: email.toUpperCase(), password: PASSWORD })
-        .expect(200);
-    });
-
-    it("refuses a sign-in a different site initiated", async () => {
-      await request(app.getHttpServer())
-        .post("/api/v1/auth/login")
-        .set("origin", "https://attacker.example")
-        .send({ email: uniqueEmail(), password: PASSWORD })
-        .expect(403);
+      expect(sessionCookie).toContain("dsv_");
+      // The same row, so the memberships it already held come with it.
+      expect(await database.user.count()).toBe(1);
+      expect(
+        await database.user.findUnique({
+          where: { id: legacy.id },
+          select: { githubUserId: true },
+        }),
+      ).toEqual({ githubUserId: who.githubUserId });
     });
   });
 
@@ -251,6 +298,7 @@ describe("Authentication", () => {
         .expect(200);
 
       expect(response.body.viewer).toMatchObject({ id: userId, name: "Tester" });
+      expect(response.body.viewer.githubLogin).toEqual(expect.any(String));
     });
 
     it("ends on sign-out, leaving the cookie worthless", async () => {
@@ -298,7 +346,7 @@ describe("Authentication", () => {
 
       await request(app.getHttpServer())
         .post("/api/v1/auth/logout")
-        .set("cookie", sessionCookie(token))
+        .set("cookie", `${SESSION_COOKIE_NAME}=${token}`)
         .expect(401);
     });
 
@@ -340,15 +388,15 @@ describe("Authentication", () => {
 
       await request(app.getHttpServer())
         .post("/api/v1/auth/logout")
-        .set("cookie", sessionCookie(forged.raw))
+        .set("cookie", `${SESSION_COOKIE_NAME}=${forged.raw}`)
         .expect(401);
     });
 
     it("keeps ingestion working while the instance is unclaimed", async () => {
-      // The upgrade path. An instance that nobody has registered on yet still
-      // accepts everything the SDKs in the field send it: adding viewer auth
-      // must not take an existing deployment off the air while its operator
-      // works out who is going to claim it.
+      // The upgrade path. An instance nobody has claimed yet still accepts
+      // everything the SDKs in the field send it: adding viewer auth must not
+      // take an existing deployment off the air while its operator works out
+      // who is going to claim it.
       expect(await database.user.count()).toBe(0);
 
       const { projectId, token } = await createIngestionToken();
@@ -385,8 +433,8 @@ describe("Authentication", () => {
       expect(Object.keys(response.body.paths)).toEqual(
         expect.arrayContaining([
           "/api/v1/auth/session",
-          "/api/v1/auth/register",
-          "/api/v1/auth/login",
+          "/api/v1/auth/github/start",
+          "/api/v1/auth/github/callback",
           "/api/v1/auth/logout",
         ]),
       );

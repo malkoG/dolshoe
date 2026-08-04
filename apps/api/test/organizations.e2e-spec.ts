@@ -31,9 +31,10 @@ const UNAUTHENTICATED_PATHS = new Set([
   "/api/v1/projects/{projectId}/error-reports",
   "/api/v1/projects/{projectId}/log-records",
   "/api/v1/auth/session",
-  "/api/v1/auth/register",
-  "/api/v1/auth/login",
-  "/api/v1/auth/invitations/accept",
+  // The two halves of signing in. Neither can require a session — that is the
+  // thing being established — so the `state` cookie protects them instead.
+  "/api/v1/auth/github/start",
+  "/api/v1/auth/github/callback",
 ]);
 
 function uniqueName(label: string): string {

@@ -63,11 +63,36 @@ export const createOrganizationRequestSchema = z
     description: "Creates an organization. The creator becomes its owner.",
   });
 
+/**
+ * GitHub caps a login at 39 characters and allows alphanumerics and hyphens,
+ * with no hyphen at either end. Lowercased because GitHub treats "Octocat" and
+ * "octocat" as one account, and an invitation issued for one has to be
+ * redeemable by the other.
+ */
+const githubLogin = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(
+    z
+      .string()
+      .min(1)
+      .max(39)
+      .regex(
+        /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/,
+        "A GitHub login is up to 39 letters, digits, and single hyphens between them.",
+      ),
+  );
+
 export const memberSchema = z
   .object({
     userId: z.uuid().meta({ description: "The account this membership belongs to." }),
-    email: z.email().meta({ description: "The member's address." }),
+    email: z.email().meta({ description: "The member's address, as GitHub reports it." }),
     name: nonEmptyText(200).meta({ description: "The member's name." }),
+    githubLogin: z.string().max(39).nullable().meta({
+      description:
+        "The GitHub account this member signs in as. Null only for a member created before GitHub sign-in existed and not yet adopted.",
+    }),
     role: membershipRoleSchema.meta({ description: "What the member may do here." }),
     joinedAt: z.iso.datetime().meta({ description: "UTC timestamp the member joined." }),
   })
@@ -97,12 +122,13 @@ export const updateMemberRequestSchema = z
     description: "Changes a member's role.",
   });
 
-const invitationEmail = z.string().trim().toLowerCase().pipe(z.email()).pipe(z.string().max(320));
-
 export const invitationSchema = z
   .object({
     id: z.uuid().meta({ description: "Server-assigned invitation identifier." }),
-    email: z.email().meta({ description: "The address this invitation was issued for." }),
+    githubLogin: z
+      .string()
+      .max(39)
+      .meta({ description: "The GitHub account this invitation was issued for." }),
     role: membershipRoleSchema.meta({ description: "The role it grants on acceptance." }),
     invitedBy: nonEmptyText(200).meta({ description: "Who issued it." }),
     createdAt: z.iso.datetime().meta({ description: "UTC timestamp it was issued." }),
@@ -120,7 +146,7 @@ export const invitationSchema = z
   .register(contractRegistry, {
     id: "InvitationV1",
     description:
-      "An outstanding offer to join an organization. Never carries its token: only a SHA-256 digest is stored.",
+      "An outstanding offer to join an organization, issued for a GitHub login. Never carries its token: only a SHA-256 digest is stored.",
   });
 
 export const invitationListResponseSchema = z
@@ -135,13 +161,14 @@ export const invitationListResponseSchema = z
 
 export const createInvitationRequestSchema = z
   .object({
-    email: invitationEmail.meta({ description: "Who to invite." }),
+    githubLogin: githubLogin.meta({ description: "The GitHub login to invite, without the @." }),
     role: membershipRoleSchema.meta({ description: "The role they will hold." }),
   })
   .strict()
   .register(contractRegistry, {
     id: "CreateInvitationRequestV1",
-    description: "Invites someone to an organization.",
+    description:
+      "Invites a GitHub account to an organization. The login is not checked against GitHub: an invitation for a handle that does not exist simply never gets redeemed.",
   });
 
 export const issuedInvitationSchema = invitationSchema
@@ -160,21 +187,12 @@ export const issuedInvitationSchema = invitationSchema
 export const acceptInvitationRequestSchema = z
   .object({
     token: z.string().min(1).meta({ description: "The token from the invitation link." }),
-    name: nonEmptyText(200)
-      .optional()
-      .meta({ description: "Required when accepting without being signed in." }),
-    password: z
-      .string()
-      .min(12)
-      .max(200)
-      .optional()
-      .meta({ description: "Required when accepting without being signed in." }),
   })
   .strict()
   .register(contractRegistry, {
     id: "AcceptInvitationRequestV1",
     description:
-      "Accepts an invitation. Signed in, it only adds the membership; signed out, it also creates the account.",
+      "Accepts an invitation as the account already signed in. Accepting without an account goes through GitHub instead, at `auth/github/start?invitation=…`.",
   });
 
 export const orgSlugParamSchema = organizationSlug;

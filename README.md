@@ -143,6 +143,8 @@ packages/
 └── logtape/          LogTape-to-Dolshoe bridge
 examples/
 └── logtape-runtimes/  Equivalent Node, Deno, and Bun reporting scenarios
+docs/
+└── github-sign-in.md  Registering an OAuth app and pointing an instance at it
 ```
 
 Prisma remains inside the API because it has only one consumer. The reporter
@@ -165,31 +167,78 @@ Every instance starts with one organization, `default`, owning one project, also
 `default`. Upgrading an existing instance moves every project it already had into
 that organization, so nothing moves out from under you.
 
+### Signing in with GitHub
+
+GitHub is the only way to sign in. There are no passwords to store, reset, or
+leak, and no second identity for your team to remember — the accounts they
+already use to write the code are the accounts that read its errors.
+
+An instance needs an OAuth app of its own before anyone can sign in:
+
+```sh
+GITHUB_CLIENT_ID=Iv1.0123456789abcdef
+GITHUB_CLIENT_SECRET=…
+GITHUB_CALLBACK_URL=https://dolshoe.example.com/api/v1/auth/github/callback
+```
+
+All three go together: set all of them or none. Without them the API still
+starts, warns, and the sign-in page explains that nobody can sign in yet.
+
+**[Setting up GitHub sign-in](docs/github-sign-in.md)** walks through registering
+the app, choosing the callback URL, and what to check when a sign-in comes back
+refused.
+
+Dolshoe asks GitHub for `read:user` and `user:email`, both read-only. It never
+asks for repository access.
+
+### Deciding who gets in
+
+Two independent gates. `GITHUB_ALLOWED_LOGINS` decides who may hold an account
+at all; invitations decide which organizations that account reaches.
+
+```sh
+GITHUB_ALLOWED_LOGINS=octocat,malkoG
+```
+
+Leave it unset for no restriction. Set it before the instance is reachable and
+you never have to race anyone to it.
+
 ### Claiming a new instance
 
 A fresh instance has no accounts, and nobody to send an invitation. So the first
-person to register on it becomes the owner of the default organization, and
-registration closes permanently after that.
+GitHub account to sign in becomes the owner of the default organization, and
+every account after that needs an invitation.
 
 > [!IMPORTANT]
-> **An unclaimed instance can be claimed by anyone who can reach it.** Register
-> your account as soon as the instance is up — and immediately after
-> `pnpm db:migrate:deploy` when upgrading one that was already running, because
-> an upgraded instance is unclaimed until someone does. The API logs a warning at
-> startup for as long as it stays that way.
+> **An unclaimed instance is claimed by whichever allowed GitHub account reaches
+> it first.** Set `GITHUB_ALLOWED_LOGINS`, or sign in as soon as the instance is
+> up — and immediately after `pnpm db:migrate:deploy` when upgrading one that was
+> already running, because an upgraded instance is unclaimed until someone does.
+> The API logs a warning at startup for as long as it stays that way.
 >
 > This is narrower than what it replaces: before viewer auth, anyone who could
 > reach the API could mint an ingestion token for any project, indefinitely.
 
 ### Adding people
 
-Everyone after the first arrives by invitation. An owner or admin invites an
-address from the **Members** screen and gets back a one-time link:
+Everyone after the first arrives by invitation. An owner or admin invites a
+**GitHub login** from the **Members** screen and gets back a one-time link.
+
+The API underneath needs a signed-in session. Signing in is a round trip through
+github.com, so `curl` cannot start one — sign in through the web app and copy the
+`dolshoe_session` cookie out of your browser for the examples in this README:
 
 ```sh
-curl -b cookies.txt -X POST http://localhost:<port>/api/v1/orgs/<orgSlug>/invitations \
-  -H 'content-type: application/json' -d '{"email":"colleague@example.com","role":"MEMBER"}'
+cookies="dolshoe_session=dsv_…"
+
+curl -b "$cookies" -X POST http://localhost:<port>/api/v1/orgs/<orgSlug>/invitations \
+  -H 'content-type: application/json' -d '{"githubLogin":"octocat","role":"MEMBER"}'
 ```
+
+A login rather than an address, because a login is the identity the invitee will
+actually arrive with. It is resolved to GitHub's immutable account id when the
+link is redeemed, so a handle that changes hands in the meantime cannot be used
+to claim somebody else's seat.
 
 **Dolshoe sends no email.** There is no SMTP to configure, no delivery queue,
 and no bounces to chase — you copy the link into whatever you already use to
@@ -198,9 +247,11 @@ only its digest is stored, so a link that is not recorded at that moment has to
 be reissued.
 
 Links expire after seven days, can be withdrawn at any time, and work exactly
-once. Accepting is bound to the address the invitation names, so forwarding one
-does not quietly add whoever opens it. Re-inviting the same address withdraws
-any outstanding link for it, so there is never more than one live link per seat.
+once. Opening one signs the invitee in with GitHub and grants the membership in
+a single step. Acceptance is bound to the login the invitation names, so
+forwarding a link does not quietly add whoever opens it. Re-inviting the same
+login withdraws any outstanding link for it, so there is never more than one
+live link per seat.
 
 Sessions are 30-day `HttpOnly` cookies. Signing out ends the session on the
 server, so a copy of the cookie is worthless afterwards.
@@ -221,17 +272,13 @@ switches between organizations and between projects without leaving the section
 you are in.
 
 Create a project and issue a token from the **Projects** screen in the web app.
-The API underneath needs a signed-in session, so a `curl` walkthrough starts by
-signing in and keeping the cookie:
+The API underneath needs the same signed-in session as above:
 
 ```sh
-curl -c cookies.txt -X POST http://localhost:<port>/api/v1/auth/login \
-  -H 'content-type: application/json' -d '{"email":"you@example.com","password":"…"}'
-
-curl -b cookies.txt -X POST http://localhost:<port>/api/v1/orgs/<orgSlug>/projects \
+curl -b "$cookies" -X POST http://localhost:<port>/api/v1/orgs/<orgSlug>/projects \
   -H 'content-type: application/json' -d '{"name":"Checkout API"}'
 
-curl -b cookies.txt -X POST \
+curl -b "$cookies" -X POST \
   http://localhost:<port>/api/v1/orgs/<orgSlug>/projects/<projectId>/tokens \
   -H 'content-type: application/json' -d '{"name":"production"}'
 ```
@@ -241,7 +288,7 @@ SHA-256 digest is stored, so a token that is not recorded at that moment has to
 be replaced. Revoke one at any time; revocation is immediate and idempotent:
 
 ```sh
-curl -b cookies.txt -X POST \
+curl -b "$cookies" -X POST \
   http://localhost:<port>/api/v1/orgs/<orgSlug>/projects/<projectId>/tokens/<tokenId>/revoke
 ```
 
@@ -483,6 +530,10 @@ production build. CI additionally runs the PostgreSQL e2e suite.
 | `LOG_RETENTION_DAYS`    | `14`                      | Days to retain logs, based on server receipt time                                         |
 | `DATABASE_URL`          | local PostgreSQL          | Prisma and application connection URL                                                     |
 | `SESSION_COOKIE_SECURE` | follows `NODE_ENV`        | `Secure` on the session cookie. Turn off for plain HTTP on a private network              |
+| `GITHUB_CLIENT_ID`      | empty                     | OAuth app client id. Required to sign anybody in                                          |
+| `GITHUB_CLIENT_SECRET`  | empty                     | OAuth app client secret                                                                   |
+| `GITHUB_CALLBACK_URL`   | local web origin          | Where GitHub returns the browser. Must be browser-reachable and match GitHub's copy       |
+| `GITHUB_ALLOWED_LOGINS` | empty                     | Comma-separated GitHub logins allowed to hold an account. Empty means no restriction      |
 | `DOLSHOE_API_ORIGIN`    | `http://localhost:3000`   | Where the web app's server-side render reaches the API. Deliberately not `VITE_`-prefixed |
 
 Development logs use a readable colored formatter. Production logs are emitted

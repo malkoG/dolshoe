@@ -48,8 +48,8 @@ const invitationIdPipe = new ZodValidationPipe(
  *
  * @remarks
  * Administering membership is an owner-or-admin action throughout, including
- * seeing who has been invited: the list names addresses that have not joined
- * yet, which is not something every member needs.
+ * seeing who has been invited: the list names GitHub accounts that have not
+ * joined yet, which is not something every member needs.
  */
 @ApiTags("Organizations")
 @ApiCookieAuth("session")
@@ -92,7 +92,7 @@ export class InvitationController {
     schema: { $ref: "#/components/schemas/IssuedInvitationV1" },
   })
   @ApiBadRequestResponse({ description: "The body does not satisfy the invitation contract." })
-  @ApiConflictResponse({ description: "That address already belongs to this organization." })
+  @ApiConflictResponse({ description: "That GitHub account already belongs to this organization." })
   create(
     @CurrentOrganization() organization: OrganizationContext,
     @CurrentViewer() viewer: Viewer,

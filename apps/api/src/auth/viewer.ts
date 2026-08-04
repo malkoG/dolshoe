@@ -9,6 +9,14 @@ export interface Viewer {
   readonly id: string;
   readonly email: string;
   readonly name: string;
+  /**
+   * Null only for an account created before GitHub sign-in existed and not yet
+   * adopted by a GitHub account. Such a row cannot be signed into, so a viewer
+   * resolved from a live session always has one — but the column allows absence
+   * and this states that rather than hiding it behind an assertion.
+   */
+  readonly githubLogin: string | null;
+  readonly avatarUrl: string | null;
   /** The session that authenticated this request, so signing out can end it. */
   readonly sessionId: string;
 }
