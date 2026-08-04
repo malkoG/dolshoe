@@ -62,7 +62,9 @@ export class SessionService {
         tokenHash: true,
         lastUsedAt: true,
         expiresAt: true,
-        user: { select: { id: true, email: true, name: true } },
+        user: {
+          select: { id: true, email: true, name: true, githubLogin: true, avatarUrl: true },
+        },
       },
     });
 
@@ -86,6 +88,8 @@ export class SessionService {
       id: stored.user.id,
       email: stored.user.email,
       name: stored.user.name,
+      githubLogin: stored.user.githubLogin,
+      avatarUrl: stored.user.avatarUrl,
       sessionId: stored.id,
     };
   }

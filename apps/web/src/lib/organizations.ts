@@ -22,6 +22,7 @@ const memberSchema = z.object({
   userId: z.string(),
   email: z.string(),
   name: z.string(),
+  githubLogin: z.string().nullable(),
   role: membershipRoleSchema,
   joinedAt: z.string(),
 });
@@ -32,7 +33,7 @@ const memberListResponseSchema = z.object({
 
 const invitationSchema = z.object({
   id: z.string(),
-  email: z.string(),
+  githubLogin: z.string(),
   role: membershipRoleSchema,
   invitedBy: z.string(),
   createdAt: z.string(),
@@ -152,7 +153,7 @@ export async function fetchInvitations(
  */
 export function createInvitation(
   orgSlug: string,
-  input: { email: string; role: MembershipRole },
+  input: { githubLogin: string; role: MembershipRole },
   init?: { signal?: AbortSignal },
 ): Promise<IssuedInvitation> {
   return requestJson(
@@ -176,8 +177,13 @@ export function revokeInvitation(
   );
 }
 
+/**
+ * Redeems a link as the account already signed in. Somebody without an account
+ * goes through GitHub instead — see {@link githubSignInUrl} — because only
+ * GitHub can establish who they are.
+ */
 export function acceptInvitation(
-  input: { token: string; name?: string; password?: string },
+  input: { token: string },
   init?: { signal?: AbortSignal },
 ): Promise<{ organizationSlug: string }> {
   return requestJson(

@@ -29,7 +29,7 @@ interface OrganizationRow {
 interface MemberRow {
   role: MembershipRole;
   createdAt: Date;
-  user: { id: string; email: string; name: string };
+  user: { id: string; email: string; name: string; githubLogin: string | null };
 }
 
 function toOrganization(row: OrganizationRow, role: MembershipRole): Organization {
@@ -47,6 +47,7 @@ function toMember(row: MemberRow): Member {
     userId: row.user.id,
     email: row.user.email,
     name: row.user.name,
+    githubLogin: row.user.githubLogin,
     role: row.role,
     joinedAt: row.createdAt.toISOString(),
   };
@@ -111,7 +112,7 @@ export class OrganizationService {
       select: {
         role: true,
         createdAt: true,
-        user: { select: { id: true, email: true, name: true } },
+        user: { select: { id: true, email: true, name: true, githubLogin: true } },
       },
     });
 
@@ -150,7 +151,7 @@ export class OrganizationService {
       select: {
         role: true,
         createdAt: true,
-        user: { select: { id: true, email: true, name: true } },
+        user: { select: { id: true, email: true, name: true, githubLogin: true } },
       },
     });
 

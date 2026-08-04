@@ -1,4 +1,5 @@
 import { appConfig } from "../config/app-config";
+import { readCookie } from "./cookies";
 
 export const SESSION_COOKIE_NAME = "dolshoe_session";
 
@@ -11,29 +12,8 @@ export interface SessionCookieOptions {
   maxAge?: number;
 }
 
-/**
- * Reads the session cookie out of a raw `Cookie` header.
- *
- * @remarks
- * Hand-parsed rather than pulling in `cookie-parser`: exactly one cookie matters
- * to this application, and a dependency plus global middleware to find it would
- * be more moving parts than the ten lines it takes. Splits on `;` and matches
- * the full name so a cookie such as `dolshoe_session_other` cannot be mistaken
- * for this one.
- */
 export function readSessionCookie(header: string | undefined): string | undefined {
-  if (header == null) return undefined;
-
-  for (const part of header.split(";")) {
-    const separator = part.indexOf("=");
-    if (separator === -1) continue;
-
-    if (part.slice(0, separator).trim() === SESSION_COOKIE_NAME) {
-      return decodeURIComponent(part.slice(separator + 1).trim());
-    }
-  }
-
-  return undefined;
+  return readCookie(header, SESSION_COOKIE_NAME);
 }
 
 /**

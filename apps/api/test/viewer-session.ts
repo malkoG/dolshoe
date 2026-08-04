@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 
-import { hashPassword } from "../src/auth/password";
 import { SESSION_COOKIE_NAME } from "../src/auth/session-cookie";
 import { generateSessionToken } from "../src/auth/session-token";
 import { PrismaService } from "../src/database/prisma.service";
@@ -11,29 +10,35 @@ export interface SignedInViewer {
   /** Ready to hand to `.set("cookie", …)`. */
   readonly cookie: string;
   readonly userId: string;
+  readonly githubLogin: string;
 }
 
 /**
  * Creates an account, a membership, and a live session directly in the database.
  *
  * @remarks
- * Not through `POST /auth/register`, which only succeeds while an instance is
- * unclaimed and so cannot produce the second account a role test needs. Writing
- * the rows here is the same move `projects.e2e-spec.ts` already makes when it
- * hashes an ingestion token by hand to check what was stored.
+ * Not through the GitHub sign-in flow, which would need GitHub itself to
+ * answer. Writing the rows here is the same move `projects.e2e-spec.ts` already
+ * makes when it hashes an ingestion token by hand to check what was stored.
  *
  * Shared rather than colocated because three suites need it. Each still owns its
  * own teardown: this returns the ids required to clean up.
  */
 export async function signIn(
   database: PrismaService,
-  options: { organizationId?: string; role?: MembershipRole } = {},
+  options: { organizationId?: string; role?: MembershipRole; githubLogin?: string } = {},
 ): Promise<SignedInViewer> {
+  const suffix = randomUUID().slice(0, 8);
+  const githubLogin = options.githubLogin ?? `viewer-${suffix}`;
+
   const user = await database.user.create({
     data: {
-      email: `viewer-${randomUUID().slice(0, 8)}@example.com`,
+      email: `${githubLogin}@example.com`,
       name: "Tester",
-      passwordHash: await hashPassword("correct horse battery staple"),
+      // A GitHub account is what an account is now, so the fixture carries one.
+      // The id only has to be unique and stable within the test.
+      githubUserId: `gh-${suffix}`,
+      githubLogin,
       memberships: {
         create: {
           organizationId: options.organizationId ?? DEFAULT_ORGANIZATION_ID,
@@ -55,5 +60,5 @@ export async function signIn(
     select: { id: true },
   });
 
-  return { cookie: `${SESSION_COOKIE_NAME}=${token.raw}`, userId: user.id };
+  return { cookie: `${SESSION_COOKIE_NAME}=${token.raw}`, userId: user.id, githubLogin };
 }

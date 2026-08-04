@@ -2,8 +2,8 @@ import { Global, Module } from "@nestjs/common";
 
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { GitHubOAuthClient } from "./github-oauth.client";
 import { InstanceClaimReadinessService } from "./instance-claim-readiness.service";
-import { SameOriginGuard } from "./same-origin.guard";
 import { SessionAuthGuard } from "./session-auth.guard";
 import { SessionService } from "./session.service";
 
@@ -17,11 +17,11 @@ import { SessionService } from "./session.service";
   controllers: [AuthController],
   providers: [
     AuthService,
+    GitHubOAuthClient,
     SessionService,
     SessionAuthGuard,
-    SameOriginGuard,
     InstanceClaimReadinessService,
   ],
-  exports: [AuthService, SessionService, SessionAuthGuard, SameOriginGuard],
+  exports: [AuthService, SessionService, SessionAuthGuard],
 })
 export class AuthModule {}

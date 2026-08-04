@@ -31,17 +31,29 @@ model Organization {
 
 /// A person who signs in to read what Dolshoe has recorded. Distinct from a
 /// ProjectToken, which authenticates a machine writing into it.
+///
+/// GitHub is the only way in, so `githubUserId` is what an account is really
+/// identified by. It is nullable only to hold accounts created before GitHub
+/// sign-in existed: such a row cannot be signed into, and is adopted by the
+/// first GitHub account whose address matches. `email` is display and adoption
+/// data, never a credential.
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique @db.VarChar(320)
   name         String   @db.VarChar(200)
-  passwordHash String   @db.VarChar(200)
+  /// GitHub's immutable numeric account id, as text. Matched on instead of the
+  /// login, which its owner can change or give up to somebody else.
+  githubUserId String?  @unique @db.VarChar(32)
+  /// Stored lowercase. GitHub caps a login at 39 characters.
+  githubLogin  String?  @db.VarChar(39)
+  avatarUrl    String?  @db.VarChar(500)
   createdAt    DateTime @default(now()) @db.Timestamptz(3)
 
   sessions        Session[]
   memberships     Membership[]
   sentInvitations Invitation[] @relation("InvitedBy")
 
+  @@index([githubLogin])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -78,10 +90,17 @@ model Session {
 
 /// An offer to join an organization, carried by a one-time link. Only the
 /// digest of that link's token is stored, the same way an ingestion token is.
+///
+/// Issued against a GitHub login rather than an address, because a GitHub login
+/// is the identity the invitee will actually arrive with. The login is resolved
+/// to a `githubUserId` when the link is redeemed, so a handle that changes hands
+/// between issue and acceptance cannot be used to claim somebody else's seat.
 model Invitation {
   id             String         @id @default(uuid()) @db.Uuid
   organizationId String         @db.Uuid
-  email          String         @db.VarChar(320)
+  /// Stored lowercase, so a link issued for "Octocat" is redeemable by
+  /// "octocat" — GitHub treats the two as one account.
+  githubLogin    String         @db.VarChar(39)
   role           MembershipRole
   prefix         String         @unique @db.VarChar(12)
   tokenHash      String         @db.Char(64)

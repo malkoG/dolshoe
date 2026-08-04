@@ -55,7 +55,7 @@ function InvitationReveal({
     <div className="token-reveal" role="alert">
       <div className="token-reveal-heading">
         <UserPlus size={16} />
-        <strong>Send this link to {issued.email}</strong>
+        <strong>Send this link to @{issued.githubLogin}</strong>
       </div>
       <p>
         Dolshoe does not send email, and stores only a hash of this link, so it cannot show it to
@@ -83,7 +83,7 @@ function Members() {
   const { organization, session } = Route.useRouteContext();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
-  const [email, setEmail] = useState("");
+  const [githubLogin, setGithubLogin] = useState("");
   const [role, setRole] = useState<MembershipRole>("MEMBER");
   const [inviting, setInviting] = useState(false);
   const [actionError, setActionError] = useState<string | undefined>(undefined);
@@ -118,13 +118,13 @@ function Members() {
 
   async function invite(event: React.FormEvent): Promise<void> {
     event.preventDefault();
-    if (inviting || email.trim().length === 0) return;
+    if (inviting || githubLogin.trim().length === 0) return;
 
     setInviting(true);
     setActionError(undefined);
     try {
-      setIssued(await createInvitation(orgSlug, { email: email.trim(), role }));
-      setEmail("");
+      setIssued(await createInvitation(orgSlug, { githubLogin: githubLogin.trim(), role }));
+      setGithubLogin("");
       setReloadToken((token) => token + 1);
     } catch (error) {
       setActionError(describeError(error));
@@ -171,13 +171,19 @@ function Members() {
         <section className="report-panel">
           <form className="inline-form" onSubmit={(event) => void invite(event)}>
             <label className="auth-field">
-              <span>Invite someone</span>
+              <span>Invite a GitHub account</span>
               <input
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="colleague@example.com"
-                type="email"
-                value={email}
+                autoCapitalize="none"
+                autoCorrect="off"
+                onChange={(event) => setGithubLogin(event.target.value)}
+                placeholder="octocat"
+                spellCheck={false}
+                type="text"
+                value={githubLogin}
               />
+              <span className="auth-hint">
+                The handle, without the @. Only that account can redeem the link.
+              </span>
             </label>
             <label className="auth-field">
               <span>Role</span>
@@ -233,7 +239,9 @@ function Members() {
             <div className="member-row" key={member.userId}>
               <div>
                 <strong>{member.name}</strong>
-                <span className="organization-slug">{member.email}</span>
+                <span className="organization-slug">
+                  {member.githubLogin == null ? member.email : `@${member.githubLogin}`}
+                </span>
               </div>
               <div className="organization-meta">
                 <span>Joined {dateFormatter.format(new Date(member.joinedAt))}</span>
@@ -285,7 +293,7 @@ function Members() {
           {pending.map((invitation) => (
             <div className="member-row" key={invitation.id}>
               <div>
-                <strong>{invitation.email}</strong>
+                <strong>@{invitation.githubLogin}</strong>
                 <span className="organization-slug">Invited by {invitation.invitedBy}</span>
               </div>
               <div className="organization-meta">

@@ -17,6 +17,8 @@ const VIEWER = {
   id: "3f1d0a4c-6b2e-4f7a-9c5d-8e1b2a3c4d5e",
   email: "ops@example.com",
   name: "Ops",
+  githubLogin: "ops",
+  avatarUrl: null,
   sessionId: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
 };
 
