@@ -9,6 +9,7 @@ import { LogRecordModule } from "./log-recording/log-record.module";
 import { MessageQueueModule } from "./message-queue/message-queue.module";
 import { OrganizationModule } from "./organizations/organization.module";
 import { ProjectModule } from "./projects/project.module";
+import { TraceModule } from "./tracing/trace.module";
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ProjectModule } from "./projects/project.module";
     IngestionModule,
     ErrorReportModule,
     LogRecordModule,
+    TraceModule,
     HealthModule,
     MessageQueueModule,
   ],

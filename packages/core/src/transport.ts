@@ -1,4 +1,14 @@
-import type { ErrorReport, LogRecord, LogRecordBatch, LogTransport, Transport } from "./types.js";
+import { toOtlpTraceRequest } from "./otlp.js";
+import type { ReporterIdentity } from "./otlp.js";
+import type {
+  ErrorReport,
+  FinishedSpan,
+  LogRecord,
+  LogRecordBatch,
+  LogTransport,
+  SpanTransport,
+  Transport,
+} from "./types.js";
 
 interface FetchTransportOptions {
   endpoint: string | URL;
@@ -78,5 +88,47 @@ export class HttpLogTransport implements LogTransport {
       records: [...records],
     };
     await postJson(this.#fetch, this.#endpoint, this.#headers, batch);
+  }
+}
+
+interface SpanTransportOptions extends FetchTransportOptions {
+  identity: ReporterIdentity;
+}
+
+/**
+ * Spans go out as OTLP/HTTP JSON — the same format any OpenTelemetry exporter
+ * would send, and the only one Dolshoe's trace endpoints read. Nothing about
+ * this payload is Dolshoe-specific, so a reporter and a collector are
+ * interchangeable from the server's point of view.
+ */
+export class OtlpSpanTransport implements SpanTransport {
+  readonly #endpoint: string;
+  readonly #headers: Readonly<Record<string, string>>;
+  readonly #fetch: typeof globalThis.fetch;
+  readonly #identity: ReporterIdentity;
+
+  constructor(options: SpanTransportOptions) {
+    const fetchImplementation = options.fetch ?? globalThis.fetch;
+    if (fetchImplementation == null) {
+      throw new Error("Dolshoe requires a Fetch API implementation.");
+    }
+
+    this.#endpoint = options.endpoint.toString();
+    this.#fetch = fetchImplementation;
+    this.#headers = options.headers ?? {};
+    this.#identity = options.identity;
+  }
+
+  async send(spans: readonly FinishedSpan[]): Promise<void> {
+    if (spans.length === 0 || spans.length > 1_000) {
+      throw new Error("Dolshoe span exports must contain between 1 and 1000 spans.");
+    }
+
+    await postJson(
+      this.#fetch,
+      this.#endpoint,
+      this.#headers,
+      toOtlpTraceRequest(spans, this.#identity),
+    );
   }
 }

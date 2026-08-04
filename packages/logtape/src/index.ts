@@ -1,10 +1,41 @@
-import type { LogLevel, ReporterNamespace } from "@dolshoe/core";
+import type { LogLevel, ReporterNamespace, TraceContext } from "@dolshoe/core";
 import { compareLogLevel, getLogger, type LogRecord, type Sink } from "@logtape/logtape";
 
 export interface DolshoeSinkOptions {
   dolshoe: ReporterNamespace;
   errorPropertyNames?: readonly string[];
   beforeSend?: (record: LogRecord) => LogRecord | null;
+}
+
+const TRACE_ID_PATTERN = /^[0-9a-f]{32}$/i;
+const SPAN_ID_PATTERN = /^[0-9a-f]{16}$/i;
+
+/**
+ * Trace context a LogTape record carried in its own properties.
+ *
+ * @remarks
+ * A service that already propagates W3C trace context — through LogTape's
+ * implicit contexts, say, with `withContext({ traceId, spanId })` — gets its
+ * logs correlated without adopting Dolshoe's span API at all. When it has not,
+ * this finds nothing and the client falls back to whichever span is active,
+ * which is the path a caller using `withSpan` takes.
+ *
+ * The ids are removed from the attributes on the way through, because they are
+ * about to be stored as columns and duplicating them helps nobody.
+ */
+function readTraceContext(properties: Readonly<Record<string, unknown>>): TraceContext | undefined {
+  const traceId = properties.traceId;
+  if (typeof traceId !== "string" || !TRACE_ID_PATTERN.test(traceId)) return undefined;
+
+  const spanId = properties.spanId;
+  return typeof spanId === "string" && SPAN_ID_PATTERN.test(spanId)
+    ? { traceId: traceId.toLowerCase(), spanId: spanId.toLowerCase() }
+    : { traceId: traceId.toLowerCase() };
+}
+
+function withoutTraceIds(properties: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const { traceId: _traceId, spanId: _spanId, ...rest } = properties;
+  return rest;
 }
 
 function inspect(value: unknown): string {
@@ -72,11 +103,14 @@ export function getDolshoeSink(options: DolshoeSinkOptions): Sink {
 
       const message = renderMessage(transformed);
       const exceptionProperty = findException(transformed.properties, propertyNames);
+      const trace = readTraceContext(transformed.properties);
+      const properties =
+        trace == null ? transformed.properties : withoutTraceIds(transformed.properties);
 
       if (exceptionProperty != null && compareLogLevel(transformed.level, "error") >= 0) {
         const [propertyName, exception] = exceptionProperty;
         const attributes: Record<string, unknown> = {
-          ...transformed.properties,
+          ...properties,
           "logtape.category": transformed.category.join("."),
           "logtape.level": transformed.level,
           "logtape.message": message,
@@ -88,13 +122,15 @@ export function getDolshoeSink(options: DolshoeSinkOptions): Sink {
             type: "logtape",
             handled: true,
           },
+          ...(trace == null ? {} : { trace }),
           attributes,
         });
       } else {
         options.dolshoe.captureLog(transformed.level as LogLevel, message, {
           occurredAt: transformed.timestamp,
           category: transformed.category,
-          attributes: transformed.properties,
+          ...(trace == null ? {} : { trace }),
+          attributes: properties,
         });
       }
     } catch (error) {

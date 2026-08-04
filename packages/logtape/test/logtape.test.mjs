@@ -170,3 +170,73 @@ test("drops a record when beforeSend returns null", () => {
 
   assert.equal(called, false);
 });
+
+const TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+const SPAN_ID = "00f067aa0ba902b7";
+
+function sinkCollecting(calls) {
+  return getDolshoeSink({
+    dolshoe: {
+      captureException: (...args) => {
+        calls.push(["exception", ...args]);
+        return "event-id";
+      },
+      captureMessage: () => undefined,
+      captureLog: (...args) => {
+        calls.push(["log", ...args]);
+        return "event-id";
+      },
+      startSpan: () => undefined,
+      withSpan: (_name, run) => run(undefined),
+      activeSpan: () => undefined,
+      flush: async () => true,
+      close: async () => true,
+    },
+  });
+}
+
+// A service already propagating W3C trace context through LogTape's implicit
+// contexts gets correlated logs without adopting Dolshoe's span API.
+test("lifts traceId and spanId out of LogTape properties into the trace context", () => {
+  const calls = [];
+  sinkCollecting(calls)(
+    record({
+      level: "info",
+      properties: { orderId: "order-123", traceId: TRACE_ID, spanId: SPAN_ID },
+    }),
+  );
+
+  const [, , , options] = calls[0];
+  assert.deepEqual(options.trace, { traceId: TRACE_ID, spanId: SPAN_ID });
+  // Not duplicated into the attributes, where they are about to be columns.
+  assert.deepEqual(options.attributes, { orderId: "order-123" });
+});
+
+test("accepts a trace id without a span id", () => {
+  const calls = [];
+  sinkCollecting(calls)(record({ level: "info", properties: { traceId: TRACE_ID } }));
+
+  assert.deepEqual(calls[0][3].trace, { traceId: TRACE_ID });
+});
+
+test("ignores properties that only look like trace ids", () => {
+  const calls = [];
+  sinkCollecting(calls)(
+    record({ level: "info", properties: { traceId: "nope", spanId: "also-nope" } }),
+  );
+
+  assert.equal(calls[0][3].trace, undefined);
+  // Left in the attributes, since they were not trace context after all.
+  assert.deepEqual(calls[0][3].attributes, { traceId: "nope", spanId: "also-nope" });
+});
+
+test("carries the trace context onto a captured exception too", () => {
+  const calls = [];
+  sinkCollecting(calls)(
+    record({ properties: { error: new TypeError("bad"), traceId: TRACE_ID, spanId: SPAN_ID } }),
+  );
+
+  const [kind, , options] = calls[0];
+  assert.equal(kind, "exception");
+  assert.deepEqual(options.trace, { traceId: TRACE_ID, spanId: SPAN_ID });
+});

@@ -46,6 +46,8 @@ function comparableReport(report) {
       version: report.reporter.version,
     },
     exception: normalizeException(report.exception),
+    // Random per run, and already asserted structurally through `trace`.
+    trace: report.trace == null ? undefined : "<active span>",
   };
 }
 
@@ -60,6 +62,24 @@ function comparableLogRecord(record) {
     reporter: {
       name: "<runtime reporter>",
       version: record.reporter.version,
+    },
+    // Random per run, and already asserted structurally through `trace`.
+    trace: record.trace == null ? undefined : "<active span>",
+  };
+}
+
+function comparableTrace(trace) {
+  return {
+    ...trace,
+    root: {
+      ...trace.root,
+      resource: trace.root.resource.attributes
+        .filter((pair) => !pair.key.startsWith("process.runtime."))
+        .map((pair) =>
+          pair.key === "telemetry.sdk.name"
+            ? { key: pair.key, value: { stringValue: "<runtime reporter>" } }
+            : pair,
+        ),
     },
   };
 }
@@ -92,6 +112,21 @@ for (const runtime of Object.keys(scenarios)) {
   assert.equal(logRecord.level, "info");
   assert.equal(logRecord.message, "Submitting order order-123");
   assert.deepEqual(logRecord.category, ["checkout", "orders"]);
+
+  // Spans nest the same way on every runtime, and the log and the report both
+  // landed on the span that was active when they were written — which, being
+  // written either side of an await, is what proves each runtime tracks the
+  // active span through async context rather than only synchronously.
+  const trace = reports.trace;
+  assert.equal(trace.root.name, "POST /orders");
+  assert.equal(trace.root.kind, 2);
+  assert.equal(trace.root.parentSpanId, null);
+  assert.equal(trace.child.name, "authorize payment");
+  assert.equal(trace.child.parent, "<root span>");
+  assert.equal(trace.child.sameTrace, true);
+  assert.deepEqual(trace.child.status, { code: 2, message: "payment was declined" });
+  assert.equal(trace.logRecordSpan, "<root span>");
+  assert.equal(trace.reportSpan, "<root span>");
 }
 
 assert.deepEqual(comparableReport(results.deno.report), comparableReport(results.node.report));
@@ -105,5 +140,8 @@ assert.deepEqual(
   comparableLogRecord(results.node.logRecord),
 );
 
+assert.deepEqual(comparableTrace(results.deno.trace), comparableTrace(results.node.trace));
+assert.deepEqual(comparableTrace(results.bun.trace), comparableTrace(results.node.trace));
+
 // eslint-disable-next-line no-console
-console.log("Node, Deno, and Bun produced equivalent Dolshoe V1 reports and log records.");
+console.log("Node, Deno, and Bun produced equivalent Dolshoe reports, log records, and traces.");

@@ -30,6 +30,12 @@ const UNAUTHENTICATED_PATHS = new Set([
   "/api/v1/log-records",
   "/api/v1/projects/{projectId}/error-reports",
   "/api/v1/projects/{projectId}/log-records",
+  // Span ingestion, authenticated by an ingestion token like the other two
+  // signals. The third path exists because an OpenTelemetry exporter appends
+  // `/v1/traces` to a generic endpoint rather than using it verbatim.
+  "/api/v1/traces",
+  "/api/v1/projects/{projectId}/traces",
+  "/api/v1/projects/{projectId}/otlp/v1/traces",
   "/api/v1/auth/session",
   // The two halves of signing in. Neither can require a session — that is the
   // thing being established — so the `state` cookie protects them instead.
