@@ -20,6 +20,13 @@ const environmentSchema = z.object({
     z.string().min(32).optional(),
   ),
   LOG_RETENTION_DAYS: z.coerce.number().int().min(1).max(3_650).default(14),
+  // Follows NODE_ENV unless set. Overridable because a self-hosted instance can
+  // legitimately serve production traffic over plain HTTP on a private network,
+  // where a Secure cookie would make signing in fail with nothing to show why.
+  SESSION_COOKIE_SECURE: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.enum(["true", "false"]).optional(),
+  ),
   DATABASE_URL: z
     .string()
     .url()
@@ -42,4 +49,8 @@ export const appConfig = {
   ingestToken: parsedEnvironment.data.INGEST_TOKEN,
   logRetentionDays: parsedEnvironment.data.LOG_RETENTION_DAYS,
   databaseUrl: parsedEnvironment.data.DATABASE_URL,
+  sessionCookieSecure:
+    parsedEnvironment.data.SESSION_COOKIE_SECURE == null
+      ? parsedEnvironment.data.NODE_ENV === "production"
+      : parsedEnvironment.data.SESSION_COOKIE_SECURE === "true",
 } as const;

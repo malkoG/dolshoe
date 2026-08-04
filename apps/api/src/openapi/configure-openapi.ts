@@ -1,6 +1,8 @@
 import { INestApplication } from "@nestjs/common";
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from "@nestjs/swagger";
 
+import { authOpenApiSchemas } from "../auth/auth.contract";
+import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
 import { errorReportOpenApiSchemas } from "../error-reporting/error-report.contract";
 import { logRecordOpenApiSchemas } from "../log-recording/log-record.contract";
 import { projectOpenApiSchemas } from "../projects/project.contract";
@@ -20,6 +22,13 @@ function createOpenApiDocument(app: INestApplication): OpenAPIObject {
       },
       "ingest-token",
     )
+    // The other credential system: a browser session, presented as a cookie
+    // rather than a header, and never interchangeable with an ingestion token.
+    .addCookieAuth(
+      SESSION_COOKIE_NAME,
+      { type: "apiKey", in: "cookie", name: SESSION_COOKIE_NAME },
+      "session",
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, configuration);
@@ -34,6 +43,7 @@ function createOpenApiDocument(app: INestApplication): OpenAPIObject {
       NonNullable<OpenAPIObject["components"]>["schemas"]
     >),
     ...(projectOpenApiSchemas as NonNullable<NonNullable<OpenAPIObject["components"]>["schemas"]>),
+    ...(authOpenApiSchemas as NonNullable<NonNullable<OpenAPIObject["components"]>["schemas"]>),
   };
 
   return document;
