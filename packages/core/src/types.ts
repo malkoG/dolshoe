@@ -136,6 +136,12 @@ export interface LogTransportErrorContext {
 }
 
 export interface ClientOptions {
+  /**
+   * `https://<token>@<host>/<projectId>`, copied from a project's token screen.
+   * Supplies both endpoints and the ingestion credential. An explicit `endpoint`,
+   * `logEndpoint`, or `authorization` header overrides what it derives.
+   */
+  dsn?: string;
   endpoint?: string | URL;
   logEndpoint?: string | URL;
   service: ServiceInfo;

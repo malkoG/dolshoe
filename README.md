@@ -146,6 +146,71 @@ Prisma remains inside the API because it has only one consumer. The reporter
 packages share the versioned ingestion contract because Node, Deno, and Bun are
 concrete consumers of the same payload.
 
+## Projects and ingestion tokens
+
+A **project** is what owns the events reported into a Dolshoe instance. Each
+project issues its own ingestion tokens, so a single application's credential can
+be rotated or revoked without disturbing anything else, and every stored event
+records which project it arrived under.
+
+Every instance starts with one project, `default`. It owns everything recorded
+before projects existed, and it is what the legacy `INGEST_TOKEN` authenticates
+as.
+
+The web app is organized the same way. `/projects` lists them; opening one gives
+you its **Reports**, **Logs**, and **Tokens**, and the top bar switches between
+projects without leaving the section you are in.
+
+Create a project and issue a token from the **Projects** screen in the web app,
+or over the API:
+
+```sh
+curl -X POST http://localhost:<port>/api/v1/projects \
+  -H 'content-type: application/json' -d '{"name":"Checkout API"}'
+
+curl -X POST http://localhost:<port>/api/v1/projects/<projectId>/tokens \
+  -H 'content-type: application/json' -d '{"name":"production"}'
+```
+
+The issue response contains the token in plaintext. **It is shown once.** Only a
+SHA-256 digest is stored, so a token that is not recorded at that moment has to
+be replaced. Revoke one at any time; revocation is immediate and idempotent:
+
+```sh
+curl -X POST http://localhost:<port>/api/v1/projects/<projectId>/tokens/<tokenId>/revoke
+```
+
+> [!IMPORTANT]
+> The project management API is deliberately unauthenticated, like the existing
+> `GET /api/v1/error-reports`, because Dolshoe has no viewer-auth system yet.
+> Unlike that endpoint it grants _write_ access: anyone who can reach it can mint
+> an ingestion token for any project. Keep the API on a trusted network. The
+> default `docker compose` setup does this already — only the web dev server is
+> published, and it proxies to an API that is not on the host network.
+
+### DSN
+
+A DSN packages the host, the token, and the project into one string to paste into
+a reporter:
+
+```text
+https://dsh_a1b2c3d4e5f6_<secret>@dolshoe.example/<projectId>
+        └─────── token ────────┘  └──── host ───┘ └ project ┘
+```
+
+The SDK derives both ingestion endpoints from it —
+`/api/v1/projects/<projectId>/error-reports` and `.../log-records` — and sends
+the token as a bearer credential. Path segments before the project id are kept as
+a base path, so an instance served under a prefix needs no extra configuration.
+
+Unlike a Sentry DSN, **a Dolshoe DSN is a secret**: Dolshoe's ingestion endpoints
+are authenticated rather than open. Keep it out of client-side bundles and out of
+version control, the same as any other credential.
+
+Supplying `endpoint`, `logEndpoint`, or an `authorization` header explicitly
+overrides whatever the DSN derives, which is the escape hatch for deployments
+that route ingestion somewhere unusual.
+
 ## JavaScript reporters
 
 Applications select their runtime package explicitly. Runtime packages own
@@ -156,15 +221,11 @@ flush behavior:
 import * as Dolshoe from "@dolshoe/node";
 
 Dolshoe.init({
-  endpoint: "https://dolshoe.example/api/v1/error-reports",
-  logEndpoint: "https://dolshoe.example/api/v1/log-records",
+  dsn: process.env.DOLSHOE_DSN,
   service: {
     name: "checkout-api",
     environment: "production",
     release: "2026.07.24.1",
-  },
-  headers: {
-    authorization: `Bearer ${process.env.DOLSHOE_INGEST_TOKEN}`,
   },
 });
 
@@ -188,8 +249,8 @@ shutdown to remove runtime hooks and flush queued reports and log records.
 `captureLog()` is exposed consistently by the Node.js, Deno, and Bun packages.
 It accepts the levels `trace`, `debug`, `info`, `warning`, `error`, and `fatal`.
 The SDK fills in the event ID, timestamp, service, runtime, and reporter fields,
-redacts sensitive structured attributes, and sends records to `logEndpoint` in
-batches of at most 100. Configure `beforeSendLogRecord` to transform or discard
+redacts sensitive structured attributes, and sends records to the project's log
+endpoint in batches of at most 100. Configure `beforeSendLogRecord` to transform or discard
 individual records before they are queued. Custom transports can be supplied
 with `logTransport`.
 
@@ -203,12 +264,8 @@ import { getDolshoeSink } from "@dolshoe/logtape";
 import * as Dolshoe from "@dolshoe/node";
 
 Dolshoe.init({
-  endpoint: "https://dolshoe.example/api/v1/error-reports",
-  logEndpoint: "https://dolshoe.example/api/v1/log-records",
+  dsn: process.env.DOLSHOE_DSN,
   service: { name: "checkout-api" },
-  headers: {
-    authorization: `Bearer ${process.env.DOLSHOE_INGEST_TOKEN}`,
-  },
 });
 
 await configure({
@@ -240,8 +297,9 @@ Dolshoe.captureLog("info", "Payment authorization completed", {
 });
 ```
 
-Configure `logEndpoint` explicitly when structured logs are enabled. Log
-requests are limited to 1 MiB and each batch is validated atomically.
+A DSN enables structured logs along with error reports; set `logEndpoint`
+explicitly only when routing them elsewhere. Log requests are limited to 1 MiB
+and each batch is validated atomically.
 
 ## Message queue
 
@@ -355,14 +413,26 @@ production build. CI additionally runs the PostgreSQL e2e suite.
 | `NODE_ENV`           | `development`             | `development`, `test`, or `production`            |
 | `PORT`               | `3000`                    | HTTP listen port                                  |
 | `LOG_LEVEL`          | `debug`                   | Minimum LogTape level                             |
-| `INGEST_TOKEN`       | empty                     | Bearer token; required when `NODE_ENV=production` |
+| `INGEST_TOKEN`       | empty                     | Legacy global bearer token, resolved to `default` |
 | `LOG_RETENTION_DAYS` | `14`                      | Days to retain logs, based on server receipt time |
 | `DATABASE_URL`       | local PostgreSQL          | Prisma and application connection URL             |
 
 Development logs use a readable colored formatter. Production logs are emitted
-as JSON Lines. When configured, the same ingestion bearer token protects both
-`/api/v1/error-reports` and `/api/v1/log-records`. Request bodies and tokens are
-never written to the API's operational logs.
+as JSON Lines. Request bodies and tokens are never written to the API's
+operational logs.
+
+Ingestion accepts a per-project token, or — while it is set — the global
+`INGEST_TOKEN`, which authenticates as the `default` project. Prefer per-project
+tokens: `INGEST_TOKEN` exists so that instances predating projects keep working,
+and it cannot be revoked for one application without breaking every other.
+
+Outside production, ingestion with no credential at all is accepted and recorded
+against the `default` project, so local development needs no setup. Production
+never falls open: without a valid credential every ingest is rejected. An
+instance running in production with neither `INGEST_TOKEN` nor a usable project
+token still starts — otherwise revoking your last token would leave you unable to
+boot the API you need in order to issue a new one — but logs an error saying
+ingestion will reject everything until a token is issued.
 
 ## License
 

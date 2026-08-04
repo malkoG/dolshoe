@@ -8,6 +8,8 @@ export {
   getClient,
   setCurrentClient,
 } from "./client.js";
+export { parseDsn } from "./dsn.js";
+export type { ParsedDsn } from "./dsn.js";
 export { normalizeException, parseJavaScriptStack, sanitizeAttributes } from "./normalize.js";
 export { HttpLogTransport, HttpTransport } from "./transport.js";
 export type {

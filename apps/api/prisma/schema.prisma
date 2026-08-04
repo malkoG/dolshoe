@@ -9,9 +9,38 @@ datasource db {
   provider = "postgresql"
 }
 
+model Project {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique @db.VarChar(100)
+  name      String   @db.VarChar(200)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  tokens       ProjectToken[]
+  errorReports ErrorReport[]
+  logRecords   LogRecord[]
+
+  @@index([createdAt(sort: Desc)])
+}
+
+model ProjectToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  projectId  String    @db.Uuid
+  name       String    @db.VarChar(200)
+  prefix     String    @unique @db.VarChar(12)
+  tokenHash  String    @db.Char(64)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  lastUsedAt DateTime? @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt(sort: Desc)])
+}
+
 model ErrorReport {
   id              String   @id @default(uuid()) @db.Uuid
-  eventId         String   @unique @db.Uuid
+  projectId       String   @db.Uuid
+  eventId         String   @db.Uuid
   schemaVersion   Int
   occurredAt      DateTime @db.Timestamptz(3)
   receivedAt      DateTime @default(now()) @db.Timestamptz(3)
@@ -29,14 +58,19 @@ model ErrorReport {
   exception       Json
   attributes      Json?
 
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, eventId])
   @@index([serviceName, occurredAt(sort: Desc)])
   @@index([traceId])
   @@index([receivedAt(sort: Desc)])
+  @@index([projectId, receivedAt(sort: Desc)])
 }
 
 model LogRecord {
   id                 String   @id @default(uuid()) @db.Uuid
-  eventId            String   @unique @db.Uuid
+  projectId          String   @db.Uuid
+  eventId            String   @db.Uuid
   schemaVersion      Int
   occurredAt         DateTime @db.Timestamptz(3)
   receivedAt         DateTime @default(now()) @db.Timestamptz(3)
@@ -55,10 +89,14 @@ model LogRecord {
   errorReportEventId String?  @db.Uuid
   attributes         Json?
 
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, eventId])
   @@index([serviceName, occurredAt(sort: Desc)])
   @@index([level, occurredAt(sort: Desc)])
   @@index([traceId])
   @@index([receivedAt(sort: Desc)])
+  @@index([projectId])
 }
 
 model QueueMessage {

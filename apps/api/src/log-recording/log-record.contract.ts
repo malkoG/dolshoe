@@ -166,10 +166,70 @@ export const logRecordBatchReceiptSchema = z
     description: "Ordered receipts for an accepted log record batch.",
   });
 
+export const LOG_RECORD_LIST_LIMIT = 100;
+
+export const logRecordSummarySchema = z
+  .object({
+    id: z.uuid().meta({ description: "Server-assigned log record identifier." }),
+    eventId: z
+      .uuid()
+      .meta({ description: "Client-generated idempotency key the reporter supplied." }),
+    occurredAt: z.iso
+      .datetime()
+      .meta({ description: "UTC timestamp at which the record occurred." }),
+    receivedAt: z.iso
+      .datetime()
+      .meta({ description: "UTC timestamp at which the server first accepted the record." }),
+    level: z
+      .enum(["trace", "debug", "info", "warning", "error", "fatal"])
+      .meta({ description: "Normalized LogTape-compatible severity." }),
+    message: z.string().meta({ description: "Rendered human-readable log message." }),
+    category: z.array(z.string()).meta({ description: "Hierarchical logger category segments." }),
+    service: serviceSchema.meta({ description: "Service that emitted the record." }),
+    errorReportEventId: z.uuid().nullable().meta({
+      description: "Client eventId of a related error report, when the reporter supplied one.",
+    }),
+    attributes: z
+      .record(z.string(), z.json())
+      .nullable()
+      .meta({ description: "Structured context stored with the record." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "LogRecordSummaryV1",
+    description: "Newest-first summary of a persisted log record.",
+  });
+
+export const logRecordListResponseSchema = z
+  .object({
+    records: z
+      .array(logRecordSummarySchema)
+      .max(LOG_RECORD_LIST_LIMIT)
+      .meta({
+        description: `Newest-first log records, bounded to ${LOG_RECORD_LIST_LIMIT} entries.`,
+      }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "LogRecordListResponseV1",
+    description: "Bounded, newest-first list of persisted log records.",
+  });
+
+/** Reading is always scoped to one project; severity narrows it further. */
+export const logRecordListQuerySchema = z
+  .object({
+    projectId: z.uuid("projectId must be a UUID."),
+    level: z.enum(["trace", "debug", "info", "warning", "error", "fatal"]).optional(),
+  })
+  .strict();
+
 export type LogRecord = z.infer<typeof logRecordSchema>;
 export type LogRecordBatchRequest = z.infer<typeof logRecordBatchRequestSchema>;
 export type LogRecordReceipt = z.infer<typeof logRecordReceiptSchema>;
 export type LogRecordBatchReceipt = z.infer<typeof logRecordBatchReceiptSchema>;
+export type LogRecordSummary = z.infer<typeof logRecordSummarySchema>;
+export type LogRecordListResponse = z.infer<typeof logRecordListResponseSchema>;
+export type LogRecordListQuery = z.infer<typeof logRecordListQuerySchema>;
 
 function adaptJsonSchemaToOpenApi(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(adaptJsonSchemaToOpenApi);

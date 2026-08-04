@@ -9,6 +9,7 @@ import {
   nodeErrorReportExample,
   pythonErrorReportExample,
 } from "../src/error-reporting/error-report.examples";
+import { DEFAULT_PROJECT_ID, DEFAULT_PROJECT_SLUG } from "../src/projects/default-project";
 
 describe("Error report ingestion", () => {
   let app: INestApplication;
@@ -135,6 +136,35 @@ describe("Error report ingestion", () => {
       },
     });
     expect(pythonSummary.exception.source).toBeUndefined();
+    expect(nodeSummary.project).toEqual({
+      id: DEFAULT_PROJECT_ID,
+      slug: DEFAULT_PROJECT_SLUG,
+      name: expect.any(String),
+    });
+  });
+
+  it("limits the listing to one project and rejects a malformed filter", async () => {
+    await request(app.getHttpServer())
+      .post("/api/v1/error-reports")
+      .send(nodeErrorReportExample)
+      .expect(201);
+
+    const filtered = await request(app.getHttpServer())
+      .get(`/api/v1/error-reports?projectId=${DEFAULT_PROJECT_ID}`)
+      .expect(200);
+    const empty = await request(app.getHttpServer())
+      .get("/api/v1/error-reports?projectId=11111111-2222-4333-8444-555555555555")
+      .expect(200);
+
+    expect(filtered.body.reports.length).toBeGreaterThan(0);
+    expect(
+      filtered.body.reports.every(
+        (report: { project: { id: string } }) => report.project.id === DEFAULT_PROJECT_ID,
+      ),
+    ).toBe(true);
+    expect(empty.body.reports).toEqual([]);
+
+    await request(app.getHttpServer()).get("/api/v1/error-reports?projectId=nope").expect(400);
   });
 
   it("rejects a report outside the documented contract", async () => {

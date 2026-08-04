@@ -10,15 +10,33 @@ interface StoredLogRecordRow {
   receivedAt: Date;
 }
 
+export interface LogRecordSummaryRow {
+  id: string;
+  eventId: string;
+  occurredAt: Date;
+  receivedAt: Date;
+  level: string;
+  message: string;
+  category: string[];
+  serviceName: string;
+  environment: string | null;
+  release: string | null;
+  errorReportEventId: string | null;
+  attributes: unknown;
+}
+
 function postgresTextArray(values: readonly string[]): Prisma.Sql {
   if (values.length === 0) return Prisma.sql`ARRAY[]::text[]`;
   return Prisma.sql`ARRAY[${Prisma.join(values)}]::text[]`;
 }
 
-function recordValues(schemaVersion: number, record: LogRecord): Prisma.Sql {
+function recordValues(projectId: string, schemaVersion: number, record: LogRecord): Prisma.Sql {
   const attributes = record.attributes == null ? null : JSON.stringify(record.attributes);
 
+  // This positional VALUES list has no named-column safety net: every change
+  // here needs the matching change to the column list in `store`.
   return Prisma.sql`(
+    ${projectId}::uuid,
     ${record.eventId}::uuid,
     ${schemaVersion},
     ${new Date(record.occurredAt)},
@@ -43,10 +61,15 @@ function recordValues(schemaVersion: number, record: LogRecord): Prisma.Sql {
 export class LogRecordRepository {
   constructor(private readonly database: PrismaService) {}
 
-  async store(schemaVersion: number, records: readonly LogRecord[]): Promise<LogRecordReceipt[]> {
-    const values = records.map((record) => recordValues(schemaVersion, record));
+  async store(
+    projectId: string,
+    schemaVersion: number,
+    records: readonly LogRecord[],
+  ): Promise<LogRecordReceipt[]> {
+    const values = records.map((record) => recordValues(projectId, schemaVersion, record));
     const stored = await this.database.$queryRaw<StoredLogRecordRow[]>(Prisma.sql`
       INSERT INTO "LogRecord" (
+        "projectId",
         "eventId",
         "schemaVersion",
         "occurredAt",
@@ -66,7 +89,7 @@ export class LogRecordRepository {
         "attributes"
       )
       VALUES ${Prisma.join(values)}
-      ON CONFLICT ("eventId") DO UPDATE
+      ON CONFLICT ("projectId", "eventId") DO UPDATE
         SET "eventId" = EXCLUDED."eventId"
       RETURNING "eventId", "id", "receivedAt"
     `);
@@ -82,6 +105,32 @@ export class LogRecordRepository {
         id: row.id,
         receivedAt: row.receivedAt.toISOString(),
       };
+    });
+  }
+
+  async listForProject(
+    projectId: string,
+    level: string | undefined,
+    limit: number,
+  ): Promise<LogRecordSummaryRow[]> {
+    return this.database.logRecord.findMany({
+      where: { projectId, ...(level == null ? {} : { level }) },
+      orderBy: { receivedAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        eventId: true,
+        occurredAt: true,
+        receivedAt: true,
+        level: true,
+        message: true,
+        category: true,
+        serviceName: true,
+        environment: true,
+        release: true,
+        errorReportEventId: true,
+        attributes: true,
+      },
     });
   }
 

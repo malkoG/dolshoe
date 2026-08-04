@@ -3,6 +3,7 @@ import { DocumentBuilder, OpenAPIObject, SwaggerModule } from "@nestjs/swagger";
 
 import { errorReportOpenApiSchemas } from "../error-reporting/error-report.contract";
 import { logRecordOpenApiSchemas } from "../log-recording/log-record.contract";
+import { projectOpenApiSchemas } from "../projects/project.contract";
 
 function createOpenApiDocument(app: INestApplication): OpenAPIObject {
   const configuration = new DocumentBuilder()
@@ -15,7 +16,7 @@ function createOpenApiDocument(app: INestApplication): OpenAPIObject {
       {
         type: "http",
         scheme: "bearer",
-        bearerFormat: "ingestion token",
+        bearerFormat: "project ingestion token",
       },
       "ingest-token",
     )
@@ -32,6 +33,7 @@ function createOpenApiDocument(app: INestApplication): OpenAPIObject {
     ...(logRecordOpenApiSchemas as NonNullable<
       NonNullable<OpenAPIObject["components"]>["schemas"]
     >),
+    ...(projectOpenApiSchemas as NonNullable<NonNullable<OpenAPIObject["components"]>["schemas"]>),
   };
 
   return document;

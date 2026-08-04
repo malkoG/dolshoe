@@ -1,3 +1,4 @@
+import { parseDsn } from "./dsn.js";
 import { normalizeException, sanitizeAttributes } from "./normalize.js";
 import { HttpLogTransport, HttpTransport } from "./transport.js";
 import type {
@@ -71,25 +72,34 @@ export class Client {
     if (options.service.name.trim().length === 0) {
       throw new Error("Dolshoe service.name must not be empty.");
     }
-    if (options.transport == null && options.endpoint == null) {
-      throw new Error("Dolshoe requires either endpoint or transport.");
+
+    // A DSN supplies defaults; anything given explicitly wins, so an unusual
+    // deployment can still point the reporter wherever it needs to.
+    const dsn = options.dsn == null ? undefined : parseDsn(options.dsn);
+    const endpoint = options.endpoint ?? dsn?.errorReportEndpoint;
+    const logEndpoint = options.logEndpoint ?? dsn?.logEndpoint;
+    const headers =
+      dsn == null ? options.headers : { authorization: `Bearer ${dsn.token}`, ...options.headers };
+
+    if (options.transport == null && endpoint == null) {
+      throw new Error("Dolshoe requires either dsn, endpoint, or transport.");
     }
 
     this.#options = options;
     this.#transport =
       options.transport ??
       new HttpTransport({
-        endpoint: options.endpoint as string | URL,
-        ...(options.headers == null ? {} : { headers: options.headers }),
+        endpoint: endpoint as string | URL,
+        ...(headers == null ? {} : { headers }),
         ...(options.fetch == null ? {} : { fetch: options.fetch }),
       });
     this.#logTransport =
       options.logTransport ??
-      (options.logEndpoint == null
+      (logEndpoint == null
         ? undefined
         : new HttpLogTransport({
-            endpoint: options.logEndpoint,
-            ...(options.headers == null ? {} : { headers: options.headers }),
+            endpoint: logEndpoint,
+            ...(headers == null ? {} : { headers }),
             ...(options.fetch == null ? {} : { fetch: options.fetch }),
           }));
   }
