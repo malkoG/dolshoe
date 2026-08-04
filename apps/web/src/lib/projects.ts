@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { jsonBody, requestJson } from "./api-request";
+
 const PROJECTS_URL = "/api/v1/projects";
 
 const projectSchema = z.object({
@@ -33,83 +35,6 @@ const issuedProjectTokenSchema = projectTokenSchema.extend({
 export type Project = z.infer<typeof projectSchema>;
 export type ProjectToken = z.infer<typeof projectTokenSchema>;
 export type IssuedProjectToken = z.infer<typeof issuedProjectTokenSchema>;
-
-export class ProjectsFetchError extends Error {
-  readonly operation: string;
-  readonly url: string;
-  readonly status?: number;
-
-  constructor(
-    message: string,
-    context: { operation: string; url: string; status?: number; cause?: unknown },
-  ) {
-    super(message, { cause: context.cause });
-    this.name = "ProjectsFetchError";
-    this.operation = context.operation;
-    this.url = context.url;
-    this.status = context.status;
-  }
-}
-
-/**
- * Performs one API call and validates it against the web-owned mirror of the
- * response contract, distinguishing the four ways it can fail so a caller can
- * tell an unreachable API from a contract mismatch.
- */
-async function requestJson<T>(
-  operation: string,
-  url: string,
-  schema: z.ZodType<T>,
-  init?: RequestInit,
-): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(url, init);
-  } catch (cause) {
-    throw new ProjectsFetchError(`Could not reach ${url} to ${operation}.`, {
-      operation,
-      url,
-      cause,
-    });
-  }
-
-  if (!response.ok) {
-    throw new ProjectsFetchError(
-      `Could not ${operation}: ${url} responded with ${response.status} ${response.statusText}.`,
-      { operation, url, status: response.status },
-    );
-  }
-
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch (cause) {
-    throw new ProjectsFetchError(`Could not ${operation}: ${url} did not return valid JSON.`, {
-      operation,
-      url,
-      status: response.status,
-      cause,
-    });
-  }
-
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    throw new ProjectsFetchError(
-      `Could not ${operation}: the response from ${url} did not match the expected contract.`,
-      { operation, url, status: response.status, cause: parsed.error },
-    );
-  }
-
-  return parsed.data;
-}
-
-function jsonBody(value: unknown): RequestInit {
-  return {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(value),
-  };
-}
 
 export async function fetchProjects(init?: { signal?: AbortSignal }): Promise<Project[]> {
   const { projects } = await requestJson(

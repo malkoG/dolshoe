@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { ErrorReportsFetchError, fetchErrorReports } from "../lib/error-reports";
+import { ApiError } from "../lib/api-request";
+import { fetchErrorReports } from "../lib/error-reports";
 import type { ErrorReportSummary } from "../lib/error-reports";
 import { formatRelativeTime, formatShortId } from "../lib/format";
 
@@ -61,7 +62,7 @@ function pluralizeReports(count: number): string {
 }
 
 function describeLoadError(error: unknown): string {
-  if (error instanceof ErrorReportsFetchError) return error.message;
+  if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return "Something went wrong while loading error reports.";
 }

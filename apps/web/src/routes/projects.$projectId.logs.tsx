@@ -11,8 +11,9 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { ApiError } from "../lib/api-request";
 import { formatRelativeTime } from "../lib/format";
-import { LogRecordsFetchError, fetchLogRecords } from "../lib/log-records";
+import { fetchLogRecords } from "../lib/log-records";
 import type { LogLevel, LogRecordSummary } from "../lib/log-records";
 
 export const Route = createFileRoute("/projects/$projectId/logs")({ component: Logs });
@@ -25,7 +26,7 @@ type LoadState =
 const LEVELS: LogLevel[] = ["trace", "debug", "info", "warning", "error", "fatal"];
 
 function describeLoadError(error: unknown): string {
-  if (error instanceof LogRecordsFetchError) return error.message;
+  if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return "Something went wrong while loading log records.";
 }
