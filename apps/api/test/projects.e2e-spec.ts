@@ -35,6 +35,19 @@ function logBatch(level: string, message: string): Record<string, unknown> {
   };
 }
 
+/**
+ * Project slugs are globally unique, so a fixed name would collide with any row
+ * left in the database by earlier work rather than by this suite. Every test
+ * names its projects through this, and asserts against the slug it implies.
+ */
+function uniqueName(label: string): string {
+  return `${label} ${randomUUID().slice(0, 8)}`;
+}
+
+function slugOf(name: string): string {
+  return name.toLowerCase().replaceAll(" ", "-");
+}
+
 describe("Projects", () => {
   let app: INestApplication;
   let database: PrismaService;
@@ -94,22 +107,21 @@ describe("Projects", () => {
   });
 
   it("creates a project with a slug derived from its name", async () => {
-    const project = await createProject("Checkout API");
+    const name = uniqueName("Checkout API");
+    const project = await createProject(name);
 
-    expect(project).toMatchObject({ slug: "checkout-api", name: "Checkout API" });
+    expect(project).toMatchObject({ slug: slugOf(name), name });
   });
 
   it("refuses a slug another project already uses", async () => {
-    await createProject("Checkout API");
+    const name = uniqueName("Checkout API");
+    await createProject(name);
 
-    await request(app.getHttpServer())
-      .post("/api/v1/projects")
-      .send({ name: "Checkout API" })
-      .expect(409);
+    await request(app.getHttpServer()).post("/api/v1/projects").send({ name }).expect(409);
   });
 
   it("returns an issued token once and stores only its digest", async () => {
-    const project = await createProject("Checkout API");
+    const project = await createProject(uniqueName("Checkout API"));
     const issued = await issueToken(project.id);
 
     const stored = await database.projectToken.findUnique({ where: { id: issued.id } });
@@ -128,7 +140,7 @@ describe("Projects", () => {
   });
 
   it("revokes a token idempotently", async () => {
-    const project = await createProject("Checkout API");
+    const project = await createProject(uniqueName("Checkout API"));
     const issued = await issueToken(project.id);
 
     const first = await request(app.getHttpServer())
@@ -143,8 +155,8 @@ describe("Projects", () => {
   });
 
   it("refuses to revoke a token through a project that does not own it", async () => {
-    const owner = await createProject("Checkout API");
-    const other = await createProject("Billing Worker");
+    const owner = await createProject(uniqueName("Checkout API"));
+    const other = await createProject(uniqueName("Billing Worker"));
     const issued = await issueToken(owner.id);
 
     await request(app.getHttpServer())
@@ -153,7 +165,7 @@ describe("Projects", () => {
   });
 
   it("stores an ingest authenticated by a project token against that project", async () => {
-    const project = await createProject("Checkout API");
+    const project = await createProject(uniqueName("Checkout API"));
     const issued = await issueToken(project.id);
     const eventId = randomUUID();
 
@@ -169,7 +181,7 @@ describe("Projects", () => {
   });
 
   it("records that a token has been used", async () => {
-    const project = await createProject("Checkout API");
+    const project = await createProject(uniqueName("Checkout API"));
     const issued = await issueToken(project.id);
 
     await request(app.getHttpServer())
@@ -186,8 +198,8 @@ describe("Projects", () => {
   });
 
   it("refuses a token presented for someone else's project", async () => {
-    const owner = await createProject("Checkout API");
-    const other = await createProject("Billing Worker");
+    const owner = await createProject(uniqueName("Checkout API"));
+    const other = await createProject(uniqueName("Billing Worker"));
     const issued = await issueToken(owner.id);
     const eventId = randomUUID();
 
@@ -201,7 +213,7 @@ describe("Projects", () => {
   });
 
   it("refuses a revoked token", async () => {
-    const project = await createProject("Checkout API");
+    const project = await createProject(uniqueName("Checkout API"));
     const issued = await issueToken(project.id);
 
     await request(app.getHttpServer())
@@ -216,7 +228,7 @@ describe("Projects", () => {
   });
 
   it("refuses a well-formed token that was never issued", async () => {
-    const project = await createProject("Checkout API");
+    const project = await createProject(uniqueName("Checkout API"));
     const impostor = `dsh_0123456789ab_${"a".repeat(43)}`;
 
     await request(app.getHttpServer())
@@ -227,7 +239,7 @@ describe("Projects", () => {
   });
 
   it("stores a log batch against the project its token belongs to", async () => {
-    const project = await createProject("Checkout API");
+    const project = await createProject(uniqueName("Checkout API"));
     const issued = await issueToken(project.id);
     const eventId = randomUUID();
 
@@ -258,8 +270,8 @@ describe("Projects", () => {
   });
 
   it("reads back only the requesting project's logs, and filters by severity", async () => {
-    const owner = await createProject("Checkout API");
-    const other = await createProject("Billing Worker");
+    const owner = await createProject(uniqueName("Checkout API"));
+    const other = await createProject(uniqueName("Billing Worker"));
     const ownerToken = await issueToken(owner.id);
     const otherToken = await issueToken(other.id);
 
@@ -300,8 +312,8 @@ describe("Projects", () => {
   });
 
   it("lets the same eventId be reported independently by two projects", async () => {
-    const first = await createProject("Checkout API");
-    const second = await createProject("Billing Worker");
+    const first = await createProject(uniqueName("Checkout API"));
+    const second = await createProject(uniqueName("Billing Worker"));
     const firstToken = await issueToken(first.id);
     const secondToken = await issueToken(second.id);
     const eventId = randomUUID();
