@@ -10,7 +10,9 @@ import { generateSessionToken } from "../src/auth/session-token";
 import { hashPassword } from "../src/auth/password";
 import { configureApplication } from "../src/configure-application";
 import { PrismaService } from "../src/database/prisma.service";
+import { DEFAULT_ORGANIZATION_ID } from "../src/organizations/default-organization";
 import { DEFAULT_PROJECT_ID } from "../src/projects/default-project";
+import { generateProjectToken } from "../src/projects/project-token";
 
 const PASSWORD = "correct horse battery staple";
 
@@ -25,6 +27,7 @@ function sessionCookie(token: string): string {
 describe("Authentication", () => {
   let app: INestApplication;
   let database: PrismaService;
+  const createdProjectIds: string[] = [];
 
   /**
    * Creates a signed-in session directly rather than through the API.
@@ -54,6 +57,39 @@ describe("Authentication", () => {
     return { cookie: sessionCookie(token.raw), userId: user.id };
   }
 
+  /**
+   * Builds a project and its ingestion token directly.
+   *
+   * @remarks
+   * Not through the project API, which needs a session: these tests are about
+   * an instance with no accounts at all, so creating one to set them up would
+   * destroy the state under test.
+   */
+  async function createIngestionToken(): Promise<{ projectId: string; token: string }> {
+    const project = await database.project.create({
+      data: {
+        organizationId: DEFAULT_ORGANIZATION_ID,
+        slug: `credential-separation-${randomUUID().slice(0, 8)}`,
+        name: "Credential Separation",
+      },
+      select: { id: true },
+    });
+    createdProjectIds.push(project.id);
+
+    const token = generateProjectToken();
+    await database.projectToken.create({
+      data: {
+        projectId: project.id,
+        name: "production",
+        prefix: token.prefix,
+        tokenHash: token.hash,
+      },
+      select: { id: true },
+    });
+
+    return { projectId: project.id, token: token.raw };
+  }
+
   beforeAll(async () => {
     const moduleReference = await Test.createTestingModule({ imports: [AppModule] }).compile();
 
@@ -69,6 +105,16 @@ describe("Authentication", () => {
     // runs. Safe because the e2e suite runs with --runInBand.
     await database.session.deleteMany({});
     await database.user.deleteMany({});
+  });
+
+  afterEach(async () => {
+    // Restrict on the event relations makes this order load-bearing.
+    const where = { projectId: { in: createdProjectIds } };
+    await database.errorReport.deleteMany({ where });
+    await database.logRecord.deleteMany({ where });
+    await database.projectToken.deleteMany({ where });
+    await database.project.deleteMany({ where: { id: { in: createdProjectIds } } });
+    createdProjectIds.length = 0;
   });
 
   afterAll(async () => {
@@ -89,6 +135,14 @@ describe("Authentication", () => {
 
       const cookies = response.get("Set-Cookie") ?? [];
       expect(cookies.join("; ")).toContain(`${SESSION_COOKIE_NAME}=dsv_`);
+
+      // Owner of the default organization, which is where every project an
+      // upgraded instance already had was backfilled.
+      const membership = await database.membership.findFirst({
+        where: { userId: response.body.id },
+        select: { organizationId: true, role: true },
+      });
+      expect(membership).toEqual({ organizationId: DEFAULT_ORGANIZATION_ID, role: "OWNER" });
     });
 
     it("refuses every registration after the first", async () => {
@@ -105,7 +159,7 @@ describe("Authentication", () => {
 
     it("reports whether the instance has been claimed", async () => {
       const before = await request(app.getHttpServer()).get("/api/v1/auth/session").expect(200);
-      expect(before.body).toEqual({ viewer: null, instanceClaimed: false });
+      expect(before.body).toEqual({ viewer: null, organizations: [], instanceClaimed: false });
 
       await request(app.getHttpServer())
         .post("/api/v1/auth/register")
@@ -240,23 +294,12 @@ describe("Authentication", () => {
    */
   describe("the two credential systems", () => {
     it("does not accept an ingestion token as a session", async () => {
-      const project = await request(app.getHttpServer())
-        .post("/api/v1/projects")
-        .send({ name: `Credential Separation ${randomUUID().slice(0, 8)}` })
-        .expect(201);
-
-      const issued = await request(app.getHttpServer())
-        .post(`/api/v1/projects/${project.body.id}/tokens`)
-        .send({ name: "production" })
-        .expect(201);
+      const { token } = await createIngestionToken();
 
       await request(app.getHttpServer())
         .post("/api/v1/auth/logout")
-        .set("cookie", sessionCookie(issued.body.token))
+        .set("cookie", sessionCookie(token))
         .expect(401);
-
-      await database.projectToken.deleteMany({ where: { projectId: project.body.id } });
-      await database.project.deleteMany({ where: { id: project.body.id } });
     });
 
     it("does not accept a session token as an ingestion credential", async () => {
@@ -308,20 +351,12 @@ describe("Authentication", () => {
       // works out who is going to claim it.
       expect(await database.user.count()).toBe(0);
 
-      const project = await request(app.getHttpServer())
-        .post("/api/v1/projects")
-        .send({ name: `Unclaimed Ingest ${randomUUID().slice(0, 8)}` })
-        .expect(201);
-
-      const issued = await request(app.getHttpServer())
-        .post(`/api/v1/projects/${project.body.id}/tokens`)
-        .send({ name: "production" })
-        .expect(201);
+      const { projectId, token } = await createIngestionToken();
 
       const eventId = randomUUID();
       await request(app.getHttpServer())
-        .post(`/api/v1/projects/${project.body.id}/error-reports`)
-        .set("authorization", `Bearer ${issued.body.token}`)
+        .post(`/api/v1/projects/${projectId}/error-reports`)
+        .set("authorization", `Bearer ${token}`)
         .send({
           schemaVersion: 1,
           eventId,
@@ -337,11 +372,9 @@ describe("Authentication", () => {
         where: { eventId },
         select: { projectId: true },
       });
-      expect(stored?.projectId).toBe(project.body.id);
+      expect(stored?.projectId).toBe(projectId);
 
       await database.errorReport.deleteMany({ where: { eventId } });
-      await database.projectToken.deleteMany({ where: { projectId: project.body.id } });
-      await database.project.deleteMany({ where: { id: project.body.id } });
     });
   });
 

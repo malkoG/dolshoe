@@ -76,25 +76,28 @@ function isPrismaError(error: unknown, code: string): boolean {
 export class ProjectService {
   constructor(private readonly database: PrismaService) {}
 
-  async create(request: CreateProjectRequest): Promise<Project> {
+  async create(organizationId: string, request: CreateProjectRequest): Promise<Project> {
     const slug = request.slug ?? this.deriveSlug(request.name);
 
     try {
       const created = await this.database.project.create({
-        data: { slug, name: request.name },
+        data: { organizationId, slug, name: request.name },
         select: { id: true, slug: true, name: true, createdAt: true },
       });
       return toProject(created);
     } catch (error) {
       if (isPrismaError(error, UNIQUE_CONSTRAINT_VIOLATION)) {
-        throw new ConflictException(`A project with the slug "${slug}" already exists.`);
+        throw new ConflictException(
+          `A project with the slug "${slug}" already exists in this organization.`,
+        );
       }
       throw error;
     }
   }
 
-  async list(): Promise<ProjectListResponse> {
+  async list(organizationId: string): Promise<ProjectListResponse> {
     const rows = await this.database.project.findMany({
+      where: { organizationId },
       orderBy: { createdAt: "desc" },
       select: { id: true, slug: true, name: true, createdAt: true },
     });
@@ -102,8 +105,8 @@ export class ProjectService {
     return { projects: rows.map(toProject) };
   }
 
-  async listTokens(projectId: string): Promise<ProjectTokenListResponse> {
-    await this.requireProject(projectId);
+  async listTokens(organizationId: string, projectId: string): Promise<ProjectTokenListResponse> {
+    await this.requireProject(organizationId, projectId);
 
     const rows = await this.database.projectToken.findMany({
       where: { projectId },
@@ -119,9 +122,11 @@ export class ProjectService {
    * plaintext exists after generation: the row stores only its digest.
    */
   async issueToken(
+    organizationId: string,
     projectId: string,
     request: IssueProjectTokenRequest,
   ): Promise<IssuedProjectToken> {
+    await this.requireProject(organizationId, projectId);
     const token = generateProjectToken();
 
     try {
@@ -137,6 +142,8 @@ export class ProjectService {
 
       return { ...toProjectToken(created), token: token.raw };
     } catch (error) {
+      // Still reachable despite the check above: the project can be deleted
+      // between the two statements. The database is what settles it.
       if (isPrismaError(error, FOREIGN_KEY_CONSTRAINT_VIOLATION)) {
         throw new NotFoundException(`No project exists with the id ${projectId}.`);
       }
@@ -148,9 +155,13 @@ export class ProjectService {
    * Revocation is idempotent: revoking an already-revoked token returns the
    * original timestamp rather than failing a retried or double-clicked request.
    */
-  async revokeToken(projectId: string, tokenId: string): Promise<ProjectToken> {
+  async revokeToken(
+    organizationId: string,
+    projectId: string,
+    tokenId: string,
+  ): Promise<ProjectToken> {
     const existing = await this.database.projectToken.findFirst({
-      where: { id: tokenId, projectId },
+      where: { id: tokenId, projectId, project: { organizationId } },
       select: tokenColumns,
     });
 
@@ -189,9 +200,14 @@ export class ProjectService {
     }
   }
 
-  private async requireProject(projectId: string): Promise<void> {
-    const project = await this.database.project.findUnique({
-      where: { id: projectId },
+  /**
+   * Both halves of the scope, always. A project addressed from an organization
+   * that does not own it is reported exactly like one that does not exist, so
+   * the response cannot be used to discover what another tenant has.
+   */
+  private async requireProject(organizationId: string, projectId: string): Promise<void> {
+    const project = await this.database.project.findFirst({
+      where: { id: projectId, organizationId },
       select: { id: true },
     });
 

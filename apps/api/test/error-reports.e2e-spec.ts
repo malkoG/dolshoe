@@ -9,11 +9,18 @@ import {
   nodeErrorReportExample,
   pythonErrorReportExample,
 } from "../src/error-reporting/error-report.examples";
+import { DEFAULT_ORGANIZATION_SLUG } from "../src/organizations/default-organization";
 import { DEFAULT_PROJECT_ID, DEFAULT_PROJECT_SLUG } from "../src/projects/default-project";
+import { signIn } from "./viewer-session";
+
+const REPORTS_URL = `/api/v1/orgs/${DEFAULT_ORGANIZATION_SLUG}/projects/${DEFAULT_PROJECT_ID}/error-reports`;
 
 describe("Error report ingestion", () => {
   let app: INestApplication;
   let database: PrismaService;
+  // Reading is behind a session now. Ingestion, below, deliberately is not.
+  let viewer: string;
+  const createdUserIds: string[] = [];
 
   beforeAll(async () => {
     const moduleReference = await Test.createTestingModule({
@@ -24,6 +31,10 @@ describe("Error report ingestion", () => {
     configureApplication(app);
     await app.init();
     database = app.get(PrismaService);
+
+    const signedIn = await signIn(database);
+    viewer = signedIn.cookie;
+    createdUserIds.push(signedIn.userId);
   });
 
   beforeEach(async () => {
@@ -37,6 +48,8 @@ describe("Error report ingestion", () => {
   });
 
   afterAll(async () => {
+    // Sessions and memberships cascade from the accounts that own them.
+    await database.user.deleteMany({ where: { id: { in: createdUserIds } } });
     await app.close();
   });
 
@@ -71,7 +84,7 @@ describe("Error report ingestion", () => {
     });
   });
 
-  it("lists persisted reports newest-first without requiring the ingestion guard", async () => {
+  it("lists a project's reports newest-first for a member", async () => {
     await request(app.getHttpServer())
       .post("/api/v1/error-reports")
       .send(pythonErrorReportExample)
@@ -81,7 +94,10 @@ describe("Error report ingestion", () => {
       .send(nodeErrorReportExample)
       .expect(201);
 
-    const response = await request(app.getHttpServer()).get("/api/v1/error-reports").expect(200);
+    const response = await request(app.getHttpServer())
+      .get(REPORTS_URL)
+      .set("cookie", viewer)
+      .expect(200);
 
     const nodeSummary = response.body.reports.find(
       (report: { eventId: string }) => report.eventId === nodeErrorReportExample.eventId,
@@ -143,28 +159,42 @@ describe("Error report ingestion", () => {
     });
   });
 
-  it("limits the listing to one project and rejects a malformed filter", async () => {
+  it("scopes the listing to the project in its path and rejects a malformed id", async () => {
     await request(app.getHttpServer())
       .post("/api/v1/error-reports")
       .send(nodeErrorReportExample)
       .expect(201);
 
-    const filtered = await request(app.getHttpServer())
-      .get(`/api/v1/error-reports?projectId=${DEFAULT_PROJECT_ID}`)
-      .expect(200);
-    const empty = await request(app.getHttpServer())
-      .get("/api/v1/error-reports?projectId=11111111-2222-4333-8444-555555555555")
+    const listed = await request(app.getHttpServer())
+      .get(REPORTS_URL)
+      .set("cookie", viewer)
       .expect(200);
 
-    expect(filtered.body.reports.length).toBeGreaterThan(0);
+    expect(listed.body.reports.length).toBeGreaterThan(0);
     expect(
-      filtered.body.reports.every(
+      listed.body.reports.every(
         (report: { project: { id: string } }) => report.project.id === DEFAULT_PROJECT_ID,
       ),
     ).toBe(true);
-    expect(empty.body.reports).toEqual([]);
 
-    await request(app.getHttpServer()).get("/api/v1/error-reports?projectId=nope").expect(400);
+    // A project the organization does not own reads as empty rather than as
+    // somebody else's reports.
+    const foreign = await request(app.getHttpServer())
+      .get(
+        `/api/v1/orgs/${DEFAULT_ORGANIZATION_SLUG}/projects/11111111-2222-4333-8444-555555555555/error-reports`,
+      )
+      .set("cookie", viewer)
+      .expect(200);
+    expect(foreign.body.reports).toEqual([]);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/orgs/${DEFAULT_ORGANIZATION_SLUG}/projects/nope/error-reports`)
+      .set("cookie", viewer)
+      .expect(400);
+  });
+
+  it("refuses to list anything to a caller with no session", async () => {
+    await request(app.getHttpServer()).get(REPORTS_URL).expect(401);
   });
 
   it("rejects a report outside the documented contract", async () => {
@@ -192,7 +222,11 @@ describe("Error report ingestion", () => {
     const response = await request(app.getHttpServer()).get("/docs/openapi.json").expect(200);
 
     expect(response.body.paths["/api/v1/error-reports"].post).toEqual(expect.any(Object));
-    expect(response.body.paths["/api/v1/error-reports"].get).toEqual(expect.any(Object));
+    // Ingestion keeps its path; reading moved under the owning organization.
+    expect(response.body.paths["/api/v1/error-reports"].get).toBeUndefined();
+    expect(
+      response.body.paths["/api/v1/orgs/{orgSlug}/projects/{projectId}/error-reports"].get,
+    ).toEqual(expect.any(Object));
     expect(response.body.components.schemas).toEqual(
       expect.objectContaining({
         ErrorReportRequestV1: expect.any(Object),

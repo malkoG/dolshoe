@@ -2,6 +2,8 @@ import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/co
 import { getLogger } from "@logtape/logtape";
 
 import { PrismaService } from "../database/prisma.service";
+import { MembershipRole } from "../generated/prisma/client";
+import { DEFAULT_ORGANIZATION_ID } from "../organizations/default-organization";
 import { LoginRequest, RegisterRequest, Viewer } from "./auth.contract";
 import { ABSENT_PASSWORD_HASH, hashPassword, isPasswordHash, verifyPassword } from "./password";
 
@@ -42,6 +44,11 @@ export class AuthService {
    * reach it claims it; everyone after that arrives by invitation. This is why
    * an instance must be claimed as soon as it is reachable, and why the API
    * warns at startup while it is not.
+   *
+   * The account is made an owner of the default organization rather than of a
+   * fresh one, because that is where every project an upgraded instance already
+   * had was backfilled. A bootstrap account that could not see the projects it
+   * inherited would be a strange way to arrive.
    */
   async register(request: RegisterRequest): Promise<Viewer> {
     const passwordHash = await hashPassword(request.password);
@@ -59,7 +66,14 @@ export class AuthService {
       }
 
       const created = await transaction.user.create({
-        data: { email: request.email, name: request.name, passwordHash },
+        data: {
+          email: request.email,
+          name: request.name,
+          passwordHash,
+          memberships: {
+            create: { organizationId: DEFAULT_ORGANIZATION_ID, role: MembershipRole.OWNER },
+          },
+        },
         select: { id: true, email: true, name: true },
       });
 

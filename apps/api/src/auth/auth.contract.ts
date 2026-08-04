@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { organizationSchema } from "../organizations/organization.contract";
+
 const contractRegistry = z.registry<{ id?: string; description?: string }>();
 
 const nonEmptyText = (maximumLength: number) => z.string().trim().min(1).max(maximumLength);
@@ -36,6 +38,10 @@ export const sessionResponseSchema = z
     viewer: viewerSchema
       .nullable()
       .meta({ description: "The signed-in account, or null when nobody is signed in." }),
+    organizations: z.array(organizationSchema).meta({
+      description:
+        "Newest-first organizations the viewer belongs to, with their role in each. Empty when nobody is signed in.",
+    }),
     instanceClaimed: z.boolean().meta({
       description:
         "False while this instance has no accounts at all, which is the only time registration is open.",

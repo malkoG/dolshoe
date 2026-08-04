@@ -109,12 +109,17 @@ export class LogRecordRepository {
   }
 
   async listForProject(
+    organizationId: string,
     projectId: string,
     level: string | undefined,
     limit: number,
   ): Promise<LogRecordSummaryRow[]> {
     return this.database.logRecord.findMany({
-      where: { projectId, ...(level == null ? {} : { level }) },
+      where: {
+        projectId,
+        project: { organizationId },
+        ...(level == null ? {} : { level }),
+      },
       orderBy: { receivedAt: "desc" },
       take: limit,
       select: {

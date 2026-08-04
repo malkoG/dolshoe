@@ -9,6 +9,25 @@ datasource db {
   provider = "postgresql"
 }
 
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+/// The tenant. Owns projects, and through them every event reported into them.
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique @db.VarChar(100)
+  name      String   @db.VarChar(200)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  projects    Project[]
+  memberships Membership[]
+
+  @@index([createdAt(sort: Desc)])
+}
+
 /// A person who signs in to read what Dolshoe has recorded. Distinct from a
 /// ProjectToken, which authenticates a machine writing into it.
 model User {
@@ -18,9 +37,26 @@ model User {
   passwordHash String   @db.VarChar(200)
   createdAt    DateTime @default(now()) @db.Timestamptz(3)
 
-  sessions Session[]
+  sessions    Session[]
+  memberships Membership[]
 
   @@index([createdAt(sort: Desc)])
+}
+
+/// What a user may do in an organization. Cascades from both sides: a link has
+/// no meaning once either end is gone.
+model Membership {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  userId         String         @db.Uuid
+  role           MembershipRole
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
 }
 
 model Session {
@@ -39,16 +75,21 @@ model Session {
 }
 
 model Project {
-  id        String   @id @default(uuid()) @db.Uuid
-  slug      String   @unique @db.VarChar(100)
-  name      String   @db.VarChar(200)
-  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  slug           String   @db.VarChar(100)
+  name           String   @db.VarChar(200)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
 
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   tokens       ProjectToken[]
   errorReports ErrorReport[]
   logRecords   LogRecord[]
 
-  @@index([createdAt(sort: Desc)])
+  /// A slug only has to be unique inside the organization that owns it: two
+  /// tenants both wanting "checkout-api" is the normal case, not a conflict.
+  @@unique([organizationId, slug])
+  @@index([organizationId, createdAt(sort: Desc)])
 }
 
 model ProjectToken {

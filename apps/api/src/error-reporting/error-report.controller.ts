@@ -1,11 +1,9 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
-  ApiOkResponse,
-  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -13,46 +11,26 @@ import {
 import { IngestAuthGuard } from "../ingestion/ingest-auth.guard";
 import { IngestProject, IngestedProject } from "../ingestion/ingested-project";
 import {
-  ErrorReportListQuery,
-  ErrorReportListResponse,
   ErrorReportReceipt,
   ErrorReportRequest,
-  errorReportListQuerySchema,
   errorReportRequestSchema,
 } from "./error-report.contract";
 import { nodeErrorReportExample, pythonErrorReportExample } from "./error-report.examples";
 import { ErrorReportService } from "./error-report.service";
 import { ZodValidationPipe } from "./zod-validation.pipe";
 
+/**
+ * Ingestion for reporters that carry no project in their URL.
+ *
+ * @remarks
+ * Reading moved to `OrganizationErrorReportController`, under the organization
+ * that owns the project. This path stays exactly where it is, and keeps the
+ * ingestion token as its only credential, because SDK DSNs derive it.
+ */
 @ApiTags("Error reporting")
 @Controller({ path: "error-reports", version: "1" })
 export class ErrorReportController {
   constructor(private readonly errorReportService: ErrorReportService) {}
-
-  /**
-   * List the most recently received error reports for the web inbox.
-   *
-   * @remarks
-   * Returns newest-first summaries bounded to the documented limit. Unauthenticated: no
-   * viewer-auth system exists yet, so this read endpoint is not gated by the ingestion guard.
-   */
-  @Get()
-  @ApiQuery({
-    name: "projectId",
-    required: false,
-    description: "Limit the listing to one project. Omit it to list every project.",
-  })
-  @ApiOkResponse({
-    description: "Newest-first error report summaries, bounded to the documented limit.",
-    schema: { $ref: "#/components/schemas/ErrorReportListResponseV1" },
-  })
-  @ApiBadRequestResponse({ description: "The projectId query parameter is not a UUID." })
-  list(
-    @Query(new ZodValidationPipe(errorReportListQuerySchema, "Invalid error report list query."))
-    query: ErrorReportListQuery,
-  ): Promise<ErrorReportListResponse> {
-    return this.errorReportService.list(query);
-  }
 
   /**
    * Receive a normalized error report.

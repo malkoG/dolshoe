@@ -3,6 +3,7 @@ import { logRecordBatchExample, logRecordExample } from "./log-record.examples";
 import { LogRecordRepository } from "./log-record.repository";
 import { LogRecordService } from "./log-record.service";
 
+const ORGANIZATION_ID = "9d8c7b6a-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 const PROJECT_ID = "3f1d0a4c-6b2e-4f7a-9c5d-8e1b2a3c4d5e";
 
 describe("LogRecordService", () => {
@@ -43,7 +44,7 @@ describe("LogRecordService", () => {
     ]);
     const service = new LogRecordService({ listForProject } as unknown as LogRecordRepository);
 
-    await expect(service.list({ projectId: PROJECT_ID })).resolves.toEqual({
+    await expect(service.list(ORGANIZATION_ID, PROJECT_ID, {})).resolves.toEqual({
       records: [
         {
           id: "5fa77ecf-e4fb-42a6-92bf-58a299471f35",
@@ -59,15 +60,25 @@ describe("LogRecordService", () => {
         },
       ],
     });
-    expect(listForProject).toHaveBeenCalledWith(PROJECT_ID, undefined, LOG_RECORD_LIST_LIMIT);
+    expect(listForProject).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      PROJECT_ID,
+      undefined,
+      LOG_RECORD_LIST_LIMIT,
+    );
   });
 
   it("passes a severity filter through to the query", async () => {
     const listForProject = jest.fn().mockResolvedValue([]);
     const service = new LogRecordService({ listForProject } as unknown as LogRecordRepository);
 
-    await service.list({ projectId: PROJECT_ID, level: "error" });
+    await service.list(ORGANIZATION_ID, PROJECT_ID, { level: "error" });
 
-    expect(listForProject).toHaveBeenCalledWith(PROJECT_ID, "error", LOG_RECORD_LIST_LIMIT);
+    expect(listForProject).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      PROJECT_ID,
+      "error",
+      LOG_RECORD_LIST_LIMIT,
+    );
   });
 });

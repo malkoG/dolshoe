@@ -370,14 +370,6 @@ export type ErrorReportRequest = z.infer<typeof errorReportRequestSchema>;
 export type ErrorReportReceipt = z.infer<typeof errorReportReceiptSchema>;
 export type SourceLocation = z.infer<typeof sourceLocationSchema>;
 export type ErrorReportExceptionSummary = z.infer<typeof errorReportExceptionSummarySchema>;
-/** Optional `?projectId=` filter on the inbox listing. Omitted means every project. */
-export const errorReportListQuerySchema = z
-  .object({
-    projectId: z.uuid("projectId must be a UUID.").optional(),
-  })
-  .strict();
-
-export type ErrorReportListQuery = z.infer<typeof errorReportListQuerySchema>;
 export type ErrorReportSummary = z.infer<typeof errorReportSummarySchema>;
 export type ErrorReportListResponse = z.infer<typeof errorReportListResponseSchema>;
 

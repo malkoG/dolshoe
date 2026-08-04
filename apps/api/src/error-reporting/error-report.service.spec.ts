@@ -3,6 +3,7 @@ import { ERROR_REPORT_LIST_LIMIT } from "./error-report.contract";
 import { nodeErrorReportExample } from "./error-report.examples";
 import { ErrorReportService } from "./error-report.service";
 
+const ORGANIZATION_ID = "9d8c7b6a-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 const PROJECT_ID = "3f1d0a4c-6b2e-4f7a-9c5d-8e1b2a3c4d5e";
 
 describe("ErrorReportService", () => {
@@ -64,7 +65,7 @@ describe("ErrorReportService", () => {
     } as unknown as PrismaService;
     const service = new ErrorReportService(database);
 
-    await expect(service.list()).resolves.toEqual({
+    await expect(service.list(ORGANIZATION_ID, PROJECT_ID)).resolves.toEqual({
       reports: [
         {
           id: "07cf25d3-35aa-4b30-b4e2-bc3649858147",
@@ -100,18 +101,23 @@ describe("ErrorReportService", () => {
         take: ERROR_REPORT_LIST_LIMIT,
       }),
     );
-    expect(findMany.mock.calls[0][0]).not.toHaveProperty("where");
+    // Every listing is scoped now; there is no longer an unfiltered one.
+    expect(findMany.mock.calls[0][0]).toHaveProperty("where");
   });
 
-  it("limits the listing to one project when asked", async () => {
+  it("scopes the listing to the project and the organization that owns it", async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     const database = { errorReport: { findMany } } as unknown as PrismaService;
     const service = new ErrorReportService(database);
 
-    await service.list({ projectId: PROJECT_ID });
+    await service.list(ORGANIZATION_ID, PROJECT_ID);
 
+    // Both halves, so a project id from another tenant matches nothing here
+    // rather than relying on a check further up having happened.
     expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { projectId: PROJECT_ID } }),
+      expect.objectContaining({
+        where: { projectId: PROJECT_ID, project: { organizationId: ORGANIZATION_ID } },
+      }),
     );
   });
 
@@ -124,6 +130,6 @@ describe("ErrorReportService", () => {
     } as unknown as PrismaService;
     const service = new ErrorReportService(database);
 
-    await expect(service.list()).resolves.toEqual({ reports: [] });
+    await expect(service.list(ORGANIZATION_ID, PROJECT_ID)).resolves.toEqual({ reports: [] });
   });
 });

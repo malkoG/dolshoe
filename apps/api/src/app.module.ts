@@ -7,12 +7,14 @@ import { HealthModule } from "./health/health.module";
 import { IngestionModule } from "./ingestion/ingestion.module";
 import { LogRecordModule } from "./log-recording/log-record.module";
 import { MessageQueueModule } from "./message-queue/message-queue.module";
+import { OrganizationModule } from "./organizations/organization.module";
 import { ProjectModule } from "./projects/project.module";
 
 @Module({
   imports: [
     DatabaseModule,
     AuthModule,
+    OrganizationModule,
     ProjectModule,
     IngestionModule,
     ErrorReportModule,
