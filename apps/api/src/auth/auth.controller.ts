@@ -23,6 +23,7 @@ import {
 import { getLogger } from "@logtape/logtape";
 
 import { cookieHeader } from "./cookies";
+import { appConfig } from "../config/app-config";
 import { ZodValidationPipe } from "../error-reporting/zod-validation.pipe";
 import { InvitationService } from "../organizations/invitation.service";
 import {
@@ -117,17 +118,30 @@ export class AuthController {
   async session(@Req() request: CookieRequest): Promise<SessionResponse> {
     const instanceClaimed = await this.authService.isInstanceClaimed();
     const githubSignInConfigured = this.github.configuration != null;
+    const mockLoginAvailable = appConfig.mockLogin;
     const viewer = await this.resolveViewer(request);
 
     if (viewer == null) {
-      return { viewer: null, organizations: [], instanceClaimed, githubSignInConfigured };
+      return {
+        viewer: null,
+        organizations: [],
+        instanceClaimed,
+        githubSignInConfigured,
+        mockLoginAvailable,
+      };
     }
 
     // Answered here rather than leaving the browser to ask separately, because
     // every page needs both to decide where the caller even belongs.
     const { organizations } = await this.organizationService.listForViewer(viewer.id);
 
-    return { viewer, organizations, instanceClaimed, githubSignInConfigured };
+    return {
+      viewer,
+      organizations,
+      instanceClaimed,
+      githubSignInConfigured,
+      mockLoginAvailable,
+    };
   }
 
   /**

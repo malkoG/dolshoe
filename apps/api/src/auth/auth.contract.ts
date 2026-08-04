@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { organizationSchema } from "../organizations/organization.contract";
+import { MAXIMUM_MOCK_LOGIN_LENGTH, MOCK_LOGIN_PATTERN } from "./mock-login";
 
 const contractRegistry = z.registry<{ id?: string; description?: string }>();
 
@@ -47,6 +48,10 @@ export const sessionResponseSchema = z
       description:
         "False when this instance has no GitHub OAuth app configured, which means nobody can sign in at all. The sign-in page says so rather than offering a button that cannot work.",
     }),
+    mockLoginAvailable: z.boolean().meta({
+      description:
+        "True only on an instance running with MOCK_LOGIN, where anyone can sign in as a login they type. Never true in production, which refuses to start with it set.",
+    }),
   })
   .strict()
   .register(contractRegistry, {
@@ -55,8 +60,49 @@ export const sessionResponseSchema = z
       "Who the caller is, whether this instance has been claimed, and whether it can sign anybody in. Answers with 200 whether or not anyone is signed in: not being signed in is a normal state, not an error.",
   });
 
+export const mockLoginRequestSchema = z
+  .object({
+    login: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .min(1)
+      .max(MAXIMUM_MOCK_LOGIN_LENGTH)
+      .regex(MOCK_LOGIN_PATTERN, "A login is alphanumerics and single inner hyphens, as GitHub's.")
+      .meta({
+        description: "The GitHub login to sign in as. Fabricated on the spot, verified by nothing.",
+      }),
+    invitation: z
+      .string()
+      .max(200)
+      .optional()
+      .meta({ description: "An invitation token, when the sign-in started from an invitation." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "MockLoginRequestV1",
+    description:
+      "Who to pretend to be, on an instance running with MOCK_LOGIN. Development only: no such instance may run in production.",
+  });
+
+export const mockLoginResponseSchema = z
+  .object({
+    viewer: viewerSchema.meta({ description: "The account that was signed in." }),
+    organizationSlug: z.string().nullable().meta({
+      description:
+        "The organization an invitation put this account in, or null when no invitation was spent. Where the browser should land.",
+    }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "MockLoginResponseV1",
+    description: "The account a mock sign-in established, and where to send the browser next.",
+  });
+
 export type Viewer = z.infer<typeof viewerSchema>;
 export type SessionResponse = z.infer<typeof sessionResponseSchema>;
+export type MockLoginRequest = z.infer<typeof mockLoginRequestSchema>;
+export type MockLoginResponse = z.infer<typeof mockLoginResponseSchema>;
 
 function adaptJsonSchemaToOpenApi(value: unknown): unknown {
   if (Array.isArray(value)) {

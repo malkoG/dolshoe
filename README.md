@@ -193,6 +193,32 @@ refused.
 Dolshoe asks GitHub for `read:user` and `user:email`, both read-only. It never
 asks for repository access.
 
+### Signing in while developing
+
+Registering an OAuth app before you can see a single screen is a lot to ask of a
+fresh clone. `MOCK_LOGIN` skips it:
+
+```sh
+MOCK_LOGIN=true
+```
+
+The sign-in page then offers a field instead of only a button. Type a login and
+you are that account — GitHub is never asked, and nothing is verified.
+
+Only the identity is invented. Everything after it is the code a real sign-in
+runs, so a development instance turns down exactly what a deployed one would:
+`GITHUB_ALLOWED_LOGINS` still applies, the first login to arrive still claims the
+instance, and every login after it still needs an invitation. Signing in as the
+same login twice reaches the same account, across restarts, so `dev` and
+`reviewer` stay two distinct people with distinct memberships.
+
+> [!WARNING]
+> **This is an open door.** Anyone who can reach the instance can sign in as any
+> account by typing its login. An instance with `NODE_ENV=production` and
+> `MOCK_LOGIN` set refuses to start rather than serve traffic that way, and one
+> running with it says so in a warning at startup. Without it the route does not
+> answer at all.
+
 ### Deciding who gets in
 
 Two independent gates. `GITHUB_ALLOWED_LOGINS` decides who may hold an account
@@ -235,6 +261,17 @@ cookies="dolshoe_session=dsv_…"
 
 curl -b "$cookies" -X POST http://localhost:<port>/api/v1/orgs/<orgSlug>/invitations \
   -H 'content-type: application/json' -d '{"githubLogin":"octocat","role":"MEMBER"}'
+```
+
+On a development instance running with `MOCK_LOGIN`, `curl` can start a session
+itself, because that sign-in never leaves the origin — no browser and no copying
+required:
+
+```sh
+curl -c jar.txt -X POST http://localhost:<port>/api/v1/auth/mock/session \
+  -H 'content-type: application/json' -d '{"login":"dev"}'
+
+curl -b jar.txt http://localhost:<port>/api/v1/orgs
 ```
 
 A login rather than an address, because a login is the identity the invitee will
@@ -573,21 +610,22 @@ production build. CI additionally runs the PostgreSQL e2e suite.
 
 ## Configuration
 
-| Variable                | Default in `.env.example` | Description                                                                               |
-| ----------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
-| `NODE_ENV`              | `development`             | `development`, `test`, or `production`                                                    |
-| `PORT`                  | `3000`                    | HTTP listen port                                                                          |
-| `LOG_LEVEL`             | `debug`                   | Minimum LogTape level                                                                     |
-| `INGEST_TOKEN`          | empty                     | Legacy global bearer token, resolved to `default`                                         |
-| `LOG_RETENTION_DAYS`    | `14`                      | Days to retain logs, based on server receipt time                                         |
-| `SPAN_RETENTION_DAYS`   | `7`                       | Days to retain spans, based on server receipt time                                        |
-| `DATABASE_URL`          | local PostgreSQL          | Prisma and application connection URL                                                     |
-| `SESSION_COOKIE_SECURE` | follows `NODE_ENV`        | `Secure` on the session cookie. Turn off for plain HTTP on a private network              |
-| `GITHUB_CLIENT_ID`      | empty                     | OAuth app client id. Required to sign anybody in                                          |
-| `GITHUB_CLIENT_SECRET`  | empty                     | OAuth app client secret                                                                   |
-| `GITHUB_CALLBACK_URL`   | local web origin          | Where GitHub returns the browser. Must be browser-reachable and match GitHub's copy       |
-| `GITHUB_ALLOWED_LOGINS` | empty                     | Comma-separated GitHub logins allowed to hold an account. Empty means no restriction      |
-| `DOLSHOE_API_ORIGIN`    | `http://localhost:3000`   | Where the web app's server-side render reaches the API. Deliberately not `VITE_`-prefixed |
+| Variable                | Default in `.env.example` | Description                                                                                  |
+| ----------------------- | ------------------------- | -------------------------------------------------------------------------------------------- |
+| `NODE_ENV`              | `development`             | `development`, `test`, or `production`                                                       |
+| `PORT`                  | `3000`                    | HTTP listen port                                                                             |
+| `LOG_LEVEL`             | `debug`                   | Minimum LogTape level                                                                        |
+| `INGEST_TOKEN`          | empty                     | Legacy global bearer token, resolved to `default`                                            |
+| `LOG_RETENTION_DAYS`    | `14`                      | Days to retain logs, based on server receipt time                                            |
+| `SPAN_RETENTION_DAYS`   | `7`                       | Days to retain spans, based on server receipt time                                           |
+| `DATABASE_URL`          | local PostgreSQL          | Prisma and application connection URL                                                        |
+| `SESSION_COOKIE_SECURE` | follows `NODE_ENV`        | `Secure` on the session cookie. Turn off for plain HTTP on a private network                 |
+| `GITHUB_CLIENT_ID`      | empty                     | OAuth app client id. Required to sign anybody in                                             |
+| `GITHUB_CLIENT_SECRET`  | empty                     | OAuth app client secret                                                                      |
+| `GITHUB_CALLBACK_URL`   | local web origin          | Where GitHub returns the browser. Must be browser-reachable and match GitHub's copy          |
+| `GITHUB_ALLOWED_LOGINS` | empty                     | Comma-separated GitHub logins allowed to hold an account. Empty means no restriction         |
+| `MOCK_LOGIN`            | empty                     | Development only. Signs anybody in as a login they type. Production refuses to start with it |
+| `DOLSHOE_API_ORIGIN`    | `http://localhost:3000`   | Where the web app's server-side render reaches the API. Deliberately not `VITE_`-prefixed    |
 
 Development logs use a readable colored formatter. Production logs are emitted
 as JSON Lines. Request bodies and tokens are never written to the API's
@@ -600,8 +638,11 @@ and it cannot be revoked for one application without breaking every other.
 
 Outside production, **ingestion** with no credential at all is accepted and
 recorded against the `default` project, so local development needs no setup. This
-applies to ingestion only — viewer authentication never falls open, in any
-environment, so the web app and the management API always require signing in.
+applies to ingestion only — viewer authentication never falls open on its own, in
+any environment, so the web app and the management API always require signing in.
+`MOCK_LOGIN` is the single exception, and it is one an operator has to ask for by
+name: without it the route does not answer, and production will not start with
+it.
 Production never falls open either: without a valid credential every ingest is
 rejected. An
 instance running in production with neither `INGEST_TOKEN` nor a usable project

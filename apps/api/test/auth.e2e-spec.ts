@@ -206,6 +206,7 @@ describe("Authentication", () => {
         organizations: [],
         instanceClaimed: false,
         githubSignInConfigured: true,
+        mockLoginAvailable: false,
       });
 
       await signInWithGitHub(identity());

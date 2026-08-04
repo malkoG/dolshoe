@@ -41,6 +41,10 @@ const UNAUTHENTICATED_PATHS = new Set([
   // thing being established — so the `state` cookie protects them instead.
   "/api/v1/auth/github/start",
   "/api/v1/auth/github/callback",
+  // Also establishes a session, so it cannot require one either. What stands in
+  // for a guard here is that the route answers 404 unless the instance was
+  // started with `MOCK_LOGIN`, which production cannot be.
+  "/api/v1/auth/mock/session",
 ]);
 
 function uniqueName(label: string): string {
