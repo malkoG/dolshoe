@@ -1,13 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  Activity,
   AlertTriangle,
-  Bell,
   Boxes,
   ChevronDown,
   CircleAlert,
   Clock3,
-  Command,
   Inbox,
   LifeBuoy,
   Loader2,
@@ -19,8 +16,11 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { PageShell } from "../components/page-shell";
 import { ErrorReportsFetchError, fetchErrorReports } from "../lib/error-reports";
 import type { ErrorReportSummary } from "../lib/error-reports";
+import { fetchProjects } from "../lib/projects";
+import type { Project } from "../lib/projects";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -104,19 +104,45 @@ function Home() {
   const [reloadToken, setReloadToken] = useState(0);
   const [query, setQuery] = useState("");
   const [environment, setEnvironment] = useState("all");
+  const [projectId, setProjectId] = useState("all");
+  const [projects, setProjects] = useState<Project[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
     setState({ status: "loading" });
 
-    fetchErrorReports({ signal: controller.signal })
+    fetchErrorReports({
+      ...(projectId === "all" ? {} : { projectId }),
+      signal: controller.signal,
+    })
       .then((reports) => {
         if (!cancelled) setState({ status: "ready", reports });
         return;
       })
       .catch((error: unknown) => {
         if (!cancelled) setState({ status: "error", error });
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [reloadToken, projectId]);
+
+  // The project list only labels the filter, so a failure here leaves the inbox
+  // usable with an "All projects" selector rather than blocking it.
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    fetchProjects({ signal: controller.signal })
+      .then((loaded) => {
+        if (!cancelled) setProjects(loaded);
+        return;
+      })
+      .catch(() => {
+        if (!cancelled) setProjects([]);
       });
 
     return () => {
@@ -170,11 +196,12 @@ function Home() {
     };
   }, [state.status, reports]);
 
-  const hasActiveFilters = query.length > 0 || environment !== "all";
+  const hasActiveFilters = query.length > 0 || environment !== "all" || projectId !== "all";
 
   function resetFilters() {
     setQuery("");
     setEnvironment("all");
+    setProjectId("all");
   }
 
   function retry() {
@@ -182,256 +209,233 @@ function Home() {
   }
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="Dolshoe home">
-          <img className="brand-mark" src="/dolshoe-mark-reversed.svg" alt="" />
-          <span>dolshoe</span>
-        </a>
-
-        <nav className="topnav" aria-label="Primary navigation">
-          <a className="nav-link nav-link-active" href="/" aria-current="page">
-            <CircleAlert size={16} />
-            Reports
-          </a>
-          <a className="nav-link" href="#services">
-            <Boxes size={16} />
-            Services
-          </a>
-          <a className="nav-link" href="#activity">
-            <Activity size={16} />
-            Activity
-          </a>
-        </nav>
-
-        <div className="topbar-actions">
-          <button className="icon-button" type="button" aria-label="Open command menu">
-            <Command size={17} />
-          </button>
-          <button
-            className="icon-button notification-button"
-            type="button"
-            aria-label="Notifications"
-          >
-            <Bell size={17} />
-            <span className="notification-dot" />
-          </button>
-          <button className="avatar" type="button" aria-label="Open account menu">
-            KW
-          </button>
-        </div>
-      </header>
-
-      <main className="workspace">
-        <section className="page-heading">
-          <div>
-            <div className="eyebrow">
-              <span className="live-dot" aria-hidden="true" />
-              Newest reports first
-            </div>
-            <h1>Error reports</h1>
-            <p>Investigate failures across every service from one focused inbox.</p>
+    <PageShell active="reports">
+      <section className="page-heading">
+        <div>
+          <div className="eyebrow">
+            <span className="live-dot" aria-hidden="true" />
+            Newest reports first
           </div>
-          <button className="help-button" type="button">
-            <LifeBuoy size={16} />
-            Set up a reporter
-          </button>
-        </section>
+          <h1>Error reports</h1>
+          <p>Investigate failures across every service from one focused inbox.</p>
+        </div>
+        <button className="help-button" type="button">
+          <LifeBuoy size={16} />
+          Set up a reporter
+        </button>
+      </section>
 
-        {metrics && (
-          <section className="metrics" aria-label="Error report summary">
-            <article className="metric metric-critical">
-              <div className="metric-label">
-                Reports loaded
-                <CircleAlert size={15} />
-              </div>
-              <div className="metric-value-row">
-                <strong>{metrics.total.toLocaleString()}</strong>
-              </div>
-            </article>
-            <article className="metric">
-              <div className="metric-label">
-                Events today
-                <Sparkles size={15} />
-              </div>
-              <div className="metric-value-row">
-                <strong>{metrics.occurredToday.toLocaleString()}</strong>
-              </div>
-            </article>
-            <article className="metric">
-              <div className="metric-label">
-                Affected services
-                <Boxes size={15} />
-              </div>
-              <div className="metric-value-row">
-                <strong>{metrics.services.toLocaleString()}</strong>
-              </div>
-            </article>
-          </section>
+      {metrics && (
+        <section className="metrics" aria-label="Error report summary">
+          <article className="metric metric-critical">
+            <div className="metric-label">
+              Reports loaded
+              <CircleAlert size={15} />
+            </div>
+            <div className="metric-value-row">
+              <strong>{metrics.total.toLocaleString()}</strong>
+            </div>
+          </article>
+          <article className="metric">
+            <div className="metric-label">
+              Events today
+              <Sparkles size={15} />
+            </div>
+            <div className="metric-value-row">
+              <strong>{metrics.occurredToday.toLocaleString()}</strong>
+            </div>
+          </article>
+          <article className="metric">
+            <div className="metric-label">
+              Affected services
+              <Boxes size={15} />
+            </div>
+            <div className="metric-value-row">
+              <strong>{metrics.services.toLocaleString()}</strong>
+            </div>
+          </article>
+        </section>
+      )}
+
+      <section className="report-panel">
+        <div className="filter-bar">
+          <span className="filter-summary">
+            {state.status === "ready" ? pluralizeReports(filteredReports.length) : "Reports"}
+          </span>
+
+          <div className="filter-controls">
+            <label className="search-field">
+              <Search size={16} />
+              <span className="sr-only">Search reports</span>
+              <input
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search errors, services…"
+                type="search"
+                value={query}
+              />
+              {query.length > 0 && (
+                <button
+                  className="clear-search"
+                  onClick={() => setQuery("")}
+                  type="button"
+                  aria-label="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </label>
+
+            <label className="select-field">
+              <Boxes size={15} />
+              <span className="sr-only">Filter by project</span>
+              <select onChange={(event) => setProjectId(event.target.value)} value={projectId}>
+                <option value="all">All projects</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="select-chevron" size={14} />
+            </label>
+
+            <label className="select-field">
+              <SlidersHorizontal size={15} />
+              <span className="sr-only">Filter by environment</span>
+              <select onChange={(event) => setEnvironment(event.target.value)} value={environment}>
+                <option value="all">All environments</option>
+                {environmentOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="select-chevron" size={14} />
+            </label>
+          </div>
+        </div>
+
+        {state.status === "ready" && reports.length > 0 && (
+          <div className="list-header" aria-hidden="true">
+            <span>Issue</span>
+            <span>Service</span>
+            <span>Occurred</span>
+            <span>Report</span>
+          </div>
         )}
 
-        <section className="report-panel">
-          <div className="filter-bar">
-            <span className="filter-summary">
-              {state.status === "ready" ? pluralizeReports(filteredReports.length) : "Reports"}
-            </span>
-
-            <div className="filter-controls">
-              <label className="search-field">
-                <Search size={16} />
-                <span className="sr-only">Search reports</span>
-                <input
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search errors, services…"
-                  type="search"
-                  value={query}
-                />
-                {query.length > 0 && (
-                  <button
-                    className="clear-search"
-                    onClick={() => setQuery("")}
-                    type="button"
-                    aria-label="Clear search"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </label>
-
-              <label className="select-field">
-                <SlidersHorizontal size={15} />
-                <span className="sr-only">Filter by environment</span>
-                <select
-                  onChange={(event) => setEnvironment(event.target.value)}
-                  value={environment}
-                >
-                  <option value="all">All environments</option>
-                  {environmentOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="select-chevron" size={14} />
-              </label>
-            </div>
-          </div>
-
-          {state.status === "ready" && reports.length > 0 && (
-            <div className="list-header" aria-hidden="true">
-              <span>Issue</span>
-              <span>Service</span>
-              <span>Occurred</span>
-              <span>Report</span>
+        <div className="report-list" aria-live="polite">
+          {state.status === "loading" && (
+            <div className="state-panel state-panel-loading" role="status">
+              <span className="state-icon">
+                <Loader2 className="spin" size={19} />
+              </span>
+              <strong>Loading error reports…</strong>
+              <p>Fetching the newest events from the API.</p>
             </div>
           )}
 
-          <div className="report-list" aria-live="polite">
-            {state.status === "loading" && (
-              <div className="state-panel state-panel-loading" role="status">
-                <span className="state-icon">
-                  <Loader2 className="spin" size={19} />
-                </span>
-                <strong>Loading error reports…</strong>
-                <p>Fetching the newest events from the API.</p>
-              </div>
-            )}
+          {state.status === "error" && (
+            <div className="state-panel state-panel-error" role="alert">
+              <span className="state-icon">
+                <AlertTriangle size={19} />
+              </span>
+              <strong>Couldn't load error reports</strong>
+              <p>{describeLoadError(state.error)}</p>
+              <button onClick={retry} type="button">
+                <RefreshCw size={13} />
+                Try again
+              </button>
+            </div>
+          )}
 
-            {state.status === "error" && (
-              <div className="state-panel state-panel-error" role="alert">
-                <span className="state-icon">
-                  <AlertTriangle size={19} />
-                </span>
-                <strong>Couldn't load error reports</strong>
-                <p>{describeLoadError(state.error)}</p>
-                <button onClick={retry} type="button">
-                  <RefreshCw size={13} />
-                  Try again
+          {state.status === "ready" && reports.length === 0 && (
+            <div className="state-panel">
+              <span className="state-icon">
+                <Inbox size={19} />
+              </span>
+              <strong>No error reports yet</strong>
+              <p>Once a connected service reports a failure, it will show up here.</p>
+            </div>
+          )}
+
+          {state.status === "ready" && reports.length > 0 && filteredReports.length === 0 && (
+            <div className="state-panel">
+              <span className="state-icon">
+                <Search size={19} />
+              </span>
+              <strong>No matching reports</strong>
+              <p>Try another search or clear your active filters.</p>
+              {hasActiveFilters && (
+                <button onClick={resetFilters} type="button">
+                  Clear all filters
                 </button>
-              </div>
-            )}
+              )}
+            </div>
+          )}
 
-            {state.status === "ready" && reports.length === 0 && (
-              <div className="state-panel">
-                <span className="state-icon">
-                  <Inbox size={19} />
-                </span>
-                <strong>No error reports yet</strong>
-                <p>Once a connected service reports a failure, it will show up here.</p>
-              </div>
-            )}
+          {state.status === "ready" &&
+            filteredReports.map((report) => {
+              const sourceLabel = formatSourceLocation(report.exception.source);
 
-            {state.status === "ready" && reports.length > 0 && filteredReports.length === 0 && (
-              <div className="state-panel">
-                <span className="state-icon">
-                  <Search size={19} />
-                </span>
-                <strong>No matching reports</strong>
-                <p>Try another search or clear your active filters.</p>
-                {hasActiveFilters && (
-                  <button onClick={resetFilters} type="button">
-                    Clear all filters
-                  </button>
-                )}
-              </div>
-            )}
+              return (
+                <div className="report-row" key={report.id}>
+                  <div className="issue-copy">
+                    <div className="issue-title-line">
+                      <strong>{report.exception.type ?? "Unknown exception"}</strong>
+                    </div>
+                    {report.exception.message && <p>{report.exception.message}</p>}
+                    {sourceLabel && (
+                      <span className="issue-location" title={report.exception.source?.fileName}>
+                        {sourceLabel}
+                      </span>
+                    )}
+                  </div>
 
-            {state.status === "ready" &&
-              filteredReports.map((report) => {
-                const sourceLabel = formatSourceLocation(report.exception.source);
-
-                return (
-                  <div className="report-row" key={report.id}>
-                    <div className="issue-copy">
-                      <div className="issue-title-line">
-                        <strong>{report.exception.type ?? "Unknown exception"}</strong>
-                      </div>
-                      {report.exception.message && <p>{report.exception.message}</p>}
-                      {sourceLabel && (
-                        <span className="issue-location" title={report.exception.source?.fileName}>
-                          {sourceLabel}
+                  <div className="service-cell">
+                    <strong>
+                      {report.service.name}
+                      {projectId === "all" && (
+                        <span className="project-chip" title={report.project.name}>
+                          {report.project.slug}
                         </span>
                       )}
-                    </div>
-
-                    <div className="service-cell">
-                      <strong>{report.service.name}</strong>
-                      <div>
-                        <span
-                          className={`environment-dot environment-${report.service.environment ?? "unspecified"}`}
-                          aria-hidden="true"
-                        />
-                        {report.service.environment ?? "Unspecified environment"}
-                        <span className="meta-separator">·</span>
-                        {formatRuntimeLabel(report.runtime)}
-                      </div>
-                    </div>
-
-                    <div className="time-cell">
-                      <Clock3 size={14} />
-                      <time dateTime={report.occurredAt} title={report.occurredAt}>
-                        {formatRelativeTime(report.occurredAt)}
-                      </time>
-                    </div>
-
-                    <div className="report-id-cell">
-                      <span title={report.id}>#{formatShortId(report.id)}</span>
+                    </strong>
+                    <div>
+                      <span
+                        className={`environment-dot environment-${report.service.environment ?? "unspecified"}`}
+                        aria-hidden="true"
+                      />
+                      {report.service.environment ?? "Unspecified environment"}
+                      <span className="meta-separator">·</span>
+                      {formatRuntimeLabel(report.runtime)}
                     </div>
                   </div>
-                );
-              })}
-          </div>
 
-          {state.status === "ready" && (
-            <footer className="panel-footer">
-              <span>
-                Showing <strong>{filteredReports.length}</strong> of {reports.length} reports
-              </span>
-              <span className="panel-footer-note">Sorted newest first</span>
-            </footer>
-          )}
-        </section>
-      </main>
-    </div>
+                  <div className="time-cell">
+                    <Clock3 size={14} />
+                    <time dateTime={report.occurredAt} title={report.occurredAt}>
+                      {formatRelativeTime(report.occurredAt)}
+                    </time>
+                  </div>
+
+                  <div className="report-id-cell">
+                    <span title={report.id}>#{formatShortId(report.id)}</span>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+
+        {state.status === "ready" && (
+          <footer className="panel-footer">
+            <span>
+              Showing <strong>{filteredReports.length}</strong> of {reports.length} reports
+            </span>
+            <span className="panel-footer-note">Sorted newest first</span>
+          </footer>
+        )}
+      </section>
+    </PageShell>
   );
 }

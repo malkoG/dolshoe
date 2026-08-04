@@ -21,6 +21,11 @@ const errorReportSummarySchema = z.object({
   eventId: z.string(),
   occurredAt: z.string(),
   receivedAt: z.string(),
+  project: z.object({
+    id: z.string(),
+    slug: z.string(),
+    name: z.string(),
+  }),
   service: z.object({
     name: z.string(),
     environment: z.string().optional(),
@@ -62,22 +67,29 @@ export class ErrorReportsFetchError extends Error {
  * web-owned mirror of the API-01 response contract before returning typed values.
  */
 export async function fetchErrorReports(init?: {
+  projectId?: string;
   signal?: AbortSignal;
 }): Promise<ErrorReportSummary[]> {
+  const url =
+    init?.projectId == null
+      ? ERROR_REPORTS_URL
+      : `${ERROR_REPORTS_URL}?${new URLSearchParams({ projectId: init.projectId }).toString()}`;
+
   let response: Response;
   try {
-    response = await fetch(ERROR_REPORTS_URL, { signal: init?.signal });
+    response = await fetch(url, { signal: init?.signal });
   } catch (cause) {
-    throw new ErrorReportsFetchError(
-      `Could not reach ${ERROR_REPORTS_URL} to list error reports.`,
-      { operation: LIST_ERROR_REPORTS_OPERATION, url: ERROR_REPORTS_URL, cause },
-    );
+    throw new ErrorReportsFetchError(`Could not reach ${url} to list error reports.`, {
+      operation: LIST_ERROR_REPORTS_OPERATION,
+      url,
+      cause,
+    });
   }
 
   if (!response.ok) {
     throw new ErrorReportsFetchError(
-      `Listing error reports failed: ${ERROR_REPORTS_URL} responded with ${response.status} ${response.statusText}.`,
-      { operation: LIST_ERROR_REPORTS_OPERATION, url: ERROR_REPORTS_URL, status: response.status },
+      `Listing error reports failed: ${url} responded with ${response.status} ${response.statusText}.`,
+      { operation: LIST_ERROR_REPORTS_OPERATION, url, status: response.status },
     );
   }
 
@@ -86,10 +98,10 @@ export async function fetchErrorReports(init?: {
     body = await response.json();
   } catch (cause) {
     throw new ErrorReportsFetchError(
-      `Listing error reports failed: ${ERROR_REPORTS_URL} did not return valid JSON.`,
+      `Listing error reports failed: ${url} did not return valid JSON.`,
       {
         operation: LIST_ERROR_REPORTS_OPERATION,
-        url: ERROR_REPORTS_URL,
+        url,
         status: response.status,
         cause,
       },
@@ -99,10 +111,10 @@ export async function fetchErrorReports(init?: {
   const parsed = errorReportListResponseSchema.safeParse(body);
   if (!parsed.success) {
     throw new ErrorReportsFetchError(
-      `Listing error reports failed: the response from ${ERROR_REPORTS_URL} did not match the expected contract.`,
+      `Listing error reports failed: the response from ${url} did not match the expected contract.`,
       {
         operation: LIST_ERROR_REPORTS_OPERATION,
-        url: ERROR_REPORTS_URL,
+        url,
         status: response.status,
         cause: parsed.error,
       },
