@@ -10,7 +10,7 @@ const MAX_ATTRIBUTE_DEPTH = 8;
 const MAX_ATTRIBUTE_ITEMS = 100;
 
 const sensitiveKeyPattern =
-  /(?:authorization|cookie|pass(?:word|wd)?|secret|token|api[-_]?key|access[-_]?(?:key|token))/i;
+  /(?:authorization|cookie|dsn|pass(?:word|wd)?|secret|token|api[-_]?key|access[-_]?(?:key|token))/i;
 
 function truncate(value: string, maximumLength: number): string {
   return value.length <= maximumLength
