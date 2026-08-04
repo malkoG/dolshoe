@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { requestJson } from "./api-request";
+import { ApiError, jsonBody, requestJson } from "./api-request";
 import { organizationSchema } from "./organizations";
 
 const AUTH_URL = "/api/v1/auth";
@@ -18,6 +18,7 @@ const sessionResponseSchema = z.object({
   organizations: z.array(organizationSchema),
   instanceClaimed: z.boolean(),
   githubSignInConfigured: z.boolean(),
+  mockLoginAvailable: z.boolean(),
 });
 
 export type Viewer = z.infer<typeof viewerSchema>;
@@ -33,12 +34,18 @@ export type Session = z.infer<typeof sessionResponseSchema>;
  * cannot be reached is not the same as one with no OAuth app, and offering the
  * button is a better guess than telling somebody their instance is misconfigured
  * when the API simply did not answer.
+ *
+ * `mockLoginAvailable` is pessimistic, which is the opposite call for the
+ * opposite reason. An unreachable API is no grounds for showing a door that
+ * probably is not there, and being wrong the other way would put a development
+ * affordance on a deployed instance's sign-in page.
  */
 export const SIGNED_OUT_SESSION: Session = {
   viewer: null,
   organizations: [],
   instanceClaimed: true,
   githubSignInConfigured: true,
+  mockLoginAvailable: false,
 };
 
 /**
@@ -73,6 +80,69 @@ export function githubSignInUrl(options: { redirect?: string; invitation?: strin
 
   const query = parameters.toString();
   return `${AUTH_URL}/github/start${query.length === 0 ? "" : `?${query}`}`;
+}
+
+const mockSignInResponseSchema = z.object({
+  viewer: viewerSchema,
+  organizationSlug: z.string().nullable(),
+});
+
+export type MockSignIn = z.infer<typeof mockSignInResponseSchema>;
+
+/**
+ * A mock sign-in the instance turned down, carrying the same refusal code the
+ * GitHub callback would have put in `?error=`. Separate from {@link ApiError}
+ * because it is an answer rather than a failure: the instance worked exactly as
+ * intended and said no.
+ */
+export class SignInRefused extends Error {
+  constructor(readonly code: string) {
+    super(`The instance refused the sign-in: ${code}.`);
+    this.name = "SignInRefused";
+  }
+}
+
+/**
+ * Signs in as a login, on an instance running with `MOCK_LOGIN`.
+ *
+ * @remarks
+ * Unlike {@link githubSignInUrl} this is a `fetch` rather than a navigation:
+ * nothing about it leaves this origin, so there is no round trip for a browser to
+ * make. The session cookie comes back on the response and the caller navigates
+ * itself.
+ *
+ * Hand-rolled rather than sent through `requestJson`, which turns any non-2xx
+ * into an `ApiError` and discards the body — and the body is the whole point of a
+ * refusal here.
+ */
+export async function mockSignIn(options: {
+  login: string;
+  invitation?: string;
+}): Promise<MockSignIn> {
+  const url = `${AUTH_URL}/mock/session`;
+  const response = await fetch(
+    url,
+    jsonBody({ login: options.login, invitation: options.invitation }),
+  );
+
+  if (response.status === 403) {
+    const body: unknown = await response.json().catch(() => undefined);
+    const code =
+      typeof body === "object" && body != null && "error" in body && typeof body.error === "string"
+        ? body.error
+        : "state";
+
+    throw new SignInRefused(code);
+  }
+
+  if (!response.ok) {
+    throw new ApiError(
+      `Could not sign in: ${url} responded with ${response.status} ${response.statusText}.`,
+      { operation: "sign in", url, status: response.status },
+    );
+  }
+
+  return mockSignInResponseSchema.parse(await response.json());
 }
 
 /**

@@ -63,6 +63,12 @@ const environmentShape = z.object({
   // somewhere the browser can actually reach — not the API's internal address.
   GITHUB_CALLBACK_URL: optionalText(z.string().url()),
   GITHUB_ALLOWED_LOGINS: githubLoginList,
+  // Opens a development-only door that signs anybody in as a login they type,
+  // with no round trip to GitHub. Refused outright in production below.
+  MOCK_LOGIN: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.enum(["true", "false"]).optional(),
+  ),
 });
 
 /**
@@ -70,22 +76,36 @@ const environmentShape = z.object({
  * the application boots with. Copying that file is the documented first step, so
  * an example that fails validation is an instance that will not start.
  */
-export const environmentSchema = environmentShape.refine(
-  (environment) => {
-    const oauthApp = [
-      environment.GITHUB_CLIENT_ID,
-      environment.GITHUB_CLIENT_SECRET,
-      environment.GITHUB_CALLBACK_URL,
-    ];
+export const environmentSchema = environmentShape
+  .refine(
+    (environment) => {
+      const oauthApp = [
+        environment.GITHUB_CLIENT_ID,
+        environment.GITHUB_CLIENT_SECRET,
+        environment.GITHUB_CALLBACK_URL,
+      ];
 
-    return oauthApp.every((value) => value == null) || oauthApp.every((value) => value != null);
-  },
-  {
-    error:
-      "GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and GITHUB_CALLBACK_URL configure one OAuth app: set all three or none. A partial set fails at the redirect, long after startup.",
-    path: ["GITHUB_CLIENT_ID"],
-  },
-);
+      return oauthApp.every((value) => value == null) || oauthApp.every((value) => value != null);
+    },
+    {
+      error:
+        "GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and GITHUB_CALLBACK_URL configure one OAuth app: set all three or none. A partial set fails at the redirect, long after startup.",
+      path: ["GITHUB_CLIENT_ID"],
+    },
+  )
+  // Unlike the warnings elsewhere in this codebase, this one refuses to start.
+  // Those warn so an operator still has an API through which to read the
+  // complaint; here the fix is deleting a line from `.env`, which needs no API,
+  // and the alternative is a production instance that signs anybody in as
+  // anybody. Getting that wrong quietly is worse than not booting.
+  .refine(
+    (environment) => !(environment.MOCK_LOGIN === "true" && environment.NODE_ENV === "production"),
+    {
+      error:
+        "MOCK_LOGIN signs anybody in as whichever login they type, so it cannot be set in production. Unset it, or set NODE_ENV to development.",
+      path: ["MOCK_LOGIN"],
+    },
+  );
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);
 
@@ -138,4 +158,10 @@ export const appConfig = {
    * decide which organizations that account reaches.
    */
   githubAllowedLogins: environment.GITHUB_ALLOWED_LOGINS,
+  /**
+   * Whether this instance offers the development-only sign-in that fabricates an
+   * identity instead of asking GitHub for one. Never true in production: the
+   * schema above refuses to parse that combination at all.
+   */
+  mockLogin: environment.MOCK_LOGIN === "true",
 } as const;

@@ -2,6 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Github, Loader2 } from "lucide-react";
 import { useState } from "react";
 
+import { MockSignIn } from "../components/mock-sign-in";
 import { ApiError } from "../lib/api-request";
 import { acceptInvitation } from "../lib/organizations";
 import { githubSignInUrl } from "../lib/session";
@@ -23,7 +24,7 @@ function describeError(error: unknown): string {
 function AcceptInvitation() {
   const router = useRouter();
   const { token } = Route.useParams();
-  const { viewer } = Route.useRouteContext().session;
+  const { viewer, mockLoginAvailable } = Route.useRouteContext().session;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
 
@@ -67,6 +68,14 @@ function AcceptInvitation() {
               <Github size={16} />
               Continue with GitHub
             </a>
+
+            {/*
+              Carries the link's token, so a mock sign-in redeems the invitation
+              in the same single step a GitHub one does. Which makes the whole
+              invite-and-accept flow something you can walk through locally
+              without two GitHub accounts.
+            */}
+            {mockLoginAvailable && <MockSignIn invitation={token} />}
           </>
         ) : (
           <form onSubmit={(event) => void submit(event)}>

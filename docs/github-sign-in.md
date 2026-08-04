@@ -10,6 +10,12 @@ viewers](../README.md#organizations-and-viewers) in the README.
 Dolshoe asks GitHub for `read:user` and `user:email`, both read-only. It never
 asks for repository access.
 
+> [!TIP]
+> **Developing locally?** You can skip all of this. Set `MOCK_LOGIN=true` and sign
+> in by typing a login instead — see [Signing in while
+> developing](../README.md#signing-in-while-developing). No instance serving real
+> traffic can run that way, so a deployment still needs everything below.
+
 ## 1. Decide the callback URL
 
 This is the one value worth getting right first, because GitHub has to be told
@@ -67,13 +73,19 @@ startup, because the alternative is a redirect that fails much later with
 nothing useful to say. Without any of them the API still starts, warns, and the
 sign-in page explains that nobody can sign in yet.
 
-## 4. Restart and sign in
+## 4. Bring the API back up and sign in
 
-Configuration is read once at startup, so restart the API after editing `.env`:
+Configuration is read once at startup, so the API has to come back up after you
+edit `.env`:
 
 ```sh
-docker compose restart api
+docker compose up -d api
 ```
+
+Not `docker compose restart api`. Compose reads `.env` when it _creates_ a
+container, so a restart brings the same container back with the same variables it
+already had, and your new client id never arrives. `up -d` notices the changed
+configuration and replaces the container.
 
 Open the web app and choose **Continue with GitHub**.
 
@@ -88,7 +100,7 @@ Open the web app and choose **Continue with GitHub**.
 | What you see                                          | Why                                                                                                      |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | GitHub says "redirect_uri is not associated"          | `GITHUB_CALLBACK_URL` and the registered callback differ. Scheme, host, port, and path all have to match |
-| Back at sign-in, "not configured"                     | One or more of the three variables is unset, or the API has not been restarted since they were           |
+| Back at sign-in, "not configured"                     | One or more of the three variables is unset, or the API is still the container that started without them |
 | Back at sign-in, "took too long or started elsewhere" | The `state` cookie expired (10 minutes) or was not returned. Just start again                            |
 | Back at sign-in, "not on this instance's allowlist"   | `GITHUB_ALLOWED_LOGINS` is set and does not name that login                                              |
 | Back at sign-in, "no access to this instance"         | The instance is already claimed and that account has no invitation                                       |
@@ -97,6 +109,6 @@ Open the web app and choose **Continue with GitHub**.
 
 ## Rotating the client secret
 
-Generate a new one on GitHub, update `GITHUB_CLIENT_SECRET`, and restart.
-Existing sessions are unaffected — the secret is only used while completing a
-sign-in, never afterwards.
+Generate a new one on GitHub, update `GITHUB_CLIENT_SECRET`, and bring the API
+back up the same way as in step 4. Existing sessions are unaffected — the secret
+is only used while completing a sign-in, never afterwards.

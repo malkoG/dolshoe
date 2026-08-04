@@ -41,6 +41,54 @@ describe("the shipped .env.example", () => {
     expect(parsed.GITHUB_CLIENT_SECRET).toBeUndefined();
     expect(parsed.GITHUB_CALLBACK_URL).toBeUndefined();
   });
+
+  it("ships with the development sign-in mock off", () => {
+    expect(environmentSchema.parse(readExampleEnvironment()).MOCK_LOGIN).toBeUndefined();
+  });
+});
+
+describe("the development sign-in mock", () => {
+  const base = {
+    DATABASE_URL: "postgresql://dolshoe:dolshoe@localhost:5432/dolshoe",
+  };
+
+  it("can be turned on outside production", () => {
+    const parsed = environmentSchema.parse({
+      ...base,
+      NODE_ENV: "development",
+      MOCK_LOGIN: "true",
+    });
+
+    expect(parsed.MOCK_LOGIN).toBe("true");
+  });
+
+  /**
+   * The one configuration mistake here that cannot be walked back: an instance
+   * serving real traffic that signs anybody in as anybody. Refused at startup
+   * rather than warned about, because the fix needs no running API and the
+   * failure would otherwise be silent.
+   */
+  it("cannot be turned on in production", () => {
+    const parsed = environmentSchema.safeParse({
+      ...base,
+      NODE_ENV: "production",
+      MOCK_LOGIN: "true",
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("is no obstacle to production when it is off, or absent", () => {
+    for (const value of ["false", "", undefined]) {
+      const parsed = environmentSchema.safeParse({
+        ...base,
+        NODE_ENV: "production",
+        MOCK_LOGIN: value,
+      });
+
+      expect(parsed.success).toBe(true);
+    }
+  });
 });
 
 describe("the OAuth app variables", () => {
