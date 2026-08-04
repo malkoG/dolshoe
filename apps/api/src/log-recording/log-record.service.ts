@@ -41,9 +41,14 @@ export class LogRecordService {
     };
   }
 
-  async list(query: LogRecordListQuery): Promise<LogRecordListResponse> {
+  async list(
+    organizationId: string,
+    projectId: string,
+    query: LogRecordListQuery,
+  ): Promise<LogRecordListResponse> {
     const rows = await this.logRecords.listForProject(
-      query.projectId,
+      organizationId,
+      projectId,
       query.level,
       LOG_RECORD_LIST_LIMIT,
     );

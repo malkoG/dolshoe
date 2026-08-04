@@ -4,7 +4,6 @@ import { PrismaService } from "../database/prisma.service";
 import { Prisma } from "../generated/prisma/client";
 import {
   ERROR_REPORT_LIST_LIMIT,
-  ErrorReportListQuery,
   ErrorReportListResponse,
   ErrorReportReceipt,
   ErrorReportRequest,
@@ -58,11 +57,15 @@ export class ErrorReportService {
     };
   }
 
-  async list(query: ErrorReportListQuery = {}): Promise<ErrorReportListResponse> {
+  /**
+   * Both halves of the scope are required. Naming the organization as well as
+   * the project means a project id guessed from another tenant matches nothing,
+   * rather than relying on a check somewhere further up to have happened.
+   */
+  async list(organizationId: string, projectId: string): Promise<ErrorReportListResponse> {
     const rows = await this.database.errorReport.findMany({
-      // Filtered listings are served by [projectId, receivedAt DESC]; the
-      // unfiltered one by [receivedAt DESC].
-      ...(query.projectId == null ? {} : { where: { projectId: query.projectId } }),
+      // Served by [projectId, receivedAt DESC].
+      where: { projectId, project: { organizationId } },
       orderBy: { receivedAt: "desc" },
       take: ERROR_REPORT_LIST_LIMIT,
       select: {

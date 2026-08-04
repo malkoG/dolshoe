@@ -23,6 +23,7 @@ import {
 } from "@nestjs/swagger";
 
 import { ZodValidationPipe } from "../error-reporting/zod-validation.pipe";
+import { OrganizationService } from "../organizations/organization.service";
 import { AuthService } from "./auth.service";
 import {
   LoginRequest,
@@ -71,6 +72,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly sessionService: SessionService,
+    private readonly organizationService: OrganizationService,
   ) {}
 
   /**
@@ -91,7 +93,13 @@ export class AuthController {
     const instanceClaimed = await this.authService.isInstanceClaimed();
     const viewer = await this.resolveViewer(request);
 
-    return { viewer, instanceClaimed };
+    if (viewer == null) return { viewer: null, organizations: [], instanceClaimed };
+
+    // Answered here rather than leaving the browser to ask separately, because
+    // every page needs both to decide where the caller even belongs.
+    const { organizations } = await this.organizationService.listForViewer(viewer.id);
+
+    return { viewer, organizations, instanceClaimed };
   }
 
   /**

@@ -5,6 +5,7 @@ import { authOpenApiSchemas } from "../auth/auth.contract";
 import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
 import { errorReportOpenApiSchemas } from "../error-reporting/error-report.contract";
 import { logRecordOpenApiSchemas } from "../log-recording/log-record.contract";
+import { organizationOpenApiSchemas } from "../organizations/organization.contract";
 import { projectOpenApiSchemas } from "../projects/project.contract";
 
 function createOpenApiDocument(app: INestApplication): OpenAPIObject {
@@ -44,6 +45,9 @@ function createOpenApiDocument(app: INestApplication): OpenAPIObject {
     >),
     ...(projectOpenApiSchemas as NonNullable<NonNullable<OpenAPIObject["components"]>["schemas"]>),
     ...(authOpenApiSchemas as NonNullable<NonNullable<OpenAPIObject["components"]>["schemas"]>),
+    ...(organizationOpenApiSchemas as NonNullable<
+      NonNullable<OpenAPIObject["components"]>["schemas"]
+    >),
   };
 
   return document;

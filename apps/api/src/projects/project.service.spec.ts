@@ -5,6 +5,7 @@ import { Prisma } from "../generated/prisma/client";
 import { hashProjectToken } from "./project-token";
 import { ProjectService } from "./project.service";
 
+const ORGANIZATION_ID = "9d8c7b6a-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 const PROJECT_ID = "3f1d0a4c-6b2e-4f7a-9c5d-8e1b2a3c4d5e";
 const TOKEN_ID = "b7c4e8a1-2d3f-4a5b-8c6d-9e0f1a2b3c4d";
 const CREATED_AT = new Date("2026-08-04T09:00:00.000Z");
@@ -30,14 +31,16 @@ describe("ProjectService.create", () => {
     });
     const service = serviceWith({ project: { create } });
 
-    await expect(service.create({ name: "Checkout API" })).resolves.toEqual({
+    await expect(service.create(ORGANIZATION_ID, { name: "Checkout API" })).resolves.toEqual({
       id: PROJECT_ID,
       slug: "checkout-api",
       name: "Checkout API",
       createdAt: "2026-08-04T09:00:00.000Z",
     });
     expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { slug: "checkout-api", name: "Checkout API" } }),
+      expect.objectContaining({
+        data: { organizationId: ORGANIZATION_ID, slug: "checkout-api", name: "Checkout API" },
+      }),
     );
   });
 
@@ -50,10 +53,12 @@ describe("ProjectService.create", () => {
     });
     const service = serviceWith({ project: { create } });
 
-    await service.create({ name: "Checkout API", slug: "checkout" });
+    await service.create(ORGANIZATION_ID, { name: "Checkout API", slug: "checkout" });
 
     expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { slug: "checkout", name: "Checkout API" } }),
+      expect.objectContaining({
+        data: { organizationId: ORGANIZATION_ID, slug: "checkout", name: "Checkout API" },
+      }),
     );
   });
 
@@ -61,15 +66,21 @@ describe("ProjectService.create", () => {
     const create = jest.fn().mockRejectedValue(prismaError("P2002"));
     const service = serviceWith({ project: { create } });
 
-    await expect(service.create({ name: "Checkout API" })).rejects.toThrow(ConflictException);
-    await expect(service.create({ name: "Checkout API" })).rejects.toThrow(/checkout-api/);
+    await expect(service.create(ORGANIZATION_ID, { name: "Checkout API" })).rejects.toThrow(
+      ConflictException,
+    );
+    await expect(service.create(ORGANIZATION_ID, { name: "Checkout API" })).rejects.toThrow(
+      /checkout-api/,
+    );
   });
 
   it("rejects a name no slug can be derived from", async () => {
     const create = jest.fn();
     const service = serviceWith({ project: { create } });
 
-    await expect(service.create({ name: "!!!" })).rejects.toThrow(BadRequestException);
+    await expect(service.create(ORGANIZATION_ID, { name: "!!!" })).rejects.toThrow(
+      BadRequestException,
+    );
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -77,7 +88,9 @@ describe("ProjectService.create", () => {
     const create = jest.fn().mockRejectedValue(new Error("connection reset"));
     const service = serviceWith({ project: { create } });
 
-    await expect(service.create({ name: "Checkout API" })).rejects.toThrow("connection reset");
+    await expect(service.create(ORGANIZATION_ID, { name: "Checkout API" })).rejects.toThrow(
+      "connection reset",
+    );
   });
 });
 
@@ -93,9 +106,12 @@ describe("ProjectService.issueToken", () => {
         revokedAt: null,
       }),
     );
-    const service = serviceWith({ projectToken: { create } });
+    const service = serviceWith({
+      project: { findFirst: jest.fn().mockResolvedValue({ id: PROJECT_ID }) },
+      projectToken: { create },
+    });
 
-    const issued = await service.issueToken(PROJECT_ID, { name: "production" });
+    const issued = await service.issueToken(ORGANIZATION_ID, PROJECT_ID, { name: "production" });
 
     const stored = create.mock.calls[0][0].data;
     expect(stored.tokenHash).toBe(hashProjectToken(issued.token));
@@ -104,13 +120,25 @@ describe("ProjectService.issueToken", () => {
     expect(issued.revokedAt).toBeNull();
   });
 
-  it("reports an unknown project as not found", async () => {
-    const create = jest.fn().mockRejectedValue(prismaError("P2003"));
-    const service = serviceWith({ projectToken: { create } });
+  it("reports a project in another organization as not found", async () => {
+    const findFirst = jest.fn().mockResolvedValue(null);
+    const create = jest.fn();
+    const service = serviceWith({ project: { findFirst }, projectToken: { create } });
 
-    await expect(service.issueToken(PROJECT_ID, { name: "production" })).rejects.toThrow(
-      NotFoundException,
-    );
+    await expect(
+      service.issueToken(ORGANIZATION_ID, PROJECT_ID, { name: "production" }),
+    ).rejects.toThrow(NotFoundException);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("reports a project deleted mid-request as not found", async () => {
+    const findFirst = jest.fn().mockResolvedValue({ id: PROJECT_ID });
+    const create = jest.fn().mockRejectedValue(prismaError("P2003"));
+    const service = serviceWith({ project: { findFirst }, projectToken: { create } });
+
+    await expect(
+      service.issueToken(ORGANIZATION_ID, PROJECT_ID, { name: "production" }),
+    ).rejects.toThrow(NotFoundException);
   });
 });
 
@@ -131,9 +159,11 @@ describe("ProjectService.revokeToken", () => {
       .mockResolvedValue({ ...activeToken, revokedAt: new Date("2026-08-04T10:00:00.000Z") });
     const service = serviceWith({ projectToken: { findFirst, update } });
 
-    await expect(service.revokeToken(PROJECT_ID, TOKEN_ID)).resolves.toMatchObject({
-      revokedAt: "2026-08-04T10:00:00.000Z",
-    });
+    await expect(service.revokeToken(ORGANIZATION_ID, PROJECT_ID, TOKEN_ID)).resolves.toMatchObject(
+      {
+        revokedAt: "2026-08-04T10:00:00.000Z",
+      },
+    );
   });
 
   it("is idempotent, keeping the original revocation time", async () => {
@@ -142,23 +172,27 @@ describe("ProjectService.revokeToken", () => {
     const update = jest.fn();
     const service = serviceWith({ projectToken: { findFirst, update } });
 
-    await expect(service.revokeToken(PROJECT_ID, TOKEN_ID)).resolves.toMatchObject({
-      revokedAt: "2026-08-04T10:00:00.000Z",
-    });
+    await expect(service.revokeToken(ORGANIZATION_ID, PROJECT_ID, TOKEN_ID)).resolves.toMatchObject(
+      {
+        revokedAt: "2026-08-04T10:00:00.000Z",
+      },
+    );
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("reports a token that belongs to another project as not found", async () => {
+  it("reports a token that belongs to another project or organization as not found", async () => {
     const findFirst = jest.fn().mockResolvedValue(null);
     const service = serviceWith({ projectToken: { findFirst, update: jest.fn() } });
 
-    await expect(service.revokeToken(PROJECT_ID, TOKEN_ID)).rejects.toThrow(NotFoundException);
+    await expect(service.revokeToken(ORGANIZATION_ID, PROJECT_ID, TOKEN_ID)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });
 
 describe("ProjectService.listTokens", () => {
   it("never exposes a stored digest", async () => {
-    const findUnique = jest.fn().mockResolvedValue({ id: PROJECT_ID });
+    const findFirst = jest.fn().mockResolvedValue({ id: PROJECT_ID });
     const findMany = jest.fn().mockResolvedValue([
       {
         id: TOKEN_ID,
@@ -170,11 +204,11 @@ describe("ProjectService.listTokens", () => {
       },
     ]);
     const service = serviceWith({
-      project: { findUnique },
+      project: { findFirst },
       projectToken: { findMany },
     });
 
-    const { tokens } = await service.listTokens(PROJECT_ID);
+    const { tokens } = await service.listTokens(ORGANIZATION_ID, PROJECT_ID);
 
     expect(tokens).toEqual([
       {
@@ -191,10 +225,12 @@ describe("ProjectService.listTokens", () => {
     );
   });
 
-  it("reports an unknown project as not found", async () => {
-    const findUnique = jest.fn().mockResolvedValue(null);
-    const service = serviceWith({ project: { findUnique }, projectToken: { findMany: jest.fn() } });
+  it("reports a project in another organization as not found", async () => {
+    const findFirst = jest.fn().mockResolvedValue(null);
+    const service = serviceWith({ project: { findFirst }, projectToken: { findMany: jest.fn() } });
 
-    await expect(service.listTokens(PROJECT_ID)).rejects.toThrow(NotFoundException);
+    await expect(service.listTokens(ORGANIZATION_ID, PROJECT_ID)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

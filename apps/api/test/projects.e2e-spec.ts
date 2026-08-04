@@ -5,11 +5,17 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 
 import { AppModule } from "../src/app.module";
+import { MembershipRole } from "../src/generated/prisma/client";
 import { configureApplication } from "../src/configure-application";
 import { PrismaService } from "../src/database/prisma.service";
 import { nodeErrorReportExample } from "../src/error-reporting/error-report.examples";
+import {
+  DEFAULT_ORGANIZATION_ID,
+  DEFAULT_ORGANIZATION_SLUG,
+} from "../src/organizations/default-organization";
 import { DEFAULT_PROJECT_ID, DEFAULT_PROJECT_SLUG } from "../src/projects/default-project";
 import { hashProjectToken } from "../src/projects/project-token";
+import { signIn } from "./viewer-session";
 
 interface IssuedToken {
   id: string;
@@ -36,9 +42,10 @@ function logBatch(level: string, message: string): Record<string, unknown> {
 }
 
 /**
- * Project slugs are globally unique, so a fixed name would collide with any row
- * left in the database by earlier work rather than by this suite. Every test
- * names its projects through this, and asserts against the slug it implies.
+ * Project slugs are unique per organization now, but this suite works inside the
+ * default organization, so a fixed name would still collide with a row left
+ * there by earlier work rather than by this suite. Organization slugs are what
+ * carry global uniqueness; those are named through this too.
  */
 function uniqueName(label: string): string {
   return `${label} ${randomUUID().slice(0, 8)}`;
@@ -48,14 +55,23 @@ function slugOf(name: string): string {
   return name.toLowerCase().replaceAll(" ", "-");
 }
 
+const PROJECTS_URL = `/api/v1/orgs/${DEFAULT_ORGANIZATION_SLUG}/projects`;
+
 describe("Projects", () => {
   let app: INestApplication;
   let database: PrismaService;
+  let ownerCookie: string;
   const createdProjectIds: string[] = [];
+  const createdOrganizationIds: string[] = [];
+  const createdUserIds: string[] = [];
 
-  async function createProject(name: string): Promise<{ id: string; slug: string }> {
+  async function createProject(
+    name: string,
+    options: { cookie?: string; url?: string } = {},
+  ): Promise<{ id: string; slug: string }> {
     const response = await request(app.getHttpServer())
-      .post("/api/v1/projects")
+      .post(options.url ?? PROJECTS_URL)
+      .set("cookie", options.cookie ?? ownerCookie)
       .send({ name })
       .expect(201);
     createdProjectIds.push(response.body.id);
@@ -64,10 +80,27 @@ describe("Projects", () => {
 
   async function issueToken(projectId: string, name = "production"): Promise<IssuedToken> {
     const response = await request(app.getHttpServer())
-      .post(`/api/v1/projects/${projectId}/tokens`)
+      .post(`${PROJECTS_URL}/${projectId}/tokens`)
+      .set("cookie", ownerCookie)
       .send({ name })
       .expect(201);
     return response.body;
+  }
+
+  async function createOrganization(name: string): Promise<{ id: string; slug: string }> {
+    const response = await request(app.getHttpServer())
+      .post("/api/v1/orgs")
+      .set("cookie", ownerCookie)
+      .send({ name })
+      .expect(201);
+    createdOrganizationIds.push(response.body.id);
+    return response.body;
+  }
+
+  async function signInAs(role: MembershipRole, organizationId?: string): Promise<string> {
+    const signedIn = await signIn(database, { organizationId, role });
+    createdUserIds.push(signedIn.userId);
+    return signedIn.cookie;
   }
 
   beforeAll(async () => {
@@ -79,21 +112,27 @@ describe("Projects", () => {
     configureApplication(app);
     await app.init();
     database = app.get(PrismaService);
+
+    ownerCookie = await signInAs(MembershipRole.OWNER);
   });
 
   afterEach(async () => {
-    // Restrict on the event relations means this order is load-bearing: a
-    // reversed teardown fails loudly rather than leaving orphans.
-    if (createdProjectIds.length === 0) return;
+    // Restrict on the event relations, and on Project -> Organization, means
+    // this order is load-bearing: a reversed teardown fails loudly rather than
+    // leaving orphans. Memberships and sessions are not deleted here — they
+    // cascade from the organization and the account that own them.
     const where = { projectId: { in: createdProjectIds } };
     await database.errorReport.deleteMany({ where });
     await database.logRecord.deleteMany({ where });
     await database.projectToken.deleteMany({ where });
     await database.project.deleteMany({ where: { id: { in: createdProjectIds } } });
+    await database.organization.deleteMany({ where: { id: { in: createdOrganizationIds } } });
     createdProjectIds.length = 0;
+    createdOrganizationIds.length = 0;
   });
 
   afterAll(async () => {
+    await database.user.deleteMany({ where: { id: { in: createdUserIds } } });
     await app.close();
   });
 
@@ -106,6 +145,19 @@ describe("Projects", () => {
     expect(defaultProject?.slug).toBe(DEFAULT_PROJECT_SLUG);
   });
 
+  it("keeps the default organization in step with its constant, owning the default project", async () => {
+    const defaultOrganization = await database.organization.findUnique({
+      where: { id: DEFAULT_ORGANIZATION_ID },
+    });
+    const defaultProject = await database.project.findUnique({
+      where: { id: DEFAULT_PROJECT_ID },
+      select: { organizationId: true },
+    });
+
+    expect(defaultOrganization?.slug).toBe(DEFAULT_ORGANIZATION_SLUG);
+    expect(defaultProject?.organizationId).toBe(DEFAULT_ORGANIZATION_ID);
+  });
+
   it("creates a project with a slug derived from its name", async () => {
     const name = uniqueName("Checkout API");
     const project = await createProject(name);
@@ -113,11 +165,28 @@ describe("Projects", () => {
     expect(project).toMatchObject({ slug: slugOf(name), name });
   });
 
-  it("refuses a slug another project already uses", async () => {
+  it("refuses a slug another project in the same organization already uses", async () => {
     const name = uniqueName("Checkout API");
     await createProject(name);
 
-    await request(app.getHttpServer()).post("/api/v1/projects").send({ name }).expect(409);
+    await request(app.getHttpServer())
+      .post(PROJECTS_URL)
+      .set("cookie", ownerCookie)
+      .send({ name })
+      .expect(409);
+  });
+
+  it("lets two organizations each own a project of the same name", async () => {
+    // The point of moving slug uniqueness under the organization: two tenants
+    // both wanting "checkout-api" is the normal case, not a conflict.
+    const name = uniqueName("Checkout API");
+    const other = await createOrganization(uniqueName("Acme"));
+
+    const first = await createProject(name);
+    const second = await createProject(name, { url: `/api/v1/orgs/${other.slug}/projects` });
+
+    expect(second.slug).toBe(first.slug);
+    expect(second.id).not.toBe(first.id);
   });
 
   it("returns an issued token once and stores only its digest", async () => {
@@ -130,7 +199,8 @@ describe("Projects", () => {
     expect(JSON.stringify(stored)).not.toContain(issued.token);
 
     const listed = await request(app.getHttpServer())
-      .get(`/api/v1/projects/${project.id}/tokens`)
+      .get(`${PROJECTS_URL}/${project.id}/tokens`)
+      .set("cookie", ownerCookie)
       .expect(200);
 
     expect(JSON.stringify(listed.body)).not.toContain(issued.token);
@@ -144,10 +214,12 @@ describe("Projects", () => {
     const issued = await issueToken(project.id);
 
     const first = await request(app.getHttpServer())
-      .post(`/api/v1/projects/${project.id}/tokens/${issued.id}/revoke`)
+      .post(`${PROJECTS_URL}/${project.id}/tokens/${issued.id}/revoke`)
+      .set("cookie", ownerCookie)
       .expect(200);
     const second = await request(app.getHttpServer())
-      .post(`/api/v1/projects/${project.id}/tokens/${issued.id}/revoke`)
+      .post(`${PROJECTS_URL}/${project.id}/tokens/${issued.id}/revoke`)
+      .set("cookie", ownerCookie)
       .expect(200);
 
     expect(first.body.revokedAt).toEqual(expect.any(String));
@@ -160,7 +232,8 @@ describe("Projects", () => {
     const issued = await issueToken(owner.id);
 
     await request(app.getHttpServer())
-      .post(`/api/v1/projects/${other.id}/tokens/${issued.id}/revoke`)
+      .post(`${PROJECTS_URL}/${other.id}/tokens/${issued.id}/revoke`)
+      .set("cookie", ownerCookie)
       .expect(404);
   });
 
@@ -217,7 +290,8 @@ describe("Projects", () => {
     const issued = await issueToken(project.id);
 
     await request(app.getHttpServer())
-      .post(`/api/v1/projects/${project.id}/tokens/${issued.id}/revoke`)
+      .post(`${PROJECTS_URL}/${project.id}/tokens/${issued.id}/revoke`)
+      .set("cookie", ownerCookie)
       .expect(200);
 
     await request(app.getHttpServer())
@@ -288,10 +362,12 @@ describe("Projects", () => {
     }
 
     const mine = await request(app.getHttpServer())
-      .get(`/api/v1/log-records?projectId=${owner.id}`)
+      .get(`${PROJECTS_URL}/${owner.id}/log-records`)
+      .set("cookie", ownerCookie)
       .expect(200);
     const errorsOnly = await request(app.getHttpServer())
-      .get(`/api/v1/log-records?projectId=${owner.id}&level=error`)
+      .get(`${PROJECTS_URL}/${owner.id}/log-records?level=error`)
+      .set("cookie", ownerCookie)
       .expect(200);
 
     expect(
@@ -305,9 +381,9 @@ describe("Projects", () => {
       service: { name: "checkout-api" },
     });
 
-    await request(app.getHttpServer()).get("/api/v1/log-records").expect(400);
     await request(app.getHttpServer())
-      .get(`/api/v1/log-records?projectId=${owner.id}&level=critical`)
+      .get(`${PROJECTS_URL}/${owner.id}/log-records?level=critical`)
+      .set("cookie", ownerCookie)
       .expect(400);
   });
 
@@ -337,13 +413,16 @@ describe("Projects", () => {
   it("documents the project routes in the OpenAPI document", async () => {
     const response = await request(app.getHttpServer()).get("/docs/openapi.json").expect(200);
 
-    expect(response.body.paths["/api/v1/projects"].post).toEqual(expect.any(Object));
+    expect(response.body.paths["/api/v1/orgs/{orgSlug}/projects"].post).toEqual(expect.any(Object));
+    // Ingestion keeps its unscoped path, because SDK DSNs derive it.
     expect(response.body.paths["/api/v1/projects/{projectId}/error-reports"].post).toEqual(
       expect.any(Object),
     );
     expect(response.body.components.schemas).toEqual(
       expect.objectContaining({
         ProjectV1: expect.any(Object),
+        OrganizationV1: expect.any(Object),
+        MemberListResponseV1: expect.any(Object),
         IssuedProjectTokenV1: expect.any(Object),
         ProjectTokenListResponseV1: expect.any(Object),
       }),

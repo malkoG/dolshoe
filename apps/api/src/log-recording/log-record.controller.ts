@@ -1,12 +1,10 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
-  ApiOkResponse,
   ApiPayloadTooLargeResponse,
-  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -17,41 +15,23 @@ import { IngestProject, IngestedProject } from "../ingestion/ingested-project";
 import {
   LogRecordBatchReceipt,
   LogRecordBatchRequest,
-  LogRecordListQuery,
-  LogRecordListResponse,
   logRecordBatchRequestSchema,
-  logRecordListQuerySchema,
 } from "./log-record.contract";
 import { logRecordBatchExample } from "./log-record.examples";
 import { LogRecordService } from "./log-record.service";
 
+/**
+ * Ingestion for reporters that carry no project in their URL.
+ *
+ * @remarks
+ * Reading moved to `OrganizationLogRecordController`, under the organization
+ * that owns the project. This path stays exactly where it is, and keeps the
+ * ingestion token as its only credential, because SDK DSNs derive it.
+ */
 @ApiTags("Log recording")
 @Controller({ path: "log-records", version: "1" })
 export class LogRecordController {
   constructor(private readonly logRecordService: LogRecordService) {}
-
-  /**
-   * List a project's most recently received log records.
-   *
-   * @remarks
-   * Always scoped to one project. Unauthenticated, like the error report
-   * listing: no viewer-auth system exists yet, so this read endpoint is not
-   * gated by the ingestion guard.
-   */
-  @Get()
-  @ApiQuery({ name: "projectId", required: true, description: "Project to read logs for." })
-  @ApiQuery({ name: "level", required: false, description: "Limit the listing to one severity." })
-  @ApiOkResponse({
-    description: "Newest-first log records, bounded to the documented limit.",
-    schema: { $ref: "#/components/schemas/LogRecordListResponseV1" },
-  })
-  @ApiBadRequestResponse({ description: "The query does not satisfy the log listing contract." })
-  list(
-    @Query(new ZodValidationPipe(logRecordListQuerySchema, "Invalid log record list query."))
-    query: LogRecordListQuery,
-  ): Promise<LogRecordListResponse> {
-    return this.logRecordService.list(query);
-  }
 
   /**
    * Receive an atomic batch of structured log records.

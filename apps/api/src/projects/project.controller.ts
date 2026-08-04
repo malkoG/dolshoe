@@ -1,15 +1,31 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  UseGuards,
+} from "@nestjs/common";
 import {
   ApiBadRequestResponse,
   ApiBody,
   ApiConflictResponse,
+  ApiCookieAuth,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 
+import { SessionAuthGuard } from "../auth/session-auth.guard";
 import { ZodValidationPipe } from "../error-reporting/zod-validation.pipe";
+import { CurrentOrganization, OrganizationContext } from "../organizations/current-organization";
+import { OrgMembershipGuard } from "../organizations/org-membership.guard";
+import { OWNER_OR_ADMIN, RequireOrgRole } from "../organizations/require-org-role";
 import {
   CreateProjectRequest,
   IssueProjectTokenRequest,
@@ -28,16 +44,23 @@ import { ProjectService } from "./project.service";
 const projectIdPipe = new ZodValidationPipe(projectIdParamSchema, "The project id is not a UUID.");
 
 /**
- * Manages projects and the ingestion tokens issued for them.
+ * Manages an organization's projects and the ingestion tokens issued for them.
  *
  * @remarks
- * Unauthenticated, like `GET /api/v1/error-reports`: Dolshoe has no viewer-auth
- * system yet. Unlike that endpoint these routes grant write access — anyone who
- * can reach them can mint a token for any project — so an instance exposing this
- * API must keep it on a trusted network.
+ * Every route is scoped to the organization named in its path and requires a
+ * viewer with a role in it. Reading is open to any member; anything that creates
+ * a project or mints a credential needs an owner or an admin.
+ *
+ * Ingestion does not live here. `POST /api/v1/projects/:projectId/error-reports`
+ * and its log-record counterpart keep their unscoped paths and their ingestion
+ * token, because SDK DSNs in the field derive those URLs.
  */
 @ApiTags("Projects")
-@Controller({ path: "projects", version: "1" })
+@ApiCookieAuth("session")
+@ApiUnauthorizedResponse({ description: "No signed-in session was presented." })
+@ApiNotFoundResponse({ description: "No such organization, or the caller is not a member." })
+@UseGuards(SessionAuthGuard, OrgMembershipGuard)
+@Controller({ path: "orgs/:orgSlug/projects", version: "1" })
 export class ProjectController {
   constructor(private readonly projectService: ProjectService) {}
 
@@ -49,8 +72,8 @@ export class ProjectController {
     description: "Newest-first projects.",
     schema: { $ref: "#/components/schemas/ProjectListResponseV1" },
   })
-  list(): Promise<ProjectListResponse> {
-    return this.projectService.list();
+  list(@CurrentOrganization() organization: OrganizationContext): Promise<ProjectListResponse> {
+    return this.projectService.list(organization.id);
   }
 
   /**
@@ -60,6 +83,7 @@ export class ProjectController {
    * The slug is derived from the name when it is omitted.
    */
   @Post()
+  @RequireOrgRole(OWNER_OR_ADMIN)
   @ApiBody({
     schema: { $ref: "#/components/schemas/CreateProjectRequestV1" },
     examples: { checkout: { summary: "Checkout API", value: createProjectExample } },
@@ -70,7 +94,9 @@ export class ProjectController {
   })
   @ApiBadRequestResponse({ description: "The body does not satisfy the project contract." })
   @ApiConflictResponse({ description: "Another project already uses that slug." })
+  @ApiForbiddenResponse({ description: "Creating a project requires the owner or admin role." })
   create(
+    @CurrentOrganization() organization: OrganizationContext,
     @Body(
       new ZodValidationPipe(
         createProjectRequestSchema,
@@ -79,7 +105,7 @@ export class ProjectController {
     )
     request: CreateProjectRequest,
   ): Promise<Project> {
-    return this.projectService.create(request);
+    return this.projectService.create(organization.id, request);
   }
 
   /**
@@ -97,9 +123,10 @@ export class ProjectController {
   @ApiBadRequestResponse({ description: "The project id is not a UUID." })
   @ApiNotFoundResponse({ description: "No such project." })
   listTokens(
+    @CurrentOrganization() organization: OrganizationContext,
     @Param("projectId", projectIdPipe) projectId: string,
   ): Promise<ProjectTokenListResponse> {
-    return this.projectService.listTokens(projectId);
+    return this.projectService.listTokens(organization.id, projectId);
   }
 
   /**
@@ -111,6 +138,7 @@ export class ProjectController {
    * record it now.
    */
   @Post(":projectId/tokens")
+  @RequireOrgRole(OWNER_OR_ADMIN)
   @ApiBody({
     schema: { $ref: "#/components/schemas/IssueProjectTokenRequestV1" },
     examples: { production: { summary: "Production reporter", value: issueProjectTokenExample } },
@@ -120,8 +148,9 @@ export class ProjectController {
     schema: { $ref: "#/components/schemas/IssuedProjectTokenV1" },
   })
   @ApiBadRequestResponse({ description: "The body does not satisfy the token contract." })
-  @ApiNotFoundResponse({ description: "No such project." })
+  @ApiForbiddenResponse({ description: "Issuing a token requires the owner or admin role." })
   issueToken(
+    @CurrentOrganization() organization: OrganizationContext,
     @Param("projectId", projectIdPipe) projectId: string,
     @Body(
       new ZodValidationPipe(
@@ -131,7 +160,7 @@ export class ProjectController {
     )
     request: IssueProjectTokenRequest,
   ): Promise<IssuedProjectToken> {
-    return this.projectService.issueToken(projectId, request);
+    return this.projectService.issueToken(organization.id, projectId, request);
   }
 
   /**
@@ -142,6 +171,7 @@ export class ProjectController {
    * revocation timestamp.
    */
   @Post(":projectId/tokens/:tokenId/revoke")
+  @RequireOrgRole(OWNER_OR_ADMIN)
   // Revoking updates an existing token rather than creating one, so this is not
   // a 201 despite being a POST.
   @HttpCode(HttpStatus.OK)
@@ -150,12 +180,13 @@ export class ProjectController {
     schema: { $ref: "#/components/schemas/ProjectTokenV1" },
   })
   @ApiBadRequestResponse({ description: "The project or token id is not a UUID." })
-  @ApiNotFoundResponse({ description: "No such token in that project." })
+  @ApiForbiddenResponse({ description: "Revoking a token requires the owner or admin role." })
   revokeToken(
+    @CurrentOrganization() organization: OrganizationContext,
     @Param("projectId", projectIdPipe) projectId: string,
     @Param("tokenId", new ZodValidationPipe(projectIdParamSchema, "The token id is not a UUID."))
     tokenId: string,
   ): Promise<ProjectToken> {
-    return this.projectService.revokeToken(projectId, tokenId);
+    return this.projectService.revokeToken(organization.id, projectId, tokenId);
   }
 }

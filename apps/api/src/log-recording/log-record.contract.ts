@@ -215,10 +215,12 @@ export const logRecordListResponseSchema = z
     description: "Bounded, newest-first list of persisted log records.",
   });
 
-/** Reading is always scoped to one project; severity narrows it further. */
+/**
+ * The project is a path segment now, so severity is all that is left to ask
+ * for in the query string.
+ */
 export const logRecordListQuerySchema = z
   .object({
-    projectId: z.uuid("projectId must be a UUID."),
     level: z.enum(["trace", "debug", "info", "warning", "error", "fatal"]).optional(),
   })
   .strict();
