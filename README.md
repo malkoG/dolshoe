@@ -123,14 +123,17 @@ apps/
 └── api/
     ├── prisma/       Prisma schema and migrations
     ├── src/
+    │   ├── auth/
     │   ├── config/
+    │   ├── credentials/
     │   ├── database/
     │   ├── error-reporting/
     │   ├── health/
     │   ├── ingestion/
     │   ├── log-recording/
     │   ├── logging/
-    │   └── message-queue/
+    │   ├── message-queue/
+    │   └── organizations/
     └── test/
 packages/
 ├── core/             Runtime-neutral JavaScript report DTO and client
@@ -146,6 +149,41 @@ Prisma remains inside the API because it has only one consumer. The reporter
 packages share the versioned ingestion contract because Node, Deno, and Bun are
 concrete consumers of the same payload.
 
+## Organizations and viewers
+
+An **organization** is the tenant. It owns projects, and through them every event
+reported into them. People reach it by signing in: a **membership** ties an
+account to an organization and carries one of three roles.
+
+| Role   | Can do                                                                          |
+| ------ | ------------------------------------------------------------------------------- |
+| Owner  | Everything, including managing members and granting ownership.                  |
+| Admin  | Create projects, issue and revoke ingestion tokens, manage members below owner. |
+| Member | Read the organization's projects, reports, logs, and token list.                |
+
+Every instance starts with one organization, `default`, owning one project, also
+`default`. Upgrading an existing instance moves every project it already had into
+that organization, so nothing moves out from under you.
+
+### Claiming a new instance
+
+A fresh instance has no accounts, and nobody to send an invitation. So the first
+person to register on it becomes the owner of the default organization, and
+registration closes permanently after that.
+
+> [!IMPORTANT]
+> **An unclaimed instance can be claimed by anyone who can reach it.** Register
+> your account as soon as the instance is up — and immediately after
+> `pnpm db:migrate:deploy` when upgrading one that was already running, because
+> an upgraded instance is unclaimed until someone does. The API logs a warning at
+> startup for as long as it stays that way.
+>
+> This is narrower than what it replaces: before viewer auth, anyone who could
+> reach the API could mint an ingestion token for any project, indefinitely.
+
+Sessions are 30-day `HttpOnly` cookies. Signing out ends the session on the
+server, so a copy of the cookie is worthless afterwards.
+
 ## Projects and ingestion tokens
 
 A **project** is what owns the events reported into a Dolshoe instance. Each
@@ -153,22 +191,27 @@ project issues its own ingestion tokens, so a single application's credential ca
 be rotated or revoked without disturbing anything else, and every stored event
 records which project it arrived under.
 
-Every instance starts with one project, `default`. It owns everything recorded
-before projects existed, and it is what the legacy `INGEST_TOKEN` authenticates
-as.
+Project slugs are unique within their organization rather than across the
+instance, so two tenants can both have a `checkout-api`.
 
-The web app is organized the same way. `/projects` lists them; opening one gives
-you its **Reports**, **Logs**, and **Tokens**, and the top bar switches between
-projects without leaving the section you are in.
+The web app is organized the same way. `/orgs/<orgSlug>/projects` lists them;
+opening one gives you its **Reports**, **Logs**, and **Tokens**, and the sidebar
+switches between organizations and between projects without leaving the section
+you are in.
 
-Create a project and issue a token from the **Projects** screen in the web app,
-or over the API:
+Create a project and issue a token from the **Projects** screen in the web app.
+The API underneath needs a signed-in session, so a `curl` walkthrough starts by
+signing in and keeping the cookie:
 
 ```sh
-curl -X POST http://localhost:<port>/api/v1/projects \
+curl -c cookies.txt -X POST http://localhost:<port>/api/v1/auth/login \
+  -H 'content-type: application/json' -d '{"email":"you@example.com","password":"…"}'
+
+curl -b cookies.txt -X POST http://localhost:<port>/api/v1/orgs/<orgSlug>/projects \
   -H 'content-type: application/json' -d '{"name":"Checkout API"}'
 
-curl -X POST http://localhost:<port>/api/v1/projects/<projectId>/tokens \
+curl -b cookies.txt -X POST \
+  http://localhost:<port>/api/v1/orgs/<orgSlug>/projects/<projectId>/tokens \
   -H 'content-type: application/json' -d '{"name":"production"}'
 ```
 
@@ -177,16 +220,18 @@ SHA-256 digest is stored, so a token that is not recorded at that moment has to
 be replaced. Revoke one at any time; revocation is immediate and idempotent:
 
 ```sh
-curl -X POST http://localhost:<port>/api/v1/projects/<projectId>/tokens/<tokenId>/revoke
+curl -b cookies.txt -X POST \
+  http://localhost:<port>/api/v1/orgs/<orgSlug>/projects/<projectId>/tokens/<tokenId>/revoke
 ```
 
 > [!IMPORTANT]
-> The project management API is deliberately unauthenticated, like the existing
-> `GET /api/v1/error-reports`, because Dolshoe has no viewer-auth system yet.
-> Unlike that endpoint it grants _write_ access: anyone who can reach it can mint
-> an ingestion token for any project. Keep the API on a trusted network. The
-> default `docker compose` setup does this already — only the web dev server is
-> published, and it proxies to an API that is not on the host network.
+> Reading and managing projects now requires a signed-in viewer with a role in
+> the owning organization. **Ingestion does not**, and its URLs have not moved:
+> reporters still authenticate with a bearer ingestion token against
+> `/api/v1/projects/<projectId>/error-reports` and `.../log-records`, exactly as
+> their DSNs derive. A Dolshoe DSN is still a secret, and keeping the API off the
+> public network is still good practice — it is simply no longer the only thing
+> standing between a stranger and your tokens.
 
 ### DSN
 
@@ -408,14 +453,16 @@ production build. CI additionally runs the PostgreSQL e2e suite.
 
 ## Configuration
 
-| Variable             | Default in `.env.example` | Description                                       |
-| -------------------- | ------------------------- | ------------------------------------------------- |
-| `NODE_ENV`           | `development`             | `development`, `test`, or `production`            |
-| `PORT`               | `3000`                    | HTTP listen port                                  |
-| `LOG_LEVEL`          | `debug`                   | Minimum LogTape level                             |
-| `INGEST_TOKEN`       | empty                     | Legacy global bearer token, resolved to `default` |
-| `LOG_RETENTION_DAYS` | `14`                      | Days to retain logs, based on server receipt time |
-| `DATABASE_URL`       | local PostgreSQL          | Prisma and application connection URL             |
+| Variable                | Default in `.env.example` | Description                                                                               |
+| ----------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| `NODE_ENV`              | `development`             | `development`, `test`, or `production`                                                    |
+| `PORT`                  | `3000`                    | HTTP listen port                                                                          |
+| `LOG_LEVEL`             | `debug`                   | Minimum LogTape level                                                                     |
+| `INGEST_TOKEN`          | empty                     | Legacy global bearer token, resolved to `default`                                         |
+| `LOG_RETENTION_DAYS`    | `14`                      | Days to retain logs, based on server receipt time                                         |
+| `DATABASE_URL`          | local PostgreSQL          | Prisma and application connection URL                                                     |
+| `SESSION_COOKIE_SECURE` | follows `NODE_ENV`        | `Secure` on the session cookie. Turn off for plain HTTP on a private network              |
+| `DOLSHOE_API_ORIGIN`    | `http://localhost:3000`   | Where the web app's server-side render reaches the API. Deliberately not `VITE_`-prefixed |
 
 Development logs use a readable colored formatter. Production logs are emitted
 as JSON Lines. Request bodies and tokens are never written to the API's
@@ -426,9 +473,12 @@ Ingestion accepts a per-project token, or — while it is set — the global
 tokens: `INGEST_TOKEN` exists so that instances predating projects keep working,
 and it cannot be revoked for one application without breaking every other.
 
-Outside production, ingestion with no credential at all is accepted and recorded
-against the `default` project, so local development needs no setup. Production
-never falls open: without a valid credential every ingest is rejected. An
+Outside production, **ingestion** with no credential at all is accepted and
+recorded against the `default` project, so local development needs no setup. This
+applies to ingestion only — viewer authentication never falls open, in any
+environment, so the web app and the management API always require signing in.
+Production never falls open either: without a valid credential every ingest is
+rejected. An
 instance running in production with neither `INGEST_TOKEN` nor a usable project
 token still starts — otherwise revoking your last token would leave you unable to
 boot the API you need in order to issue a new one — but logs an error saying

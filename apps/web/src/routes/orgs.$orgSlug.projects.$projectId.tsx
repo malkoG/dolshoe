@@ -6,7 +6,9 @@ import { PageShell } from "../components/page-shell";
 import { fetchProjects } from "../lib/projects";
 import type { Project } from "../lib/projects";
 
-export const Route = createFileRoute("/projects/$projectId")({ component: ProjectLayout });
+export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId")({
+  component: ProjectLayout,
+});
 
 type LoadState =
   | { status: "loading" }
@@ -19,7 +21,8 @@ type LoadState =
  * and the heading come from one request rather than one per section.
  */
 function ProjectLayout() {
-  const { projectId } = Route.useParams();
+  const { orgSlug, projectId } = Route.useParams();
+  const { session } = Route.useRouteContext();
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
@@ -27,7 +30,7 @@ function ProjectLayout() {
     const controller = new AbortController();
     setState({ status: "loading" });
 
-    fetchProjects({ signal: controller.signal })
+    fetchProjects(orgSlug, { signal: controller.signal })
       .then((projects) => {
         if (!cancelled) setState({ status: "ready", projects });
         return;
@@ -40,14 +43,20 @@ function ProjectLayout() {
       cancelled = true;
       controller.abort();
     };
-  }, []);
+  }, [orgSlug]);
 
   const projects = state.status === "ready" ? state.projects : [];
   const project = projects.find((candidate) => candidate.id === projectId);
   const missing = state.status === "ready" && project == null;
 
   return (
-    <PageShell activeProjectId={projectId} projects={projects}>
+    <PageShell
+      activeProjectId={projectId}
+      organizations={session.organizations}
+      orgSlug={orgSlug}
+      projects={projects}
+      viewer={session.viewer ?? undefined}
+    >
       <section className="page-heading">
         <div>
           {/* The sidebar already carries the project and the way back out, so
@@ -65,7 +74,9 @@ function ProjectLayout() {
             </span>
             <strong>No such project</strong>
             <p>It may have been deleted, or the link may be out of date.</p>
-            <Link to="/projects">Back to projects</Link>
+            <Link params={{ orgSlug }} to="/orgs/$orgSlug/projects">
+              Back to projects
+            </Link>
           </div>
         </section>
       ) : (

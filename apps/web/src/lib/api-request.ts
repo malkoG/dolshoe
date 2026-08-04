@@ -27,6 +27,53 @@ export class ApiError extends Error {
 }
 
 /**
+ * Resolves a relative API path into something `fetch` can use here.
+ *
+ * @remarks
+ * In the browser a relative URL is already right: the dev server proxies `/api`
+ * and a deployment serves both from one host. The SSR render has neither. It has
+ * no origin to resolve against, and the cookie that arrived with the page is not
+ * attached to a request the server makes on its own behalf, so both are supplied
+ * here rather than at every call site.
+ *
+ * `DOLSHOE_API_ORIGIN` deliberately carries no `VITE_` prefix. That prefix would
+ * inline it into the client bundle, publishing an address that is usually only
+ * reachable from inside the deployment.
+ */
+async function resolveRequest(path: string, init?: RequestInit): Promise<[string, RequestInit]> {
+  if (!import.meta.env.SSR) return [path, init ?? {}];
+
+  const { getRequestHeader } = await import("@tanstack/react-start/server");
+  const origin = process.env.DOLSHOE_API_ORIGIN ?? "http://localhost:3000";
+  const cookie = getRequestHeader("cookie");
+
+  return [
+    new URL(path, origin).toString(),
+    {
+      ...init,
+      headers: { ...init?.headers, ...(cookie == null ? {} : { cookie }) },
+    },
+  ];
+}
+
+/**
+ * Sends a signed-out browser to sign in again.
+ *
+ * @remarks
+ * A hard navigation rather than a router redirect, because it has to re-run the
+ * root load that decides who the caller is. Centralized here so a session that
+ * expires mid-visit is handled once, instead of in every leaf's error branch
+ * where one could quietly be forgotten.
+ */
+function redirectToSignIn(): void {
+  if (import.meta.env.SSR || typeof window === "undefined") return;
+  if (window.location.pathname === "/login") return;
+
+  const redirect = `${window.location.pathname}${window.location.search}`;
+  window.location.assign(`/login?redirect=${encodeURIComponent(redirect)}`);
+}
+
+/**
  * Performs one API call and validates it against the web-owned mirror of the
  * response contract, distinguishing the four ways it can fail so a caller can
  * tell an unreachable API from a contract mismatch.
@@ -40,11 +87,17 @@ export async function requestJson<T>(
   schema: z.ZodType<T>,
   init?: RequestInit,
 ): Promise<T> {
+  const [resolvedUrl, resolvedInit] = await resolveRequest(url, init);
+
   let response: Response;
   try {
-    response = await fetch(url, init);
+    response = await fetch(resolvedUrl, resolvedInit);
   } catch (cause) {
     throw new ApiError(`Could not reach ${url} to ${operation}.`, { operation, url, cause });
+  }
+
+  if (response.status === 401) {
+    redirectToSignIn();
   }
 
   if (!response.ok) {

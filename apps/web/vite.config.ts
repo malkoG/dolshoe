@@ -30,7 +30,12 @@ const config = defineConfig({
       ? {
           "/api": {
             target: apiProxyTarget,
-            changeOrigin: true,
+            // Deliberately not `changeOrigin`. Rewriting Host to the API's
+            // address while the browser's Origin header still names this dev
+            // server makes every state-changing request look cross-origin, and
+            // the API refuses those. Passing Host through keeps the two in
+            // agreement, which is what a single-origin deployment looks like.
+            changeOrigin: false,
           },
         }
       : undefined,

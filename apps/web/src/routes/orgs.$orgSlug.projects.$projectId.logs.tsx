@@ -16,7 +16,9 @@ import { formatRelativeTime } from "../lib/format";
 import { fetchLogRecords } from "../lib/log-records";
 import type { LogLevel, LogRecordSummary } from "../lib/log-records";
 
-export const Route = createFileRoute("/projects/$projectId/logs")({ component: Logs });
+export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/logs")({
+  component: Logs,
+});
 
 type LoadState =
   | { status: "loading" }
@@ -44,7 +46,7 @@ function attributeEntries(attributes: LogRecordSummary["attributes"]): Array<[st
 }
 
 function Logs() {
-  const { projectId } = Route.useParams();
+  const { orgSlug, projectId } = Route.useParams();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
   const [query, setQuery] = useState("");
@@ -57,8 +59,7 @@ function Logs() {
     const controller = new AbortController();
     setState({ status: "loading" });
 
-    fetchLogRecords({
-      projectId,
+    fetchLogRecords(orgSlug, projectId, {
       ...(level === "all" ? {} : { level }),
       signal: controller.signal,
     })

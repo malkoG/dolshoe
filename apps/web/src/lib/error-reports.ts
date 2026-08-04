@@ -2,8 +2,6 @@ import { z } from "zod";
 
 import { requestJson } from "./api-request";
 
-const ERROR_REPORTS_URL = "/api/v1/error-reports";
-
 const sourceLocationSchema = z.object({
   fileName: z.string().optional(),
   lineNumber: z.number().int().positive().optional(),
@@ -50,17 +48,16 @@ export type ErrorReportListResponse = z.infer<typeof errorReportListResponseSche
  * Fetches the newest-first error report list from the API and validates it against the
  * web-owned mirror of the API-01 response contract before returning typed values.
  */
-export async function fetchErrorReports(init?: {
-  projectId?: string;
-  signal?: AbortSignal;
-}): Promise<ErrorReportSummary[]> {
-  const url =
-    init?.projectId == null
-      ? ERROR_REPORTS_URL
-      : `${ERROR_REPORTS_URL}?${new URLSearchParams({ projectId: init.projectId }).toString()}`;
-
-  const { reports } = await requestJson("list error reports", url, errorReportListResponseSchema, {
-    signal: init?.signal,
-  });
+export async function fetchErrorReports(
+  orgSlug: string,
+  projectId: string,
+  init?: { signal?: AbortSignal },
+): Promise<ErrorReportSummary[]> {
+  const { reports } = await requestJson(
+    "list error reports",
+    `/api/v1/orgs/${orgSlug}/projects/${projectId}/error-reports`,
+    errorReportListResponseSchema,
+    init,
+  );
   return reports;
 }

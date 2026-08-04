@@ -1,8 +1,30 @@
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
+import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 
+import { SIGNED_OUT_SESSION, fetchSession } from "../lib/session";
+import type { Session } from "../lib/session";
 import appCss from "../styles.css?url";
 
-export const Route = createRootRoute({
+export interface RootContext {
+  session: Session;
+}
+
+export const Route = createRootRouteWithContext<RootContext>()({
+  /**
+   * The one call every page depends on. Answering it here means a signed-out
+   * visitor never renders application chrome, and every descendant reads who the
+   * caller is synchronously instead of re-fetching it.
+   *
+   * An unreachable API resolves to the signed-out session rather than throwing,
+   * so the failure surfaces as a sign-in page rather than as a blank error
+   * boundary over the whole app.
+   */
+  beforeLoad: async () => {
+    try {
+      return { session: await fetchSession() };
+    } catch {
+      return { session: SIGNED_OUT_SESSION };
+    }
+  },
   head: () => ({
     meta: [
       {
@@ -13,7 +35,7 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "Error reports · Dolshoe",
+        title: "Dolshoe",
       },
       {
         name: "description",
@@ -42,7 +64,7 @@ function NotFound() {
       <span>404</span>
       <h1>That page is not in the report.</h1>
       <p>The link may be out of date, or the page may have moved.</p>
-      <a href="/">Return to error reports</a>
+      <a href="/">Return to Dolshoe</a>
     </main>
   );
 }
