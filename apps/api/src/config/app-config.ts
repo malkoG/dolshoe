@@ -39,6 +39,9 @@ const environmentShape = z.object({
     z.string().min(32).optional(),
   ),
   LOG_RETENTION_DAYS: z.coerce.number().int().min(1).max(3_650).default(14),
+  // Shorter than logs by default because spans are far more numerous: one
+  // request produces a single log record and an entire tree of spans.
+  SPAN_RETENTION_DAYS: z.coerce.number().int().min(1).max(3_650).default(7),
   // Follows NODE_ENV unless set. Overridable because a self-hosted instance can
   // legitimately serve production traffic over plain HTTP on a private network,
   // where a Secure cookie would make signing in fail with nothing to show why.
@@ -126,6 +129,7 @@ export const appConfig = {
   logLevel: environment.LOG_LEVEL,
   ingestToken: environment.INGEST_TOKEN,
   logRetentionDays: environment.LOG_RETENTION_DAYS,
+  spanRetentionDays: environment.SPAN_RETENTION_DAYS,
   databaseUrl: environment.DATABASE_URL,
   sessionCookieSecure:
     environment.SESSION_COOKIE_SECURE == null

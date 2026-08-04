@@ -13,7 +13,7 @@ search engines or a large infrastructure footprint.
 
 The project currently contains a NestJS ingestion API, Prisma, PostgreSQL, a
 PostgreSQL-backed message queue, runtime reporting SDKs, structured logging
-with LogTape, and a database-aware health endpoint.
+with LogTape, OTLP trace ingestion, and a database-aware health endpoint.
 
 ## Requirements
 
@@ -133,7 +133,9 @@ apps/
     │   ├── log-recording/
     │   ├── logging/
     │   ├── message-queue/
-    │   └── organizations/
+    │   ├── organizations/
+    │   ├── projects/
+    │   └── tracing/
     └── test/
 packages/
 ├── core/             Runtime-neutral JavaScript report DTO and client
@@ -296,8 +298,8 @@ curl -b "$cookies" -X POST \
 > Reading and managing projects now requires a signed-in viewer with a role in
 > the owning organization. **Ingestion does not**, and its URLs have not moved:
 > reporters still authenticate with a bearer ingestion token against
-> `/api/v1/projects/<projectId>/error-reports` and `.../log-records`, exactly as
-> their DSNs derive. A Dolshoe DSN is still a secret, and keeping the API off the
+> `/api/v1/projects/<projectId>/error-reports`, `.../log-records`, and
+> `.../traces`, exactly as their DSNs derive. A Dolshoe DSN is still a secret, and keeping the API off the
 > public network is still good practice — it is simply no longer the only thing
 > standing between a stranger and your tokens.
 
@@ -323,6 +325,56 @@ version control, the same as any other credential.
 Supplying `endpoint`, `logEndpoint`, or an `authorization` header explicitly
 overrides whatever the DSN derives, which is the escape hatch for deployments
 that route ingestion somewhere unusual.
+
+## Traces and spans
+
+A **span** is one operation inside a request: the incoming HTTP call, the
+outbound service call it made, the query underneath that. Every span names the
+span that enclosed it, so the spans sharing a trace id form a tree rather than a
+list, and a request can be read end to end.
+
+Spans arrive as **OTLP/HTTP JSON**, the OpenTelemetry wire format. There is no
+Dolshoe-specific exporter to install: point an OpenTelemetry SDK or collector at
+the instance and it works.
+
+```sh
+# The exporter appends /v1/traces to a generic endpoint, which is what the
+# /otlp path segment is there to absorb.
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://dolshoe.example/api/v1/projects/<projectId>/otlp"
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/json
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer%20dsh_a1b2c3d4e5f6_<secret>"
+```
+
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is used verbatim instead of having a path
+appended, so it can name any of the three routes directly:
+
+| Route                                              | Credential                         |
+| -------------------------------------------------- | ---------------------------------- |
+| `POST /api/v1/projects/<projectId>/traces`         | project ingestion token            |
+| `POST /api/v1/projects/<projectId>/otlp/v1/traces` | project ingestion token            |
+| `POST /api/v1/traces`                              | `INGEST_TOKEN`, or a project token |
+
+> [!IMPORTANT]
+> Set the protocol to `http/json`. Most exporters default to `http/protobuf`,
+> which Dolshoe does not read; such a request is answered with `415` and a
+> message naming this setting rather than failing as a malformed body.
+
+A request carries up to 1000 spans within the usual 1 MiB body limit, and is
+answered with `200` and OTLP's `{"partialSuccess":{}}`. Re-exporting a span
+changes nothing: a span is identified by its trace and span ids, so a retried
+batch is stored once. A span that cannot be read — a malformed id, a span that
+never ended — is dropped and counted, and the rest of the batch is kept:
+
+```json
+{ "partialSuccess": { "rejectedSpans": "1", "errorMessage": "A span had not ended…" } }
+```
+
+That is deliberate. Failing the whole request would have the exporter retry a
+batch the server has already judged unreadable, indefinitely.
+
+Spans are retained for `SPAN_RETENTION_DAYS` (7 by default) from receipt —
+shorter than logs, because one request produces a single log record and an
+entire tree of spans.
 
 ## JavaScript reporters
 
@@ -528,6 +580,7 @@ production build. CI additionally runs the PostgreSQL e2e suite.
 | `LOG_LEVEL`             | `debug`                   | Minimum LogTape level                                                                     |
 | `INGEST_TOKEN`          | empty                     | Legacy global bearer token, resolved to `default`                                         |
 | `LOG_RETENTION_DAYS`    | `14`                      | Days to retain logs, based on server receipt time                                         |
+| `SPAN_RETENTION_DAYS`   | `7`                       | Days to retain spans, based on server receipt time                                        |
 | `DATABASE_URL`          | local PostgreSQL          | Prisma and application connection URL                                                     |
 | `SESSION_COOKIE_SECURE` | follows `NODE_ENV`        | `Secure` on the session cookie. Turn off for plain HTTP on a private network              |
 | `GITHUB_CLIENT_ID`      | empty                     | OAuth app client id. Required to sign anybody in                                          |

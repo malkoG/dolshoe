@@ -7,12 +7,13 @@ import { errorReportOpenApiSchemas } from "../error-reporting/error-report.contr
 import { logRecordOpenApiSchemas } from "../log-recording/log-record.contract";
 import { organizationOpenApiSchemas } from "../organizations/organization.contract";
 import { projectOpenApiSchemas } from "../projects/project.contract";
+import { otlpTraceOpenApiSchemas } from "../tracing/otlp-trace.contract";
 
 function createOpenApiDocument(app: INestApplication): OpenAPIObject {
   const configuration = new DocumentBuilder()
     .setTitle("Dolshoe API")
     .setDescription(
-      "Self-hosted error-report and structured-log ingestion API. Runtime adapters normalize records into versioned contracts.",
+      "Self-hosted error-report, structured-log, and trace ingestion API. Runtime adapters normalize records into versioned contracts; spans arrive as OTLP/HTTP JSON.",
     )
     .setVersion("1")
     .addBearerAuth(
@@ -46,6 +47,9 @@ function createOpenApiDocument(app: INestApplication): OpenAPIObject {
     ...(projectOpenApiSchemas as NonNullable<NonNullable<OpenAPIObject["components"]>["schemas"]>),
     ...(authOpenApiSchemas as NonNullable<NonNullable<OpenAPIObject["components"]>["schemas"]>),
     ...(organizationOpenApiSchemas as NonNullable<
+      NonNullable<OpenAPIObject["components"]>["schemas"]
+    >),
+    ...(otlpTraceOpenApiSchemas as NonNullable<
       NonNullable<OpenAPIObject["components"]>["schemas"]
     >),
   };

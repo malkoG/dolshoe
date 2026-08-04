@@ -127,6 +127,7 @@ model Project {
   tokens       ProjectToken[]
   errorReports ErrorReport[]
   logRecords   LogRecord[]
+  spans        Span[]
 
   /// A slug only has to be unique inside the organization that owns it: two
   /// tenants both wanting "checkout-api" is the normal case, not a conflict.
@@ -209,6 +210,68 @@ model LogRecord {
   @@index([traceId])
   @@index([receivedAt(sort: Desc)])
   @@index([projectId])
+}
+
+/// One operation inside a distributed trace, ingested as OTLP/HTTP JSON.
+///
+/// A trace is a tree, not a list: `parentSpanId` names the enclosing span in the
+/// same trace and is null for the root. The parent is kept as a raw span id
+/// rather than a foreign key because children routinely arrive before their
+/// parent — a server span is only exported once it ends, after every child it
+/// created — so a referential constraint would reject valid data.
+model Span {
+  id           String  @id @default(uuid()) @db.Uuid
+  projectId    String  @db.Uuid
+  /// Lowercase hex, normalized on ingest. OTLP/JSON permits hex (its own
+  /// encoding) and base64 (what a stock protojson emitter produces) for these
+  /// byte fields; keeping both would leave one trace unfindable under the other.
+  traceId      String  @db.Char(32)
+  spanId       String  @db.Char(16)
+  parentSpanId String? @db.Char(16)
+
+  name          String  @db.VarChar(500)
+  /// "internal" | "server" | "client" | "producer" | "consumer". OTLP's numeric
+  /// enum is decoded on ingest so a query reads as the domain word. A plain
+  /// VarChar rather than an enum, like LogRecord.level: a stored row may predate
+  /// a kind OpenTelemetry has not defined yet.
+  kind          String  @db.VarChar(16)
+  /// "unset" | "ok" | "error".
+  statusCode    String  @db.VarChar(5)
+  statusMessage String? @db.VarChar(1024)
+
+  /// Millisecond-truncated start: what listing, ordering, and retention need,
+  /// and the only precision a JavaScript Date round-trips.
+  startedAt           DateTime @db.Timestamptz(3)
+  /// The same instant in the exact nanoseconds OTLP reported. A waterfall places
+  /// sibling spans microseconds apart, which Timestamptz(3) cannot express. An
+  /// `endedAt` is deliberately absent: it is start plus duration, and no query
+  /// asks for it.
+  startTimeUnixNano   BigInt
+  durationNanoseconds BigInt
+  receivedAt          DateTime @default(now()) @db.Timestamptz(3)
+
+  /// Lifted out of the OTLP resource so a listing does not have to open JSON.
+  serviceName  String  @db.VarChar(200)
+  environment  String? @db.VarChar(100)
+  release      String? @db.VarChar(200)
+  scopeName    String? @db.VarChar(200)
+  scopeVersion String? @db.VarChar(100)
+
+  attributes         Json?
+  resourceAttributes Json?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  /// Idempotency and the waterfall read, in one index. OTLP carries no eventId,
+  /// but a span is already identified by its trace and span ids, and an exporter
+  /// retrying a batch re-sends identical spans. The leading (projectId, traceId)
+  /// is exactly the lookup the trace view makes.
+  @@unique([projectId, traceId, spanId])
+  /// Listing recent traces reads only root spans. A btree serves
+  /// `"parentSpanId" IS NULL` as well as an equality, so this does not need to
+  /// be a partial index — which the Prisma schema could not express anyway.
+  @@index([projectId, parentSpanId, startedAt(sort: Desc)])
+  @@index([receivedAt(sort: Desc)])
 }
 
 model QueueMessage {

@@ -124,6 +124,7 @@ describe("Projects", () => {
     const where = { projectId: { in: createdProjectIds } };
     await database.errorReport.deleteMany({ where });
     await database.logRecord.deleteMany({ where });
+    await database.span.deleteMany({ where });
     await database.projectToken.deleteMany({ where });
     await database.project.deleteMany({ where: { id: { in: createdProjectIds } } });
     await database.organization.deleteMany({ where: { id: { in: createdOrganizationIds } } });
