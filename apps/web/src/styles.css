@@ -1688,3 +1688,246 @@ input[type="search"]::-webkit-search-cancel-button {
   font-size: 12px;
   text-transform: capitalize;
 }
+
+/* Traces: the list of them, and one drawn as a waterfall. */
+
+.trace-row {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) 90px 130px 18px;
+  column-gap: 18px;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid #ecece8;
+  color: inherit;
+  text-decoration: none;
+}
+
+.trace-row:hover {
+  background: #fffdf9;
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.trace-copy {
+  min-width: 0;
+}
+
+.trace-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trace-errors {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.trace-chevron {
+  color: var(--faint);
+}
+
+.toggle-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.toggle-field input {
+  accent-color: var(--accent);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--ink);
+}
+
+.trace-header-meta {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.trace-id {
+  font-family: "DM Mono", monospace;
+  font-size: 10px;
+}
+
+/* One span kind, worn as a chip. Kinds are a small fixed vocabulary, so they
+   read as labels rather than as colour-coded severity — only the status of a
+   span is worth shouting about, and the bar does that. */
+.span-kind {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 62px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 5px;
+  color: #5c5c61;
+  background: #f0f0ec;
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.span-kind-server {
+  color: #1d5f9b;
+  background: #e9f2fb;
+}
+
+.span-kind-client {
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.span-kind-producer,
+.span-kind-consumer {
+  color: var(--amber);
+  background: var(--amber-soft);
+}
+
+.trace-waterfall {
+  display: flex;
+  flex-direction: column;
+}
+
+.span-row {
+  border-bottom: 1px solid #ecece8;
+}
+
+.span-summary {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(160px, 2fr) 90px;
+  column-gap: 18px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 20px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.span-summary:hover {
+  background: #fffdf9;
+}
+
+.span-label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The rule that makes nesting legible at a glance, rather than leaving the eye
+   to measure indentation. */
+.span-guide {
+  position: absolute;
+  inset-block: -10px;
+  inset-inline-start: 0;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.span-name {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.span-bar-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: #f0f0ec;
+}
+
+.span-bar {
+  position: absolute;
+  inset-block: 0;
+  border-radius: 4px;
+  background: #1d5f9b;
+}
+
+.span-bar-error {
+  background: var(--accent);
+}
+
+.span-row-error .span-name {
+  color: var(--accent);
+}
+
+.span-duration {
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 10px;
+  text-align: end;
+}
+
+.span-detail {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+  padding: 4px 20px 16px;
+  background: #fafaf8;
+  font-size: 11px;
+}
+
+.span-detail dt {
+  color: var(--faint);
+}
+
+.span-detail dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.span-detail code {
+  font-family: "DM Mono", monospace;
+  font-size: 10px;
+}
+
+@media (width <= 860px) {
+  .trace-row {
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+  }
+
+  .trace-chevron {
+    display: none;
+  }
+
+  .span-summary {
+    grid-template-columns: minmax(0, 1fr) 90px;
+    row-gap: 8px;
+  }
+
+  .span-bar-track {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}

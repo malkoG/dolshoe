@@ -6,6 +6,7 @@ import { AppModule } from "../src/app.module";
 import { configureApplication } from "../src/configure-application";
 import { PrismaService } from "../src/database/prisma.service";
 import { DEFAULT_ORGANIZATION_SLUG } from "../src/organizations/default-organization";
+import { DEFAULT_PROJECT_ID } from "../src/projects/default-project";
 import {
   OTLP_TRACE_EXAMPLE_TRACE_ID,
   otlpRootSpanExample,
@@ -214,6 +215,98 @@ describe("Span ingestion", () => {
       .expect(413);
   });
 
+  describe("reading traces back", () => {
+    const TRACES_URL = `${PROJECTS_URL}/${DEFAULT_PROJECT_ID}/traces`;
+
+    beforeEach(async () => {
+      await exportTo("/api/v1/traces").send(otlpTraceExportExample).expect(200);
+    });
+
+    it("lists a trace summarized by its root span", async () => {
+      const response = await request(app.getHttpServer())
+        .get(TRACES_URL)
+        .set("cookie", ownerCookie)
+        .expect(200);
+
+      expect(response.body.traces).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            traceId: OTLP_TRACE_EXAMPLE_TRACE_ID,
+            rootSpanId: "00f067aa0ba902b7",
+            name: "POST /checkout",
+            kind: "server",
+            serviceName: "checkout-api",
+            environment: "production",
+            durationNanoseconds: 412_000_000,
+            spanCount: 3,
+            errorSpanCount: 1,
+          }),
+        ]),
+      );
+    });
+
+    it("returns one trace's spans in the order a waterfall draws them", async () => {
+      const response = await request(app.getHttpServer())
+        .get(`${TRACES_URL}/${OTLP_TRACE_EXAMPLE_TRACE_ID}`)
+        .set("cookie", ownerCookie)
+        .expect(200);
+
+      expect(response.body.trace).toMatchObject({
+        traceId: OTLP_TRACE_EXAMPLE_TRACE_ID,
+        spanCount: 3,
+        durationNanoseconds: 412_000_000,
+        truncated: false,
+      });
+      expect(response.body.spans.map((span: { depth: number }) => span.depth)).toEqual([0, 1, 2]);
+      expect(
+        response.body.spans.map(
+          (span: { startOffsetNanoseconds: number }) => span.startOffsetNanoseconds,
+        ),
+      ).toEqual([0, 20_000_000, 40_000_000]);
+      expect(response.body.spans[2]).toMatchObject({
+        name: "db.query",
+        statusCode: "error",
+        statusMessage: "connection reset by peer",
+        attributes: { "db.system.name": "postgresql" },
+      });
+    });
+
+    it("reads a trace nobody reported as an empty one rather than a 404", async () => {
+      const response = await request(app.getHttpServer())
+        .get(`${TRACES_URL}/${"f".repeat(32)}`)
+        .set("cookie", ownerCookie)
+        .expect(200);
+
+      expect(response.body.spans).toEqual([]);
+      expect(response.body.trace.spanCount).toBe(0);
+    });
+
+    it("refuses a trace id that is not 16 bytes of hex", async () => {
+      await request(app.getHttpServer())
+        .get(`${TRACES_URL}/not-a-trace-id`)
+        .set("cookie", ownerCookie)
+        .expect(400);
+    });
+
+    it("does not reach a project through an organization that does not own it", async () => {
+      const stranger = await createProject(`Stranger ${Math.random().toString(36).slice(2, 8)}`);
+
+      const response = await request(app.getHttpServer())
+        .get(`${PROJECTS_URL}/${stranger.id}/traces`)
+        .set("cookie", ownerCookie)
+        .expect(200);
+
+      expect(response.body.traces).toEqual([]);
+    });
+
+    it("needs a session", async () => {
+      await request(app.getHttpServer()).get(TRACES_URL).expect(401);
+      await request(app.getHttpServer())
+        .get(`${TRACES_URL}/${OTLP_TRACE_EXAMPLE_TRACE_ID}`)
+        .expect(401);
+    });
+  });
+
   it("publishes the OTLP trace contract in OpenAPI", async () => {
     const response = await request(app.getHttpServer()).get("/docs/openapi.json").expect(200);
 
@@ -222,11 +315,18 @@ describe("Span ingestion", () => {
     expect(response.body.paths[`/api/v1/projects/{projectId}/otlp/v1/traces`].post).toEqual(
       expect.any(Object),
     );
+    expect(response.body.paths["/api/v1/orgs/{orgSlug}/projects/{projectId}/traces"].get).toEqual(
+      expect.any(Object),
+    );
     expect(response.body.components.schemas).toEqual(
       expect.objectContaining({
         OtlpExportTraceServiceRequest: expect.any(Object),
         OtlpExportTraceServiceResponse: expect.any(Object),
         OtlpSpan: expect.any(Object),
+        TraceListResponseV1: expect.any(Object),
+        TraceSummaryV1: expect.any(Object),
+        TraceDetailResponseV1: expect.any(Object),
+        TraceSpanV1: expect.any(Object),
       }),
     );
   });

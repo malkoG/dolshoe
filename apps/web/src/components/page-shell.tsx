@@ -10,6 +10,7 @@ import {
   LogOut,
   ScrollText,
   Users,
+  Waypoints,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -145,6 +146,15 @@ export function PageShell({
               >
                 <ScrollText size={16} />
                 Logs
+              </Link>
+              <Link
+                activeProps={{ className: "nav-link nav-link-active" }}
+                className="nav-link"
+                params={{ orgSlug, projectId: activeProjectId }}
+                to="/orgs/$orgSlug/projects/$projectId/traces"
+              >
+                <Waypoints size={16} />
+                Traces
               </Link>
               <Link
                 activeProps={{ className: "nav-link nav-link-active" }}

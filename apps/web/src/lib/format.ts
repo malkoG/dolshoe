@@ -34,6 +34,29 @@ export function formatShortId(id: string): string {
 }
 
 /**
+ * A span duration, in whichever unit makes it readable.
+ *
+ * @remarks
+ * Three significant figures throughout, so a waterfall's rows stay the same
+ * width and the eye can compare them down the column. Sub-microsecond spans
+ * are real — a cache hit, a synchronous handler — and read as nanoseconds
+ * rather than a misleading "0 ms".
+ */
+export function formatDuration(nanoseconds: number): string {
+  if (nanoseconds < 1_000) return `${Math.round(nanoseconds)} ns`;
+
+  const [value, unit] =
+    nanoseconds < 1_000_000
+      ? [nanoseconds / 1_000, "µs"]
+      : nanoseconds < 1_000_000_000
+        ? [nanoseconds / 1_000_000, "ms"]
+        : [nanoseconds / 1_000_000_000, "s"];
+
+  const decimals = value < 10 ? 2 : value < 100 ? 1 : 0;
+  return `${value.toFixed(decimals)} ${unit}`;
+}
+
+/**
  * Up to two initials for an avatar. Falls back to the first character of the
  * whole string when a name is one word, and to "?" when it is somehow empty,
  * because an avatar with nothing in it reads as a rendering bug.

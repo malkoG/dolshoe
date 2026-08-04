@@ -21,6 +21,8 @@ import { Route as OrgsOrgSlugProjectsProjectIdIndexRouteImport } from './routes/
 import { Route as OrgsOrgSlugProjectsProjectIdLogsRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.logs'
 import { Route as OrgsOrgSlugProjectsProjectIdReportsRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.reports'
 import { Route as OrgsOrgSlugProjectsProjectIdTokensRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.tokens'
+import { Route as OrgsOrgSlugProjectsProjectIdTracesIndexRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.traces.index'
+import { Route as OrgsOrgSlugProjectsProjectIdTracesTraceIdRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.traces.$traceId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -88,6 +90,18 @@ const OrgsOrgSlugProjectsProjectIdTokensRoute =
     path: '/tokens',
     getParentRoute: () => OrgsOrgSlugProjectsProjectIdRoute,
   } as any)
+const OrgsOrgSlugProjectsProjectIdTracesIndexRoute =
+  OrgsOrgSlugProjectsProjectIdTracesIndexRouteImport.update({
+    id: '/traces/',
+    path: '/traces/',
+    getParentRoute: () => OrgsOrgSlugProjectsProjectIdRoute,
+  } as any)
+const OrgsOrgSlugProjectsProjectIdTracesTraceIdRoute =
+  OrgsOrgSlugProjectsProjectIdTracesTraceIdRouteImport.update({
+    id: '/traces/$traceId',
+    path: '/traces/$traceId',
+    getParentRoute: () => OrgsOrgSlugProjectsProjectIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -102,6 +116,8 @@ export interface FileRoutesByFullPath {
   '/orgs/$orgSlug/projects/$projectId/reports': typeof OrgsOrgSlugProjectsProjectIdReportsRoute
   '/orgs/$orgSlug/projects/$projectId/tokens': typeof OrgsOrgSlugProjectsProjectIdTokensRoute
   '/orgs/$orgSlug/projects/$projectId/': typeof OrgsOrgSlugProjectsProjectIdIndexRoute
+  '/orgs/$orgSlug/projects/$projectId/traces/$traceId': typeof OrgsOrgSlugProjectsProjectIdTracesTraceIdRoute
+  '/orgs/$orgSlug/projects/$projectId/traces/': typeof OrgsOrgSlugProjectsProjectIdTracesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -115,6 +131,8 @@ export interface FileRoutesByTo {
   '/orgs/$orgSlug/projects/$projectId/reports': typeof OrgsOrgSlugProjectsProjectIdReportsRoute
   '/orgs/$orgSlug/projects/$projectId/tokens': typeof OrgsOrgSlugProjectsProjectIdTokensRoute
   '/orgs/$orgSlug/projects/$projectId': typeof OrgsOrgSlugProjectsProjectIdIndexRoute
+  '/orgs/$orgSlug/projects/$projectId/traces/$traceId': typeof OrgsOrgSlugProjectsProjectIdTracesTraceIdRoute
+  '/orgs/$orgSlug/projects/$projectId/traces': typeof OrgsOrgSlugProjectsProjectIdTracesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -130,6 +148,8 @@ export interface FileRoutesById {
   '/orgs/$orgSlug/projects/$projectId/reports': typeof OrgsOrgSlugProjectsProjectIdReportsRoute
   '/orgs/$orgSlug/projects/$projectId/tokens': typeof OrgsOrgSlugProjectsProjectIdTokensRoute
   '/orgs/$orgSlug/projects/$projectId/': typeof OrgsOrgSlugProjectsProjectIdIndexRoute
+  '/orgs/$orgSlug/projects/$projectId/traces/$traceId': typeof OrgsOrgSlugProjectsProjectIdTracesTraceIdRoute
+  '/orgs/$orgSlug/projects/$projectId/traces/': typeof OrgsOrgSlugProjectsProjectIdTracesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -146,6 +166,8 @@ export interface FileRouteTypes {
     | '/orgs/$orgSlug/projects/$projectId/reports'
     | '/orgs/$orgSlug/projects/$projectId/tokens'
     | '/orgs/$orgSlug/projects/$projectId/'
+    | '/orgs/$orgSlug/projects/$projectId/traces/$traceId'
+    | '/orgs/$orgSlug/projects/$projectId/traces/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -159,6 +181,8 @@ export interface FileRouteTypes {
     | '/orgs/$orgSlug/projects/$projectId/reports'
     | '/orgs/$orgSlug/projects/$projectId/tokens'
     | '/orgs/$orgSlug/projects/$projectId'
+    | '/orgs/$orgSlug/projects/$projectId/traces/$traceId'
+    | '/orgs/$orgSlug/projects/$projectId/traces'
   id:
     | '__root__'
     | '/'
@@ -173,6 +197,8 @@ export interface FileRouteTypes {
     | '/orgs/$orgSlug/projects/$projectId/reports'
     | '/orgs/$orgSlug/projects/$projectId/tokens'
     | '/orgs/$orgSlug/projects/$projectId/'
+    | '/orgs/$orgSlug/projects/$projectId/traces/$traceId'
+    | '/orgs/$orgSlug/projects/$projectId/traces/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -269,6 +295,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrgsOrgSlugProjectsProjectIdTokensRouteImport
       parentRoute: typeof OrgsOrgSlugProjectsProjectIdRoute
     }
+    '/orgs/$orgSlug/projects/$projectId/traces/': {
+      id: '/orgs/$orgSlug/projects/$projectId/traces/'
+      path: '/traces'
+      fullPath: '/orgs/$orgSlug/projects/$projectId/traces/'
+      preLoaderRoute: typeof OrgsOrgSlugProjectsProjectIdTracesIndexRouteImport
+      parentRoute: typeof OrgsOrgSlugProjectsProjectIdRoute
+    }
+    '/orgs/$orgSlug/projects/$projectId/traces/$traceId': {
+      id: '/orgs/$orgSlug/projects/$projectId/traces/$traceId'
+      path: '/traces/$traceId'
+      fullPath: '/orgs/$orgSlug/projects/$projectId/traces/$traceId'
+      preLoaderRoute: typeof OrgsOrgSlugProjectsProjectIdTracesTraceIdRouteImport
+      parentRoute: typeof OrgsOrgSlugProjectsProjectIdRoute
+    }
   }
 }
 
@@ -277,6 +317,8 @@ interface OrgsOrgSlugProjectsProjectIdRouteChildren {
   OrgsOrgSlugProjectsProjectIdReportsRoute: typeof OrgsOrgSlugProjectsProjectIdReportsRoute
   OrgsOrgSlugProjectsProjectIdTokensRoute: typeof OrgsOrgSlugProjectsProjectIdTokensRoute
   OrgsOrgSlugProjectsProjectIdIndexRoute: typeof OrgsOrgSlugProjectsProjectIdIndexRoute
+  OrgsOrgSlugProjectsProjectIdTracesTraceIdRoute: typeof OrgsOrgSlugProjectsProjectIdTracesTraceIdRoute
+  OrgsOrgSlugProjectsProjectIdTracesIndexRoute: typeof OrgsOrgSlugProjectsProjectIdTracesIndexRoute
 }
 
 const OrgsOrgSlugProjectsProjectIdRouteChildren: OrgsOrgSlugProjectsProjectIdRouteChildren =
@@ -289,6 +331,10 @@ const OrgsOrgSlugProjectsProjectIdRouteChildren: OrgsOrgSlugProjectsProjectIdRou
       OrgsOrgSlugProjectsProjectIdTokensRoute,
     OrgsOrgSlugProjectsProjectIdIndexRoute:
       OrgsOrgSlugProjectsProjectIdIndexRoute,
+    OrgsOrgSlugProjectsProjectIdTracesTraceIdRoute:
+      OrgsOrgSlugProjectsProjectIdTracesTraceIdRoute,
+    OrgsOrgSlugProjectsProjectIdTracesIndexRoute:
+      OrgsOrgSlugProjectsProjectIdTracesIndexRoute,
   }
 
 const OrgsOrgSlugProjectsProjectIdRouteWithChildren =

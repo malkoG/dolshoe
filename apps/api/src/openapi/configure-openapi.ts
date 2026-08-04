@@ -8,6 +8,7 @@ import { logRecordOpenApiSchemas } from "../log-recording/log-record.contract";
 import { organizationOpenApiSchemas } from "../organizations/organization.contract";
 import { projectOpenApiSchemas } from "../projects/project.contract";
 import { otlpTraceOpenApiSchemas } from "../tracing/otlp-trace.contract";
+import { traceOpenApiSchemas } from "../tracing/trace.contract";
 
 function createOpenApiDocument(app: INestApplication): OpenAPIObject {
   const configuration = new DocumentBuilder()
@@ -52,6 +53,7 @@ function createOpenApiDocument(app: INestApplication): OpenAPIObject {
     ...(otlpTraceOpenApiSchemas as NonNullable<
       NonNullable<OpenAPIObject["components"]>["schemas"]
     >),
+    ...(traceOpenApiSchemas as NonNullable<NonNullable<OpenAPIObject["components"]>["schemas"]>),
   };
 
   return document;

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { OrganizationTraceController } from "./organization-trace.controller";
 import { OtlpJsonContentTypeGuard } from "./otlp-content-type";
 import { ProjectTraceController } from "./project-trace.controller";
 import { SpanRepository } from "./span.repository";
@@ -8,7 +9,7 @@ import { TraceController } from "./trace.controller";
 import { TraceService } from "./trace.service";
 
 @Module({
-  controllers: [TraceController, ProjectTraceController],
+  controllers: [TraceController, ProjectTraceController, OrganizationTraceController],
   providers: [OtlpJsonContentTypeGuard, SpanRepository, SpanRetentionService, TraceService],
 })
 export class TraceModule {}
