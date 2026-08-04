@@ -1,5 +1,5 @@
 import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, CircleAlert, KeyRound, ScrollText } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PageShell } from "../components/page-shell";
@@ -50,13 +50,9 @@ function ProjectLayout() {
     <PageShell activeProjectId={projectId} projects={projects}>
       <section className="page-heading">
         <div>
-          <div className="eyebrow">
-            <Link className="back-link" to="/projects">
-              Projects
-            </Link>
-            <span className="eyebrow-separator">/</span>
-            <span>{project?.slug ?? "…"}</span>
-          </div>
+          {/* The sidebar already carries the project and the way back out, so
+              the heading only needs to name where you are. */}
+          <div className="eyebrow">{project?.slug ?? "…"}</div>
           <h1>{project?.name ?? " "}</h1>
         </div>
       </section>
@@ -73,39 +69,7 @@ function ProjectLayout() {
           </div>
         </section>
       ) : (
-        <>
-          <nav className="section-tabs" aria-label="Project sections">
-            <Link
-              activeProps={{ className: "section-tab section-tab-active" }}
-              className="section-tab"
-              params={{ projectId }}
-              to="/projects/$projectId/reports"
-            >
-              <CircleAlert size={15} />
-              Reports
-            </Link>
-            <Link
-              activeProps={{ className: "section-tab section-tab-active" }}
-              className="section-tab"
-              params={{ projectId }}
-              to="/projects/$projectId/logs"
-            >
-              <ScrollText size={15} />
-              Logs
-            </Link>
-            <Link
-              activeProps={{ className: "section-tab section-tab-active" }}
-              className="section-tab"
-              params={{ projectId }}
-              to="/projects/$projectId/tokens"
-            >
-              <KeyRound size={15} />
-              Tokens
-            </Link>
-          </nav>
-
-          <Outlet />
-        </>
+        <Outlet />
       )}
     </PageShell>
   );
