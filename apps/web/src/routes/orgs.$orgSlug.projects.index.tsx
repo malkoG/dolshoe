@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 import { PageShell } from "../components/page-shell";
 import { ApiError } from "../lib/api-request";
 import { dateFormatter } from "../lib/format";
+import { canAdminister } from "../lib/organizations";
 import { createProject, fetchProjects } from "../lib/projects";
 import type { Project } from "../lib/projects";
 
-export const Route = createFileRoute("/projects/")({ component: Projects });
+export const Route = createFileRoute("/orgs/$orgSlug/projects/")({ component: Projects });
 
 type LoadState =
   | { status: "loading" }
@@ -22,6 +23,9 @@ function describeError(error: unknown): string {
 }
 
 function Projects() {
+  const { orgSlug } = Route.useParams();
+  const { organization, session } = Route.useRouteContext();
+  const { organizations, viewer } = session;
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
   const [name, setName] = useState("");
@@ -33,7 +37,7 @@ function Projects() {
     const controller = new AbortController();
     setState({ status: "loading" });
 
-    fetchProjects({ signal: controller.signal })
+    fetchProjects(orgSlug, { signal: controller.signal })
       .then((projects) => {
         if (!cancelled) setState({ status: "ready", projects });
         return;
@@ -46,7 +50,7 @@ function Projects() {
       cancelled = true;
       controller.abort();
     };
-  }, [reloadToken]);
+  }, [orgSlug, reloadToken]);
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -55,7 +59,7 @@ function Projects() {
     setCreating(true);
     setCreateError(undefined);
     try {
-      await createProject({ name: name.trim() });
+      await createProject(orgSlug, { name: name.trim() });
       setName("");
       setReloadToken((token) => token + 1);
     } catch (error) {
@@ -74,7 +78,12 @@ function Projects() {
   const projects = state.status === "ready" ? state.projects : [];
 
   return (
-    <PageShell projects={projects}>
+    <PageShell
+      organizations={organizations}
+      orgSlug={orgSlug}
+      projects={projects}
+      viewer={viewer ?? undefined}
+    >
       <section className="page-heading">
         <div>
           <div className="eyebrow">
@@ -97,21 +106,28 @@ function Projects() {
               : "Projects"}
           </span>
 
-          <form className="inline-form" onSubmit={submit}>
-            <label className="search-field">
-              <span className="sr-only">New project name</span>
-              <input
-                onChange={(event) => setName(event.target.value)}
-                placeholder="New project name…"
-                type="text"
-                value={name}
-              />
-            </label>
-            <button className="primary-button" disabled={creating} type="submit">
-              {creating ? <Loader2 className="spin" size={13} /> : <Plus size={13} />}
-              Create project
-            </button>
-          </form>
+          {/*
+            Hidden rather than disabled for a member: the API refuses this with
+            a 403, so offering a control that always fails would be a worse
+            answer than not offering it.
+          */}
+          {canAdminister(organization.role) && (
+            <form className="inline-form" onSubmit={submit}>
+              <label className="search-field">
+                <span className="sr-only">New project name</span>
+                <input
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="New project name…"
+                  type="text"
+                  value={name}
+                />
+              </label>
+              <button className="primary-button" disabled={creating} type="submit">
+                {creating ? <Loader2 className="spin" size={13} /> : <Plus size={13} />}
+                Create project
+              </button>
+            </form>
+          )}
         </div>
 
         {createError && (
@@ -160,8 +176,8 @@ function Projects() {
               <Link
                 className="project-row"
                 key={project.id}
-                params={{ projectId: project.id }}
-                to="/projects/$projectId/reports"
+                params={{ orgSlug, projectId: project.id }}
+                to="/orgs/$orgSlug/projects/$projectId/reports"
               >
                 <div>
                   <strong>{project.name}</strong>

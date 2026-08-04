@@ -17,7 +17,9 @@ import { dateTimeFormatter } from "../lib/format";
 import { fetchProjectTokens, issueProjectToken, revokeProjectToken } from "../lib/projects";
 import type { IssuedProjectToken, ProjectToken } from "../lib/projects";
 
-export const Route = createFileRoute("/projects/$projectId/tokens")({ component: Tokens });
+export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/tokens")({
+  component: Tokens,
+});
 
 type LoadState =
   | { status: "loading" }
@@ -165,7 +167,7 @@ function TokenRow({
 }
 
 function Tokens() {
-  const { projectId } = Route.useParams();
+  const { orgSlug, projectId } = Route.useParams();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
   const [name, setName] = useState("");
@@ -179,7 +181,7 @@ function Tokens() {
     const controller = new AbortController();
     setState({ status: "loading" });
 
-    fetchProjectTokens(projectId, { signal: controller.signal })
+    fetchProjectTokens(orgSlug, projectId, { signal: controller.signal })
       .then((tokens) => {
         if (!cancelled) setState({ status: "ready", tokens });
         return;
@@ -201,7 +203,7 @@ function Tokens() {
     setIssuing(true);
     setIssueError(undefined);
     try {
-      setIssued(await issueProjectToken(projectId, { name: name.trim() }));
+      setIssued(await issueProjectToken(orgSlug, projectId, { name: name.trim() }));
       setName("");
       setReloadToken((token) => token + 1);
     } catch (error) {
@@ -213,7 +215,7 @@ function Tokens() {
 
   async function revoke(tokenId: string): Promise<void> {
     try {
-      await revokeProjectToken(projectId, tokenId);
+      await revokeProjectToken(orgSlug, projectId, tokenId);
       setReloadToken((token) => token + 1);
     } catch (error) {
       setIssueError(describeError(error));

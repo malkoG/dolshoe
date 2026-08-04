@@ -2,7 +2,10 @@ import { z } from "zod";
 
 import { jsonBody, requestJson } from "./api-request";
 
-const PROJECTS_URL = "/api/v1/projects";
+/** Management lives under the organization; only ingestion keeps a flat path. */
+function projectsUrl(orgSlug: string): string {
+  return `/api/v1/orgs/${orgSlug}/projects`;
+}
 
 const projectSchema = z.object({
   id: z.string(),
@@ -36,10 +39,13 @@ export type Project = z.infer<typeof projectSchema>;
 export type ProjectToken = z.infer<typeof projectTokenSchema>;
 export type IssuedProjectToken = z.infer<typeof issuedProjectTokenSchema>;
 
-export async function fetchProjects(init?: { signal?: AbortSignal }): Promise<Project[]> {
+export async function fetchProjects(
+  orgSlug: string,
+  init?: { signal?: AbortSignal },
+): Promise<Project[]> {
   const { projects } = await requestJson(
     "list projects",
-    PROJECTS_URL,
+    projectsUrl(orgSlug),
     projectListResponseSchema,
     init,
   );
@@ -47,22 +53,24 @@ export async function fetchProjects(init?: { signal?: AbortSignal }): Promise<Pr
 }
 
 export function createProject(
+  orgSlug: string,
   input: { name: string; slug?: string },
   init?: { signal?: AbortSignal },
 ): Promise<Project> {
-  return requestJson("create the project", PROJECTS_URL, projectSchema, {
+  return requestJson("create the project", projectsUrl(orgSlug), projectSchema, {
     ...jsonBody(input),
     ...init,
   });
 }
 
 export async function fetchProjectTokens(
+  orgSlug: string,
   projectId: string,
   init?: { signal?: AbortSignal },
 ): Promise<ProjectToken[]> {
   const { tokens } = await requestJson(
     "list ingestion tokens",
-    `${PROJECTS_URL}/${projectId}/tokens`,
+    `${projectsUrl(orgSlug)}/${projectId}/tokens`,
     projectTokenListResponseSchema,
     init,
   );
@@ -74,26 +82,28 @@ export async function fetchProjectTokens(
  * the server keeps a digest, so it cannot be fetched again.
  */
 export function issueProjectToken(
+  orgSlug: string,
   projectId: string,
   input: { name: string },
   init?: { signal?: AbortSignal },
 ): Promise<IssuedProjectToken> {
   return requestJson(
     "issue an ingestion token",
-    `${PROJECTS_URL}/${projectId}/tokens`,
+    `${projectsUrl(orgSlug)}/${projectId}/tokens`,
     issuedProjectTokenSchema,
     { ...jsonBody(input), ...init },
   );
 }
 
 export function revokeProjectToken(
+  orgSlug: string,
   projectId: string,
   tokenId: string,
   init?: { signal?: AbortSignal },
 ): Promise<ProjectToken> {
   return requestJson(
     "revoke the ingestion token",
-    `${PROJECTS_URL}/${projectId}/tokens/${tokenId}/revoke`,
+    `${projectsUrl(orgSlug)}/${projectId}/tokens/${tokenId}/revoke`,
     projectTokenSchema,
     { method: "POST", ...init },
   );

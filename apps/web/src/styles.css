@@ -188,6 +188,7 @@ select:focus-visible {
 }
 
 .sidebar-footer {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -763,9 +764,15 @@ input[type="search"]::-webkit-search-cancel-button {
     border-bottom: 1px solid #2d2d30;
   }
 
+  .switcher-stack {
+    flex-direction: row;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .org-switcher,
   .project-switcher {
     min-height: 34px;
-    margin-left: auto;
   }
 
   .sidebar-nav {
@@ -1210,8 +1217,19 @@ input[type="search"]::-webkit-search-cancel-button {
   }
 }
 
-/* Project-first navigation: switcher, section tabs, and the log list. */
+/* Organization- then project-first navigation: switchers, section tabs, logs. */
 
+.switcher-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.org-switcher {
+  background: rgb(255 255 255 / 10%);
+}
+
+.org-switcher,
 .project-switcher {
   position: relative;
   display: flex;
@@ -1223,6 +1241,7 @@ input[type="search"]::-webkit-search-cancel-button {
   background: rgb(255 255 255 / 6%);
 }
 
+.org-switcher select,
 .project-switcher select {
   width: 100%;
   padding: 0 4px 0 11px;
@@ -1237,11 +1256,13 @@ input[type="search"]::-webkit-search-cancel-button {
   appearance: none;
 }
 
+.org-switcher select option,
 .project-switcher select option {
   color: var(--ink);
   background: var(--surface);
 }
 
+.org-switcher .select-chevron,
 .project-switcher .select-chevron {
   flex: 0 0 auto;
   color: rgb(255 255 255 / 55%);
@@ -1356,4 +1377,218 @@ input[type="search"]::-webkit-search-cancel-button {
     grid-template-columns: 1fr;
     row-gap: 8px;
   }
+}
+
+/* Signing in, and the account menu that signs back out. */
+
+.auth-shell {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 32px 20px;
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(380px, 100%);
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.auth-mark {
+  width: 34px;
+  height: 34px;
+}
+
+.auth-panel h1 {
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+}
+
+.auth-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.auth-field input {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--ink);
+  background: var(--canvas);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.auth-field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.auth-hint {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.auth-error {
+  margin: 0;
+  color: var(--danger, #b4231f);
+  font-size: 13px;
+}
+
+.centered-shell {
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 52px 0 72px;
+}
+
+.organization-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.organization-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.organization-list li:last-child .organization-row {
+  border-bottom: 0;
+}
+
+.organization-row:hover {
+  background: var(--canvas);
+}
+
+.organization-slug {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.organization-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.role-badge {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.inline-form {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 18px;
+}
+
+.inline-form .auth-field {
+  flex: 1 1 auto;
+}
+
+/*
+  The panel is anchored to the footer rather than to the avatar: the avatar sits
+  at the right of a 232px rail, and a menu hanging from it opens off the left
+  edge of the screen.
+*/
+.account-menu {
+  position: static;
+}
+
+.account-menu summary {
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.account-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-panel {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 208px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  /* Stated rather than inherited: this panel is a light surface hanging inside
+     the dark rail, so the rail's text colour would be invisible on it. */
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 18px 40px rgb(0 0 0 / 22%);
+}
+
+.account-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 10px 12px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.account-identity span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.account-action {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 7px;
+  color: inherit;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.account-action:hover {
+  background: var(--canvas);
 }

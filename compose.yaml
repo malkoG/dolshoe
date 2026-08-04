@@ -55,6 +55,10 @@ services:
     command: ["pnpm", "--filter", "@dolshoe/web", "exec", "vite", "dev", "--port", "5173"]
     environment:
       VITE_API_PROXY_TARGET: http://api:3000
+      # The proxy above only serves requests the browser makes. A server-side
+      # render fetches on its own, with no origin to resolve a relative URL
+      # against, so it is given the API's address directly.
+      DOLSHOE_API_ORIGIN: http://api:3000
     depends_on:
       - api
     ports:

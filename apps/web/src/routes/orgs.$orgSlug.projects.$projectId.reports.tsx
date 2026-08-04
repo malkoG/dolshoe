@@ -17,7 +17,9 @@ import { fetchErrorReports } from "../lib/error-reports";
 import type { ErrorReportSummary } from "../lib/error-reports";
 import { formatRelativeTime, formatShortId } from "../lib/format";
 
-export const Route = createFileRoute("/projects/$projectId/reports")({ component: Reports });
+export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/reports")({
+  component: Reports,
+});
 
 type LoadState =
   | { status: "loading" }
@@ -68,7 +70,7 @@ function describeLoadError(error: unknown): string {
 }
 
 function Reports() {
-  const { projectId } = Route.useParams();
+  const { orgSlug, projectId } = Route.useParams();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
   const [query, setQuery] = useState("");
@@ -79,7 +81,7 @@ function Reports() {
     const controller = new AbortController();
     setState({ status: "loading" });
 
-    fetchErrorReports({ projectId, signal: controller.signal })
+    fetchErrorReports(orgSlug, projectId, { signal: controller.signal })
       .then((reports) => {
         if (!cancelled) setState({ status: "ready", reports });
         return;

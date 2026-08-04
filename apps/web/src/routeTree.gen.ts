@@ -10,110 +10,165 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
-import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
-import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects.$projectId.index'
-import { Route as ProjectsProjectIdLogsRouteImport } from './routes/projects.$projectId.logs'
-import { Route as ProjectsProjectIdReportsRouteImport } from './routes/projects.$projectId.reports'
-import { Route as ProjectsProjectIdTokensRouteImport } from './routes/projects.$projectId.tokens'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as OrgsIndexRouteImport } from './routes/orgs.index'
+import { Route as OrgsOrgSlugRouteImport } from './routes/orgs.$orgSlug'
+import { Route as OrgsOrgSlugProjectsIndexRouteImport } from './routes/orgs.$orgSlug.projects.index'
+import { Route as OrgsOrgSlugProjectsProjectIdRouteImport } from './routes/orgs.$orgSlug.projects.$projectId'
+import { Route as OrgsOrgSlugProjectsProjectIdIndexRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.index'
+import { Route as OrgsOrgSlugProjectsProjectIdLogsRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.logs'
+import { Route as OrgsOrgSlugProjectsProjectIdReportsRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.reports'
+import { Route as OrgsOrgSlugProjectsProjectIdTokensRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.tokens'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectsIndexRoute = ProjectsIndexRouteImport.update({
-  id: '/projects/',
-  path: '/projects/',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
-  id: '/projects/$projectId',
-  path: '/projects/$projectId',
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectsProjectIdIndexRoute = ProjectsProjectIdIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ProjectsProjectIdRoute,
+const OrgsIndexRoute = OrgsIndexRouteImport.update({
+  id: '/orgs/',
+  path: '/orgs/',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectsProjectIdLogsRoute = ProjectsProjectIdLogsRouteImport.update({
-  id: '/logs',
-  path: '/logs',
-  getParentRoute: () => ProjectsProjectIdRoute,
+const OrgsOrgSlugRoute = OrgsOrgSlugRouteImport.update({
+  id: '/orgs/$orgSlug',
+  path: '/orgs/$orgSlug',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectsProjectIdReportsRoute =
-  ProjectsProjectIdReportsRouteImport.update({
+const OrgsOrgSlugProjectsIndexRoute =
+  OrgsOrgSlugProjectsIndexRouteImport.update({
+    id: '/projects/',
+    path: '/projects/',
+    getParentRoute: () => OrgsOrgSlugRoute,
+  } as any)
+const OrgsOrgSlugProjectsProjectIdRoute =
+  OrgsOrgSlugProjectsProjectIdRouteImport.update({
+    id: '/projects/$projectId',
+    path: '/projects/$projectId',
+    getParentRoute: () => OrgsOrgSlugRoute,
+  } as any)
+const OrgsOrgSlugProjectsProjectIdIndexRoute =
+  OrgsOrgSlugProjectsProjectIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => OrgsOrgSlugProjectsProjectIdRoute,
+  } as any)
+const OrgsOrgSlugProjectsProjectIdLogsRoute =
+  OrgsOrgSlugProjectsProjectIdLogsRouteImport.update({
+    id: '/logs',
+    path: '/logs',
+    getParentRoute: () => OrgsOrgSlugProjectsProjectIdRoute,
+  } as any)
+const OrgsOrgSlugProjectsProjectIdReportsRoute =
+  OrgsOrgSlugProjectsProjectIdReportsRouteImport.update({
     id: '/reports',
     path: '/reports',
-    getParentRoute: () => ProjectsProjectIdRoute,
+    getParentRoute: () => OrgsOrgSlugProjectsProjectIdRoute,
   } as any)
-const ProjectsProjectIdTokensRoute = ProjectsProjectIdTokensRouteImport.update({
-  id: '/tokens',
-  path: '/tokens',
-  getParentRoute: () => ProjectsProjectIdRoute,
-} as any)
+const OrgsOrgSlugProjectsProjectIdTokensRoute =
+  OrgsOrgSlugProjectsProjectIdTokensRouteImport.update({
+    id: '/tokens',
+    path: '/tokens',
+    getParentRoute: () => OrgsOrgSlugProjectsProjectIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
-  '/projects/': typeof ProjectsIndexRoute
-  '/projects/$projectId/logs': typeof ProjectsProjectIdLogsRoute
-  '/projects/$projectId/reports': typeof ProjectsProjectIdReportsRoute
-  '/projects/$projectId/tokens': typeof ProjectsProjectIdTokensRoute
-  '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/orgs/$orgSlug': typeof OrgsOrgSlugRouteWithChildren
+  '/orgs/': typeof OrgsIndexRoute
+  '/orgs/$orgSlug/projects/$projectId': typeof OrgsOrgSlugProjectsProjectIdRouteWithChildren
+  '/orgs/$orgSlug/projects/': typeof OrgsOrgSlugProjectsIndexRoute
+  '/orgs/$orgSlug/projects/$projectId/logs': typeof OrgsOrgSlugProjectsProjectIdLogsRoute
+  '/orgs/$orgSlug/projects/$projectId/reports': typeof OrgsOrgSlugProjectsProjectIdReportsRoute
+  '/orgs/$orgSlug/projects/$projectId/tokens': typeof OrgsOrgSlugProjectsProjectIdTokensRoute
+  '/orgs/$orgSlug/projects/$projectId/': typeof OrgsOrgSlugProjectsProjectIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/projects': typeof ProjectsIndexRoute
-  '/projects/$projectId/logs': typeof ProjectsProjectIdLogsRoute
-  '/projects/$projectId/reports': typeof ProjectsProjectIdReportsRoute
-  '/projects/$projectId/tokens': typeof ProjectsProjectIdTokensRoute
-  '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/orgs/$orgSlug': typeof OrgsOrgSlugRouteWithChildren
+  '/orgs': typeof OrgsIndexRoute
+  '/orgs/$orgSlug/projects': typeof OrgsOrgSlugProjectsIndexRoute
+  '/orgs/$orgSlug/projects/$projectId/logs': typeof OrgsOrgSlugProjectsProjectIdLogsRoute
+  '/orgs/$orgSlug/projects/$projectId/reports': typeof OrgsOrgSlugProjectsProjectIdReportsRoute
+  '/orgs/$orgSlug/projects/$projectId/tokens': typeof OrgsOrgSlugProjectsProjectIdTokensRoute
+  '/orgs/$orgSlug/projects/$projectId': typeof OrgsOrgSlugProjectsProjectIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
-  '/projects/': typeof ProjectsIndexRoute
-  '/projects/$projectId/logs': typeof ProjectsProjectIdLogsRoute
-  '/projects/$projectId/reports': typeof ProjectsProjectIdReportsRoute
-  '/projects/$projectId/tokens': typeof ProjectsProjectIdTokensRoute
-  '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/orgs/$orgSlug': typeof OrgsOrgSlugRouteWithChildren
+  '/orgs/': typeof OrgsIndexRoute
+  '/orgs/$orgSlug/projects/$projectId': typeof OrgsOrgSlugProjectsProjectIdRouteWithChildren
+  '/orgs/$orgSlug/projects/': typeof OrgsOrgSlugProjectsIndexRoute
+  '/orgs/$orgSlug/projects/$projectId/logs': typeof OrgsOrgSlugProjectsProjectIdLogsRoute
+  '/orgs/$orgSlug/projects/$projectId/reports': typeof OrgsOrgSlugProjectsProjectIdReportsRoute
+  '/orgs/$orgSlug/projects/$projectId/tokens': typeof OrgsOrgSlugProjectsProjectIdTokensRoute
+  '/orgs/$orgSlug/projects/$projectId/': typeof OrgsOrgSlugProjectsProjectIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/projects/$projectId'
-    | '/projects/'
-    | '/projects/$projectId/logs'
-    | '/projects/$projectId/reports'
-    | '/projects/$projectId/tokens'
-    | '/projects/$projectId/'
+    | '/login'
+    | '/register'
+    | '/orgs/$orgSlug'
+    | '/orgs/'
+    | '/orgs/$orgSlug/projects/$projectId'
+    | '/orgs/$orgSlug/projects/'
+    | '/orgs/$orgSlug/projects/$projectId/logs'
+    | '/orgs/$orgSlug/projects/$projectId/reports'
+    | '/orgs/$orgSlug/projects/$projectId/tokens'
+    | '/orgs/$orgSlug/projects/$projectId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/projects'
-    | '/projects/$projectId/logs'
-    | '/projects/$projectId/reports'
-    | '/projects/$projectId/tokens'
-    | '/projects/$projectId'
+    | '/login'
+    | '/register'
+    | '/orgs/$orgSlug'
+    | '/orgs'
+    | '/orgs/$orgSlug/projects'
+    | '/orgs/$orgSlug/projects/$projectId/logs'
+    | '/orgs/$orgSlug/projects/$projectId/reports'
+    | '/orgs/$orgSlug/projects/$projectId/tokens'
+    | '/orgs/$orgSlug/projects/$projectId'
   id:
     | '__root__'
     | '/'
-    | '/projects/$projectId'
-    | '/projects/'
-    | '/projects/$projectId/logs'
-    | '/projects/$projectId/reports'
-    | '/projects/$projectId/tokens'
-    | '/projects/$projectId/'
+    | '/login'
+    | '/register'
+    | '/orgs/$orgSlug'
+    | '/orgs/'
+    | '/orgs/$orgSlug/projects/$projectId'
+    | '/orgs/$orgSlug/projects/'
+    | '/orgs/$orgSlug/projects/$projectId/logs'
+    | '/orgs/$orgSlug/projects/$projectId/reports'
+    | '/orgs/$orgSlug/projects/$projectId/tokens'
+    | '/orgs/$orgSlug/projects/$projectId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
-  ProjectsIndexRoute: typeof ProjectsIndexRoute
+  LoginRoute: typeof LoginRoute
+  RegisterRoute: typeof RegisterRoute
+  OrgsOrgSlugRoute: typeof OrgsOrgSlugRouteWithChildren
+  OrgsIndexRoute: typeof OrgsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -125,72 +180,124 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/projects/': {
-      id: '/projects/'
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orgs/': {
+      id: '/orgs/'
+      path: '/orgs'
+      fullPath: '/orgs/'
+      preLoaderRoute: typeof OrgsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orgs/$orgSlug': {
+      id: '/orgs/$orgSlug'
+      path: '/orgs/$orgSlug'
+      fullPath: '/orgs/$orgSlug'
+      preLoaderRoute: typeof OrgsOrgSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orgs/$orgSlug/projects/': {
+      id: '/orgs/$orgSlug/projects/'
       path: '/projects'
-      fullPath: '/projects/'
-      preLoaderRoute: typeof ProjectsIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/orgs/$orgSlug/projects/'
+      preLoaderRoute: typeof OrgsOrgSlugProjectsIndexRouteImport
+      parentRoute: typeof OrgsOrgSlugRoute
     }
-    '/projects/$projectId': {
-      id: '/projects/$projectId'
+    '/orgs/$orgSlug/projects/$projectId': {
+      id: '/orgs/$orgSlug/projects/$projectId'
       path: '/projects/$projectId'
-      fullPath: '/projects/$projectId'
-      preLoaderRoute: typeof ProjectsProjectIdRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/orgs/$orgSlug/projects/$projectId'
+      preLoaderRoute: typeof OrgsOrgSlugProjectsProjectIdRouteImport
+      parentRoute: typeof OrgsOrgSlugRoute
     }
-    '/projects/$projectId/': {
-      id: '/projects/$projectId/'
+    '/orgs/$orgSlug/projects/$projectId/': {
+      id: '/orgs/$orgSlug/projects/$projectId/'
       path: '/'
-      fullPath: '/projects/$projectId/'
-      preLoaderRoute: typeof ProjectsProjectIdIndexRouteImport
-      parentRoute: typeof ProjectsProjectIdRoute
+      fullPath: '/orgs/$orgSlug/projects/$projectId/'
+      preLoaderRoute: typeof OrgsOrgSlugProjectsProjectIdIndexRouteImport
+      parentRoute: typeof OrgsOrgSlugProjectsProjectIdRoute
     }
-    '/projects/$projectId/logs': {
-      id: '/projects/$projectId/logs'
+    '/orgs/$orgSlug/projects/$projectId/logs': {
+      id: '/orgs/$orgSlug/projects/$projectId/logs'
       path: '/logs'
-      fullPath: '/projects/$projectId/logs'
-      preLoaderRoute: typeof ProjectsProjectIdLogsRouteImport
-      parentRoute: typeof ProjectsProjectIdRoute
+      fullPath: '/orgs/$orgSlug/projects/$projectId/logs'
+      preLoaderRoute: typeof OrgsOrgSlugProjectsProjectIdLogsRouteImport
+      parentRoute: typeof OrgsOrgSlugProjectsProjectIdRoute
     }
-    '/projects/$projectId/reports': {
-      id: '/projects/$projectId/reports'
+    '/orgs/$orgSlug/projects/$projectId/reports': {
+      id: '/orgs/$orgSlug/projects/$projectId/reports'
       path: '/reports'
-      fullPath: '/projects/$projectId/reports'
-      preLoaderRoute: typeof ProjectsProjectIdReportsRouteImport
-      parentRoute: typeof ProjectsProjectIdRoute
+      fullPath: '/orgs/$orgSlug/projects/$projectId/reports'
+      preLoaderRoute: typeof OrgsOrgSlugProjectsProjectIdReportsRouteImport
+      parentRoute: typeof OrgsOrgSlugProjectsProjectIdRoute
     }
-    '/projects/$projectId/tokens': {
-      id: '/projects/$projectId/tokens'
+    '/orgs/$orgSlug/projects/$projectId/tokens': {
+      id: '/orgs/$orgSlug/projects/$projectId/tokens'
       path: '/tokens'
-      fullPath: '/projects/$projectId/tokens'
-      preLoaderRoute: typeof ProjectsProjectIdTokensRouteImport
-      parentRoute: typeof ProjectsProjectIdRoute
+      fullPath: '/orgs/$orgSlug/projects/$projectId/tokens'
+      preLoaderRoute: typeof OrgsOrgSlugProjectsProjectIdTokensRouteImport
+      parentRoute: typeof OrgsOrgSlugProjectsProjectIdRoute
     }
   }
 }
 
-interface ProjectsProjectIdRouteChildren {
-  ProjectsProjectIdLogsRoute: typeof ProjectsProjectIdLogsRoute
-  ProjectsProjectIdReportsRoute: typeof ProjectsProjectIdReportsRoute
-  ProjectsProjectIdTokensRoute: typeof ProjectsProjectIdTokensRoute
-  ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
+interface OrgsOrgSlugProjectsProjectIdRouteChildren {
+  OrgsOrgSlugProjectsProjectIdLogsRoute: typeof OrgsOrgSlugProjectsProjectIdLogsRoute
+  OrgsOrgSlugProjectsProjectIdReportsRoute: typeof OrgsOrgSlugProjectsProjectIdReportsRoute
+  OrgsOrgSlugProjectsProjectIdTokensRoute: typeof OrgsOrgSlugProjectsProjectIdTokensRoute
+  OrgsOrgSlugProjectsProjectIdIndexRoute: typeof OrgsOrgSlugProjectsProjectIdIndexRoute
 }
 
-const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
-  ProjectsProjectIdLogsRoute: ProjectsProjectIdLogsRoute,
-  ProjectsProjectIdReportsRoute: ProjectsProjectIdReportsRoute,
-  ProjectsProjectIdTokensRoute: ProjectsProjectIdTokensRoute,
-  ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
+const OrgsOrgSlugProjectsProjectIdRouteChildren: OrgsOrgSlugProjectsProjectIdRouteChildren =
+  {
+    OrgsOrgSlugProjectsProjectIdLogsRoute:
+      OrgsOrgSlugProjectsProjectIdLogsRoute,
+    OrgsOrgSlugProjectsProjectIdReportsRoute:
+      OrgsOrgSlugProjectsProjectIdReportsRoute,
+    OrgsOrgSlugProjectsProjectIdTokensRoute:
+      OrgsOrgSlugProjectsProjectIdTokensRoute,
+    OrgsOrgSlugProjectsProjectIdIndexRoute:
+      OrgsOrgSlugProjectsProjectIdIndexRoute,
+  }
+
+const OrgsOrgSlugProjectsProjectIdRouteWithChildren =
+  OrgsOrgSlugProjectsProjectIdRoute._addFileChildren(
+    OrgsOrgSlugProjectsProjectIdRouteChildren,
+  )
+
+interface OrgsOrgSlugRouteChildren {
+  OrgsOrgSlugProjectsProjectIdRoute: typeof OrgsOrgSlugProjectsProjectIdRouteWithChildren
+  OrgsOrgSlugProjectsIndexRoute: typeof OrgsOrgSlugProjectsIndexRoute
 }
 
-const ProjectsProjectIdRouteWithChildren =
-  ProjectsProjectIdRoute._addFileChildren(ProjectsProjectIdRouteChildren)
+const OrgsOrgSlugRouteChildren: OrgsOrgSlugRouteChildren = {
+  OrgsOrgSlugProjectsProjectIdRoute:
+    OrgsOrgSlugProjectsProjectIdRouteWithChildren,
+  OrgsOrgSlugProjectsIndexRoute: OrgsOrgSlugProjectsIndexRoute,
+}
+
+const OrgsOrgSlugRouteWithChildren = OrgsOrgSlugRoute._addFileChildren(
+  OrgsOrgSlugRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
-  ProjectsIndexRoute: ProjectsIndexRoute,
+  LoginRoute: LoginRoute,
+  RegisterRoute: RegisterRoute,
+  OrgsOrgSlugRoute: OrgsOrgSlugRouteWithChildren,
+  OrgsIndexRoute: OrgsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

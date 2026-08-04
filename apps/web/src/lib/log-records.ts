@@ -2,8 +2,6 @@ import { z } from "zod";
 
 import { requestJson } from "./api-request";
 
-const LOG_RECORDS_URL = "/api/v1/log-records";
-
 const logRecordSummarySchema = z.object({
   id: z.string(),
   eventId: z.string(),
@@ -32,14 +30,15 @@ export type LogLevel = LogRecordSummary["level"];
  * Fetches a project's newest-first log records and validates them against the
  * web-owned mirror of the response contract before returning typed values.
  */
-export async function fetchLogRecords(init: {
-  projectId: string;
-  level?: LogLevel;
-  signal?: AbortSignal;
-}): Promise<LogRecordSummary[]> {
-  const parameters = new URLSearchParams({ projectId: init.projectId });
+export async function fetchLogRecords(
+  orgSlug: string,
+  projectId: string,
+  init: { level?: LogLevel; signal?: AbortSignal } = {},
+): Promise<LogRecordSummary[]> {
+  const parameters = new URLSearchParams();
   if (init.level != null) parameters.set("level", init.level);
-  const url = `${LOG_RECORDS_URL}?${parameters.toString()}`;
+  const query = parameters.size === 0 ? "" : `?${parameters.toString()}`;
+  const url = `/api/v1/orgs/${orgSlug}/projects/${projectId}/log-records${query}`;
 
   const { records } = await requestJson("list log records", url, logRecordListResponseSchema, {
     signal: init.signal,
