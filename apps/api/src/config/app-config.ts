@@ -8,33 +8,26 @@ loadDotenv({
   quiet: true,
 });
 
-const environmentSchema = z
-  .object({
-    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-    PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-    LOG_LEVEL: z.enum(["trace", "debug", "info", "warning", "error", "fatal"]).default("info"),
-    INGEST_TOKEN: z.preprocess(
-      (value) => (value === "" ? undefined : value),
-      z.string().min(32).optional(),
+const environmentSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  LOG_LEVEL: z.enum(["trace", "debug", "info", "warning", "error", "fatal"]).default("info"),
+  // Optional even in production: an instance that has migrated to per-project
+  // tokens has no global token to set. The ingestion guard, not startup
+  // validation, is what refuses unauthenticated production ingestion.
+  INGEST_TOKEN: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(32).optional(),
+  ),
+  LOG_RETENTION_DAYS: z.coerce.number().int().min(1).max(3_650).default(14),
+  DATABASE_URL: z
+    .string()
+    .url()
+    .refine(
+      (value) => value.startsWith("postgresql://") || value.startsWith("postgres://"),
+      "DATABASE_URL must be a PostgreSQL URL",
     ),
-    LOG_RETENTION_DAYS: z.coerce.number().int().min(1).max(3_650).default(14),
-    DATABASE_URL: z
-      .string()
-      .url()
-      .refine(
-        (value) => value.startsWith("postgresql://") || value.startsWith("postgres://"),
-        "DATABASE_URL must be a PostgreSQL URL",
-      ),
-  })
-  .superRefine((environment, context) => {
-    if (environment.NODE_ENV === "production" && environment.INGEST_TOKEN == null) {
-      context.addIssue({
-        code: "custom",
-        message: "INGEST_TOKEN is required in production.",
-        path: ["INGEST_TOKEN"],
-      });
-    }
-  });
+});
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);
 
