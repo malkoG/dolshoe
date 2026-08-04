@@ -1,5 +1,7 @@
 import { Global, Module } from "@nestjs/common";
 
+import { InvitationController } from "./invitation.controller";
+import { InvitationService } from "./invitation.service";
 import { OrgMembershipGuard } from "./org-membership.guard";
 import { OrganizationController, OrganizationMemberController } from "./organization.controller";
 import { OrganizationService } from "./organization.service";
@@ -12,8 +14,8 @@ import { OrganizationService } from "./organization.service";
  */
 @Global()
 @Module({
-  controllers: [OrganizationController, OrganizationMemberController],
-  providers: [OrganizationService, OrgMembershipGuard],
-  exports: [OrganizationService, OrgMembershipGuard],
+  controllers: [OrganizationController, OrganizationMemberController, InvitationController],
+  providers: [OrganizationService, InvitationService, OrgMembershipGuard],
+  exports: [OrganizationService, InvitationService, OrgMembershipGuard],
 })
 export class OrganizationModule {}

@@ -1592,3 +1592,28 @@ input[type="search"]::-webkit-search-cancel-button {
 .account-action:hover {
   background: var(--canvas);
 }
+
+.member-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.member-row:last-child {
+  border-bottom: 0;
+}
+
+.member-row select,
+.inline-form select {
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 12px;
+  text-transform: capitalize;
+}

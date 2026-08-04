@@ -24,6 +24,7 @@ model Organization {
 
   projects    Project[]
   memberships Membership[]
+  invitations Invitation[]
 
   @@index([createdAt(sort: Desc)])
 }
@@ -37,8 +38,9 @@ model User {
   passwordHash String   @db.VarChar(200)
   createdAt    DateTime @default(now()) @db.Timestamptz(3)
 
-  sessions    Session[]
-  memberships Membership[]
+  sessions        Session[]
+  memberships     Membership[]
+  sentInvitations Invitation[] @relation("InvitedBy")
 
   @@index([createdAt(sort: Desc)])
 }
@@ -72,6 +74,27 @@ model Session {
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([expiresAt])
+}
+
+/// An offer to join an organization, carried by a one-time link. Only the
+/// digest of that link's token is stored, the same way an ingestion token is.
+model Invitation {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  email          String         @db.VarChar(320)
+  role           MembershipRole
+  prefix         String         @unique @db.VarChar(12)
+  tokenHash      String         @db.Char(64)
+  invitedById    String         @db.Uuid
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  expiresAt      DateTime       @db.Timestamptz(3)
+  acceptedAt     DateTime?      @db.Timestamptz(3)
+  revokedAt      DateTime?      @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, createdAt(sort: Desc)])
 }
 
 model Project {

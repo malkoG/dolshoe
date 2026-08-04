@@ -12,8 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as InvitationsTokenRouteImport } from './routes/invitations.$token'
 import { Route as OrgsIndexRouteImport } from './routes/orgs.index'
 import { Route as OrgsOrgSlugRouteImport } from './routes/orgs.$orgSlug'
+import { Route as OrgsOrgSlugMembersRouteImport } from './routes/orgs.$orgSlug.members'
 import { Route as OrgsOrgSlugProjectsIndexRouteImport } from './routes/orgs.$orgSlug.projects.index'
 import { Route as OrgsOrgSlugProjectsProjectIdRouteImport } from './routes/orgs.$orgSlug.projects.$projectId'
 import { Route as OrgsOrgSlugProjectsProjectIdIndexRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.index'
@@ -36,6 +38,11 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InvitationsTokenRoute = InvitationsTokenRouteImport.update({
+  id: '/invitations/$token',
+  path: '/invitations/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrgsIndexRoute = OrgsIndexRouteImport.update({
   id: '/orgs/',
   path: '/orgs/',
@@ -45,6 +52,11 @@ const OrgsOrgSlugRoute = OrgsOrgSlugRouteImport.update({
   id: '/orgs/$orgSlug',
   path: '/orgs/$orgSlug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const OrgsOrgSlugMembersRoute = OrgsOrgSlugMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => OrgsOrgSlugRoute,
 } as any)
 const OrgsOrgSlugProjectsIndexRoute =
   OrgsOrgSlugProjectsIndexRouteImport.update({
@@ -87,8 +99,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/invitations/$token': typeof InvitationsTokenRoute
   '/orgs/$orgSlug': typeof OrgsOrgSlugRouteWithChildren
   '/orgs/': typeof OrgsIndexRoute
+  '/orgs/$orgSlug/members': typeof OrgsOrgSlugMembersRoute
   '/orgs/$orgSlug/projects/$projectId': typeof OrgsOrgSlugProjectsProjectIdRouteWithChildren
   '/orgs/$orgSlug/projects/': typeof OrgsOrgSlugProjectsIndexRoute
   '/orgs/$orgSlug/projects/$projectId/logs': typeof OrgsOrgSlugProjectsProjectIdLogsRoute
@@ -100,8 +114,10 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/invitations/$token': typeof InvitationsTokenRoute
   '/orgs/$orgSlug': typeof OrgsOrgSlugRouteWithChildren
   '/orgs': typeof OrgsIndexRoute
+  '/orgs/$orgSlug/members': typeof OrgsOrgSlugMembersRoute
   '/orgs/$orgSlug/projects': typeof OrgsOrgSlugProjectsIndexRoute
   '/orgs/$orgSlug/projects/$projectId/logs': typeof OrgsOrgSlugProjectsProjectIdLogsRoute
   '/orgs/$orgSlug/projects/$projectId/reports': typeof OrgsOrgSlugProjectsProjectIdReportsRoute
@@ -113,8 +129,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/invitations/$token': typeof InvitationsTokenRoute
   '/orgs/$orgSlug': typeof OrgsOrgSlugRouteWithChildren
   '/orgs/': typeof OrgsIndexRoute
+  '/orgs/$orgSlug/members': typeof OrgsOrgSlugMembersRoute
   '/orgs/$orgSlug/projects/$projectId': typeof OrgsOrgSlugProjectsProjectIdRouteWithChildren
   '/orgs/$orgSlug/projects/': typeof OrgsOrgSlugProjectsIndexRoute
   '/orgs/$orgSlug/projects/$projectId/logs': typeof OrgsOrgSlugProjectsProjectIdLogsRoute
@@ -128,8 +146,10 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/register'
+    | '/invitations/$token'
     | '/orgs/$orgSlug'
     | '/orgs/'
+    | '/orgs/$orgSlug/members'
     | '/orgs/$orgSlug/projects/$projectId'
     | '/orgs/$orgSlug/projects/'
     | '/orgs/$orgSlug/projects/$projectId/logs'
@@ -141,8 +161,10 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/register'
+    | '/invitations/$token'
     | '/orgs/$orgSlug'
     | '/orgs'
+    | '/orgs/$orgSlug/members'
     | '/orgs/$orgSlug/projects'
     | '/orgs/$orgSlug/projects/$projectId/logs'
     | '/orgs/$orgSlug/projects/$projectId/reports'
@@ -153,8 +175,10 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/register'
+    | '/invitations/$token'
     | '/orgs/$orgSlug'
     | '/orgs/'
+    | '/orgs/$orgSlug/members'
     | '/orgs/$orgSlug/projects/$projectId'
     | '/orgs/$orgSlug/projects/'
     | '/orgs/$orgSlug/projects/$projectId/logs'
@@ -167,6 +191,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
+  InvitationsTokenRoute: typeof InvitationsTokenRoute
   OrgsOrgSlugRoute: typeof OrgsOrgSlugRouteWithChildren
   OrgsIndexRoute: typeof OrgsIndexRoute
 }
@@ -194,6 +219,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/invitations/$token': {
+      id: '/invitations/$token'
+      path: '/invitations/$token'
+      fullPath: '/invitations/$token'
+      preLoaderRoute: typeof InvitationsTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/orgs/': {
       id: '/orgs/'
       path: '/orgs'
@@ -207,6 +239,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/orgs/$orgSlug'
       preLoaderRoute: typeof OrgsOrgSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/orgs/$orgSlug/members': {
+      id: '/orgs/$orgSlug/members'
+      path: '/members'
+      fullPath: '/orgs/$orgSlug/members'
+      preLoaderRoute: typeof OrgsOrgSlugMembersRouteImport
+      parentRoute: typeof OrgsOrgSlugRoute
     }
     '/orgs/$orgSlug/projects/': {
       id: '/orgs/$orgSlug/projects/'
@@ -278,11 +317,13 @@ const OrgsOrgSlugProjectsProjectIdRouteWithChildren =
   )
 
 interface OrgsOrgSlugRouteChildren {
+  OrgsOrgSlugMembersRoute: typeof OrgsOrgSlugMembersRoute
   OrgsOrgSlugProjectsProjectIdRoute: typeof OrgsOrgSlugProjectsProjectIdRouteWithChildren
   OrgsOrgSlugProjectsIndexRoute: typeof OrgsOrgSlugProjectsIndexRoute
 }
 
 const OrgsOrgSlugRouteChildren: OrgsOrgSlugRouteChildren = {
+  OrgsOrgSlugMembersRoute: OrgsOrgSlugMembersRoute,
   OrgsOrgSlugProjectsProjectIdRoute:
     OrgsOrgSlugProjectsProjectIdRouteWithChildren,
   OrgsOrgSlugProjectsIndexRoute: OrgsOrgSlugProjectsIndexRoute,
@@ -296,6 +337,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
+  InvitationsTokenRoute: InvitationsTokenRoute,
   OrgsOrgSlugRoute: OrgsOrgSlugRouteWithChildren,
   OrgsIndexRoute: OrgsIndexRoute,
 }
