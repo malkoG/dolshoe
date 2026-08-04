@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { projectReferenceSchema } from "../projects/project.contract";
+
 const MAX_EXCEPTION_DEPTH = 16;
 const MAX_STACK_FRAMES = 200;
 const MAX_EXCEPTION_CHILDREN = 20;
@@ -336,6 +338,9 @@ export const errorReportSummarySchema = z
     receivedAt: z.iso.datetime().meta({
       description: "UTC timestamp at which the server first accepted the event.",
     }),
+    project: projectReferenceSchema.meta({
+      description: "Project the report was ingested into, determined by the token that sent it.",
+    }),
     service: serviceSchema.meta({ description: "Service that reported the failure." }),
     runtime: runtimeSchema.meta({ description: "Runtime that reported the failure." }),
     exception: errorReportExceptionSummarySchema,
@@ -365,6 +370,14 @@ export type ErrorReportRequest = z.infer<typeof errorReportRequestSchema>;
 export type ErrorReportReceipt = z.infer<typeof errorReportReceiptSchema>;
 export type SourceLocation = z.infer<typeof sourceLocationSchema>;
 export type ErrorReportExceptionSummary = z.infer<typeof errorReportExceptionSummarySchema>;
+/** Optional `?projectId=` filter on the inbox listing. Omitted means every project. */
+export const errorReportListQuerySchema = z
+  .object({
+    projectId: z.uuid("projectId must be a UUID.").optional(),
+  })
+  .strict();
+
+export type ErrorReportListQuery = z.infer<typeof errorReportListQuerySchema>;
 export type ErrorReportSummary = z.infer<typeof errorReportSummarySchema>;
 export type ErrorReportListResponse = z.infer<typeof errorReportListResponseSchema>;
 

@@ -15,10 +15,13 @@ function postgresTextArray(values: readonly string[]): Prisma.Sql {
   return Prisma.sql`ARRAY[${Prisma.join(values)}]::text[]`;
 }
 
-function recordValues(schemaVersion: number, record: LogRecord): Prisma.Sql {
+function recordValues(projectId: string, schemaVersion: number, record: LogRecord): Prisma.Sql {
   const attributes = record.attributes == null ? null : JSON.stringify(record.attributes);
 
+  // This positional VALUES list has no named-column safety net: every change
+  // here needs the matching change to the column list in `store`.
   return Prisma.sql`(
+    ${projectId}::uuid,
     ${record.eventId}::uuid,
     ${schemaVersion},
     ${new Date(record.occurredAt)},
@@ -43,10 +46,15 @@ function recordValues(schemaVersion: number, record: LogRecord): Prisma.Sql {
 export class LogRecordRepository {
   constructor(private readonly database: PrismaService) {}
 
-  async store(schemaVersion: number, records: readonly LogRecord[]): Promise<LogRecordReceipt[]> {
-    const values = records.map((record) => recordValues(schemaVersion, record));
+  async store(
+    projectId: string,
+    schemaVersion: number,
+    records: readonly LogRecord[],
+  ): Promise<LogRecordReceipt[]> {
+    const values = records.map((record) => recordValues(projectId, schemaVersion, record));
     const stored = await this.database.$queryRaw<StoredLogRecordRow[]>(Prisma.sql`
       INSERT INTO "LogRecord" (
+        "projectId",
         "eventId",
         "schemaVersion",
         "occurredAt",
@@ -66,7 +74,7 @@ export class LogRecordRepository {
         "attributes"
       )
       VALUES ${Prisma.join(values)}
-      ON CONFLICT ("eventId") DO UPDATE
+      ON CONFLICT ("projectId", "eventId") DO UPDATE
         SET "eventId" = EXCLUDED."eventId"
       RETURNING "eventId", "id", "receivedAt"
     `);

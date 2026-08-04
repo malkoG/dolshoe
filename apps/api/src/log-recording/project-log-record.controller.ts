@@ -4,6 +4,8 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiParam,
   ApiPayloadTooLargeResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -20,36 +22,40 @@ import {
 import { logRecordBatchExample } from "./log-record.examples";
 import { LogRecordService } from "./log-record.service";
 
+/**
+ * The project-scoped log ingestion route a DSN points at.
+ *
+ * @remarks
+ * As with error reports, the path addresses a project and the token authorizes
+ * one; `IngestAuthGuard` refuses the request when they disagree.
+ */
 @ApiTags("Log recording")
 @ApiBearerAuth("ingest-token")
-@ApiUnauthorizedResponse({ description: "The ingestion bearer token is missing or invalid." })
-@UseGuards(IngestAuthGuard)
-@Controller({ path: "log-records", version: "1" })
-export class LogRecordController {
+@ApiParam({ name: "projectId", description: "The project the presented token belongs to." })
+@Controller({ path: "projects/:projectId/log-records", version: "1" })
+export class ProjectLogRecordController {
   constructor(private readonly logRecordService: LogRecordService) {}
 
   /**
-   * Receive an atomic batch of structured log records.
+   * Receive an atomic batch of structured log records for the project named in the path.
    *
    * @remarks
    * A batch contains up to 100 records. Repeating eventIds is safe and returns each record's
    * original receipt. Validation failure rejects the entire batch.
    */
   @Post()
+  @UseGuards(IngestAuthGuard)
   @ApiBody({
     schema: { $ref: "#/components/schemas/LogRecordBatchRequestV1" },
-    examples: {
-      logtape: {
-        summary: "LogTape payment record",
-        value: logRecordBatchExample,
-      },
-    },
+    examples: { logtape: { summary: "LogTape payment record", value: logRecordBatchExample } },
   })
   @ApiCreatedResponse({
     description: "The records were accepted, or prior receipts were found for their eventIds.",
     schema: { $ref: "#/components/schemas/LogRecordBatchReceiptV1" },
   })
   @ApiBadRequestResponse({ description: "The body does not satisfy the log record contract." })
+  @ApiUnauthorizedResponse({ description: "The ingestion bearer token is missing or invalid." })
+  @ApiForbiddenResponse({ description: "The token does not belong to the project in the path." })
   @ApiPayloadTooLargeResponse({ description: "The JSON request body exceeds 1 MiB." })
   receive(
     @Body(

@@ -1,19 +1,23 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 
 import { IngestAuthGuard } from "../ingestion/ingest-auth.guard";
+import { IngestProject, IngestedProject } from "../ingestion/ingested-project";
 import {
+  ErrorReportListQuery,
   ErrorReportListResponse,
   ErrorReportReceipt,
   ErrorReportRequest,
+  errorReportListQuerySchema,
   errorReportRequestSchema,
 } from "./error-report.contract";
 import { nodeErrorReportExample, pythonErrorReportExample } from "./error-report.examples";
@@ -33,12 +37,21 @@ export class ErrorReportController {
    * viewer-auth system exists yet, so this read endpoint is not gated by the ingestion guard.
    */
   @Get()
+  @ApiQuery({
+    name: "projectId",
+    required: false,
+    description: "Limit the listing to one project. Omit it to list every project.",
+  })
   @ApiOkResponse({
     description: "Newest-first error report summaries, bounded to the documented limit.",
     schema: { $ref: "#/components/schemas/ErrorReportListResponseV1" },
   })
-  list(): Promise<ErrorReportListResponse> {
-    return this.errorReportService.list();
+  @ApiBadRequestResponse({ description: "The projectId query parameter is not a UUID." })
+  list(
+    @Query(new ZodValidationPipe(errorReportListQuerySchema, "Invalid error report list query."))
+    query: ErrorReportListQuery,
+  ): Promise<ErrorReportListResponse> {
+    return this.errorReportService.list(query);
   }
 
   /**
@@ -76,7 +89,8 @@ export class ErrorReportController {
   })
   receive(
     @Body(new ZodValidationPipe(errorReportRequestSchema)) report: ErrorReportRequest,
+    @IngestProject() project: IngestedProject,
   ): Promise<ErrorReportReceipt> {
-    return this.errorReportService.receive(report);
+    return this.errorReportService.receive(report, project.id);
   }
 }

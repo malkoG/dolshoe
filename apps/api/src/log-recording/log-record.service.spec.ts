@@ -2,6 +2,8 @@ import { logRecordBatchExample, logRecordExample } from "./log-record.examples";
 import { LogRecordRepository } from "./log-record.repository";
 import { LogRecordService } from "./log-record.service";
 
+const PROJECT_ID = "3f1d0a4c-6b2e-4f7a-9c5d-8e1b2a3c4d5e";
+
 describe("LogRecordService", () => {
   it("stores one validated batch and returns ordered receipts", async () => {
     const receipts = [
@@ -15,9 +17,9 @@ describe("LogRecordService", () => {
     const repository = { store } as unknown as LogRecordRepository;
     const service = new LogRecordService(repository);
 
-    await expect(service.receive(logRecordBatchExample)).resolves.toEqual({
+    await expect(service.receive(logRecordBatchExample, PROJECT_ID)).resolves.toEqual({
       records: receipts,
     });
-    expect(store).toHaveBeenCalledWith(1, logRecordBatchExample.records);
+    expect(store).toHaveBeenCalledWith(PROJECT_ID, 1, logRecordBatchExample.records);
   });
 });

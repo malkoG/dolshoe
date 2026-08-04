@@ -4,6 +4,7 @@ import { PrismaService } from "../database/prisma.service";
 import { Prisma } from "../generated/prisma/client";
 import {
   ERROR_REPORT_LIST_LIMIT,
+  ErrorReportListQuery,
   ErrorReportListResponse,
   ErrorReportReceipt,
   ErrorReportRequest,
@@ -18,13 +19,16 @@ function asPrismaJson(value: unknown): Prisma.InputJsonValue {
 export class ErrorReportService {
   constructor(private readonly database: PrismaService) {}
 
-  async receive(report: ErrorReportRequest): Promise<ErrorReportReceipt> {
+  async receive(report: ErrorReportRequest, projectId: string): Promise<ErrorReportReceipt> {
     const stored = await this.database.errorReport.upsert({
+      // An eventId is only an idempotency key within its own project, so a
+      // replay keeps the identity it was first stored under.
       where: {
-        eventId: report.eventId,
+        projectId_eventId: { projectId, eventId: report.eventId },
       },
       update: {},
       create: {
+        projectId,
         eventId: report.eventId,
         schemaVersion: report.schemaVersion,
         occurredAt: new Date(report.occurredAt),
@@ -54,8 +58,11 @@ export class ErrorReportService {
     };
   }
 
-  async list(): Promise<ErrorReportListResponse> {
+  async list(query: ErrorReportListQuery = {}): Promise<ErrorReportListResponse> {
     const rows = await this.database.errorReport.findMany({
+      // Filtered listings are served by [projectId, receivedAt DESC]; the
+      // unfiltered one by [receivedAt DESC].
+      ...(query.projectId == null ? {} : { where: { projectId: query.projectId } }),
       orderBy: { receivedAt: "desc" },
       take: ERROR_REPORT_LIST_LIMIT,
       select: {
@@ -69,6 +76,7 @@ export class ErrorReportService {
         runtimeName: true,
         runtimeVersion: true,
         exception: true,
+        project: { select: { id: true, slug: true, name: true } },
       },
     });
 
@@ -78,6 +86,7 @@ export class ErrorReportService {
         eventId: row.eventId,
         occurredAt: row.occurredAt.toISOString(),
         receivedAt: row.receivedAt.toISOString(),
+        project: row.project,
         service: {
           name: row.serviceName,
           environment: row.environment ?? undefined,

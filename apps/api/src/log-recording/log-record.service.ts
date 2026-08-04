@@ -7,9 +7,9 @@ import { LogRecordRepository } from "./log-record.repository";
 export class LogRecordService {
   constructor(private readonly logRecords: LogRecordRepository) {}
 
-  async receive(batch: LogRecordBatchRequest): Promise<LogRecordBatchReceipt> {
+  async receive(batch: LogRecordBatchRequest, projectId: string): Promise<LogRecordBatchReceipt> {
     return {
-      records: await this.logRecords.store(batch.schemaVersion, batch.records),
+      records: await this.logRecords.store(projectId, batch.schemaVersion, batch.records),
     };
   }
 }
