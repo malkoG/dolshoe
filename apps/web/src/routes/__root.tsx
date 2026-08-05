@@ -1,3 +1,4 @@
+import { Button } from "@dolshoe/ui/components/ui/button";
 import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 
 import { SIGNED_OUT_SESSION, fetchSession } from "../lib/session";
@@ -60,11 +61,17 @@ export const Route = createRootRouteWithContext<RootContext>()({
 
 function NotFound() {
   return (
-    <main className="not-found">
-      <span>404</span>
-      <h1>That page is not in the report.</h1>
-      <p>The link may be out of date, or the page may have moved.</p>
-      <a href="/">Return to Dolshoe</a>
+    <main className="grid min-h-screen place-content-center px-5 py-10 text-center">
+      <span className="font-mono text-xs font-medium text-brand">404</span>
+      <h1 className="mx-auto mt-3 mb-2 max-w-lg text-4xl leading-[1.06] font-extrabold tracking-[-0.05em] text-balance sm:text-5xl">
+        That page is not in the report.
+      </h1>
+      <p className="mb-6 text-[13px] text-muted-foreground">
+        The link may be out of date, or the page may have moved.
+      </p>
+      <Button asChild className="mx-auto w-fit">
+        <a href="/">Return to Dolshoe</a>
+      </Button>
     </main>
   );
 }

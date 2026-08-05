@@ -1,4 +1,9 @@
-import { Loader2, TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@dolshoe/ui/components/ui/alert";
+import { Button } from "@dolshoe/ui/components/ui/button";
+import { Input } from "@dolshoe/ui/components/ui/input";
+import { Label } from "@dolshoe/ui/components/ui/label";
+import { Spinner } from "@dolshoe/ui/components/ui/spinner";
+import { TriangleAlert } from "lucide-react";
 import { useState } from "react";
 
 import { SignInRefused, mockSignIn } from "../lib/session";
@@ -65,26 +70,31 @@ export function MockSignIn({
   }
 
   return (
-    <form className="mock-login" onSubmit={(event) => void submit(event)}>
-      <p className="mock-login-heading">
-        <TriangleAlert size={13} />
+    // Dashed rather than solid, so it reads as scaffolding bolted onto the page
+    // rather than as part of it.
+    <form
+      className="flex flex-col gap-3 rounded-xl border border-dashed border-input bg-muted p-5"
+      onSubmit={(event) => void submit(event)}
+    >
+      <p className="flex items-center gap-2 font-mono text-[10px] font-medium tracking-[0.08em] text-warning uppercase">
+        <TriangleAlert className="size-3.5" />
         Development sign-in
       </p>
 
-      <p className="auth-note">
-        This instance runs with <code>MOCK_LOGIN</code>. Whatever login you type is who you become —
-        GitHub is not asked, and nothing is verified.
+      <p className="text-[13px] text-muted-foreground">
+        This instance runs with <code className="font-mono">MOCK_LOGIN</code>. Whatever login you
+        type is who you become — GitHub is not asked, and nothing is verified.
       </p>
 
       {error != null && (
-        <p className="auth-error" role="alert">
-          {error}
-        </p>
+        <Alert role="alert" variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      <label className="auth-field" htmlFor="mock-login">
-        GitHub login
-        <input
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="mock-login">GitHub login</Label>
+        <Input
           id="mock-login"
           name="login"
           value={login}
@@ -95,16 +105,12 @@ export function MockSignIn({
           maxLength={MAXIMUM_LOGIN_LENGTH}
           required
         />
-      </label>
+      </div>
 
-      <button
-        className="primary-button"
-        disabled={submitting || login.trim().length === 0}
-        type="submit"
-      >
-        {submitting && <Loader2 className="spin" size={14} />}
+      <Button disabled={submitting || login.trim().length === 0} type="submit">
+        {submitting && <Spinner />}
         Sign in as this account
-      </button>
+      </Button>
     </form>
   );
 }
