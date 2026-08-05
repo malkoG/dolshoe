@@ -8,10 +8,11 @@ import {
   PanelSummary,
 } from "@dolshoe/ui/components/panel";
 import { SearchField } from "@dolshoe/ui/components/search-field";
+import { Button } from "@dolshoe/ui/components/ui/button";
 import { Checkbox } from "@dolshoe/ui/components/ui/checkbox";
 import { Label } from "@dolshoe/ui/components/ui/label";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Clock3, Search, Waypoints } from "lucide-react";
+import { ChevronRight, Clock3, KeyRound, Search, Waypoints } from "lucide-react";
 import { useMemo } from "react";
 
 import { RefreshButton } from "../components/refresh-button";
@@ -124,7 +125,18 @@ function Traces() {
             kind="empty"
             icon={Waypoints}
             title="No traces yet"
-            description="Spans exported to this project with OTLP will show up here."
+            description="Spans reach this project as OTLP over the same DSN, from an OpenTelemetry SDK, a collector, or a reporter's own spans. Nothing has exported one yet."
+            action={
+              <Button asChild size="sm" variant="outline">
+                <Link
+                  params={{ orgSlug, projectId }}
+                  to="/orgs/$orgSlug/projects/$projectId/tokens"
+                >
+                  <KeyRound />
+                  Set up reporting
+                </Link>
+              </Button>
+            }
           />
         )}
 

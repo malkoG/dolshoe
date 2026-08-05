@@ -9,6 +9,7 @@ import {
 } from "@dolshoe/ui/components/panel";
 import { SearchField } from "@dolshoe/ui/components/search-field";
 import { StatusBadge } from "@dolshoe/ui/components/status-badge";
+import { Button } from "@dolshoe/ui/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -16,8 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dolshoe/ui/components/ui/select";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Clock3, ScrollText, Search } from "lucide-react";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Clock3, KeyRound, ScrollText, Search } from "lucide-react";
 import { useMemo } from "react";
 
 import { RefreshButton } from "../components/refresh-button";
@@ -161,8 +162,21 @@ function Logs() {
             title={level === "all" ? "No log records yet" : `No ${level} records`}
             description={
               level === "all"
-                ? "Structured logs sent with this project's tokens will show up here."
+                ? "Structured logs travel over the same DSN a reporter already uses. Nothing has sent one to this project yet."
                 : "Try a different severity."
+            }
+            action={
+              level === "all" && (
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    params={{ orgSlug, projectId }}
+                    to="/orgs/$orgSlug/projects/$projectId/tokens"
+                  >
+                    <KeyRound />
+                    Set up reporting
+                  </Link>
+                </Button>
+              )
             }
           />
         )}

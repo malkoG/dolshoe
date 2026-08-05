@@ -26,9 +26,10 @@ import {
   TableRow,
 } from "@dolshoe/ui/components/ui/table";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Clock3, Inbox, Search, SlidersHorizontal } from "lucide-react";
+import { Clock3, Search, SlidersHorizontal } from "lucide-react";
 import { useMemo } from "react";
 
+import { ProjectSetup } from "../components/project-setup";
 import { RefreshButton } from "../components/refresh-button";
 import { describeError } from "../lib/api-request";
 import { fetchErrorReports } from "../lib/error-reports";
@@ -152,6 +153,22 @@ function Reports() {
 
   const hasActiveFilters = query.length > 0 || environment !== "all";
 
+  /*
+    A project with no reports at all is almost never a project being read — it
+    is a project being set up. It gets instructions instead of an empty table,
+    and they poll, so the first report to arrive puts the list back.
+  */
+  if (state.status === "ready" && reports.length === 0) {
+    return (
+      <ProjectSetup
+        checking={refreshing}
+        onCheck={reload}
+        orgSlug={orgSlug}
+        projectId={projectId}
+      />
+    );
+  }
+
   return (
     <Panel>
       <PanelBar>
@@ -210,16 +227,7 @@ function Reports() {
           />
         )}
 
-        {state.status === "ready" && reports.length === 0 && (
-          <DataState
-            kind="empty"
-            icon={Inbox}
-            title="No error reports yet"
-            description="Once this project's reporters send a failure, it will show up here."
-          />
-        )}
-
-        {state.status === "ready" && reports.length > 0 && filteredReports.length === 0 && (
+        {state.status === "ready" && filteredReports.length === 0 && (
           <DataState
             kind="empty"
             icon={Search}

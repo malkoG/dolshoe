@@ -29,6 +29,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { KeyRound, Plus } from "lucide-react";
 import { useState } from "react";
 
+import { ReporterSnippet } from "../components/reporter-snippet";
 import { describeError } from "../lib/api-request";
 import { buildProjectDsn } from "../lib/dsn";
 import { dateTimeFormatter, pluralize } from "../lib/format";
@@ -303,6 +304,22 @@ function Tokens() {
             tokens.map((token) => (
               <TokenRow administers={administers} key={token.id} onRevoke={revoke} token={token} />
             ))}
+        </div>
+      </Panel>
+
+      {/*
+        Below the tokens rather than on a page of its own: the DSN and the code
+        that consumes it are one task, and the moment somebody is looking at
+        this screen is the moment they are doing it. It stays after the first
+        report arrives, because the second application to be wired up needs it
+        just as much as the first did.
+      */}
+      <Panel className="mt-4">
+        <PanelBar>
+          <PanelSummary>Reporting from your application</PanelSummary>
+        </PanelBar>
+        <div className="p-5">
+          <ReporterSnippet />
         </div>
       </Panel>
     </>
