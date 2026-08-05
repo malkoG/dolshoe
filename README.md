@@ -376,6 +376,35 @@ Supplying `endpoint`, `logEndpoint`, `spanEndpoint`, or an `authorization`
 header explicitly overrides whatever the DSN derives, which is the escape hatch
 for deployments that route ingestion somewhere unusual.
 
+## Reading an error report
+
+A project's Reports screen lists what arrived, newest first. Opening one shows
+the exception it stored in full:
+
+- **Frames, innermost first**, so the top of the screen is the line that failed
+  rather than the process entry point.
+- **Runtime and dependency frames folded**, one row per run — "14 runtime
+  frames", "3 frames in `express`" — and expandable. They are in the payload
+  because a failure usually happens a few layers inside one of them; they start
+  closed because "where did _we_ go wrong" is the first question almost
+  everybody has.
+- **The whole chain**: `cause`, Python's implicit `context`, and each member of
+  an `ExceptionGroup` or `AggregateError`, each with its own frames, labelled
+  with why it is on screen.
+- **The failing line in its surroundings**, numbered from the frame's own line
+  so the block matches the file open in an editor, with the line that failed
+  picked out.
+- **The raw stack trace**, behind a disclosure, exactly as the runtime formatted
+  it — the reporter's structured frames are a reading of that text, and the text
+  itself stays authoritative.
+
+The list endpoint returns a summary; frames come from
+`GET /api/v1/orgs/<orgSlug>/projects/<projectId>/error-reports/<reportId>`, one
+report at a time, because fifty reports carrying two hundred frames each is not
+a response anybody wants. Stored JSON is read defensively on the way out: a
+report written by an older or newer reporter renders with whatever it does have
+rather than failing.
+
 ## Traces and spans
 
 A **span** is one operation inside a request: the incoming HTTP call, the
@@ -460,6 +489,55 @@ Use `@dolshoe/deno` or `@dolshoe/bun` in those runtimes. Global uncaught error
 capture is enabled by default and can be disabled with
 `captureUnhandledErrors: false`. Call `close()` during graceful application
 shutdown to remove runtime hooks and flush queued reports and log records.
+
+### How much stack you get
+
+A JavaScript runtime keeps ten frames on an `Error` by default, and that is
+where a stack stops no matter what anything downstream allows. Ten frames is
+usually the framework that called the application and nothing underneath it, so
+`init()` raises `Error.stackTraceLimit` to 200 — the same budget the ingestion
+contract and the Python reporter already work to — and `close()` puts back
+whatever was there before:
+
+```ts
+Dolshoe.init({ dsn: process.env.DOLSHOE_DSN, service, stackFrameLimit: 50 });
+```
+
+Collecting more frames costs a little on every `Error` an application
+constructs, reported or not. Lower the number if that matters, or pass
+`stackFrameLimit: false` to leave the global alone entirely.
+
+Frames in the application's own code also carry the source around the line that
+failed — the line itself, plus up to five lines either side — so a report reads
+like the file rather than like a list of coordinates. Reading is synchronous
+(capture usually happens while a process is going down, and there may be no next
+turn of the event loop), cached, and silent about every failure: a bundled or
+deleted file simply produces a frame without context.
+
+```ts
+Dolshoe.init({ dsn: process.env.DOLSHOE_DSN, service, sourceContext: false });
+```
+
+Turn it off where the deployed source is not the reported source — a minified
+bundle, an image that ships without its sources — because the lines would only
+mislead. Only application frames are read: a failure inside `node_modules` is
+rarely diagnosed by reading that library, and two hundred frames of context is a
+payload nobody wants.
+
+> [!NOTE]
+> On Deno this needs `--allow-read`. Without it the reporter still works and
+> reports frames without context, rather than asking for a permission the
+> process was deliberately not given.
+
+Every frame is classified as `app`, `dependency`, or `runtime` — from
+`node:`, `bun:`, `ext:` and `deno:` specifiers, from `node_modules`, and from
+`jsr:`, `npm:` and `https:` module URLs. The older `inApp` boolean is still sent
+and still means `origin === "app"`; `origin` exists because a boolean cannot say
+whether a frame is the runtime's own standard library or a dependency the
+application chose, and those two fold differently when somebody is reading a
+trace. A frame the parser cannot place — `at async Promise.all (index 0)`, an
+anonymous frame — is kept with whatever text it had rather than dropped, so the
+distance between two frames on screen is the real one.
 
 `captureLog()` is exposed consistently by the Node.js, Deno, and Bun packages.
 It accepts the levels `trace`, `debug`, `info`, `warning`, `error`, and `fatal`.
@@ -640,6 +718,18 @@ Python fills in fields the JavaScript reporters cannot: `moduleName` and
 `children` from an `ExceptionGroup`. Frames are ordered innermost first, so a
 stored report's location is the line that failed rather than the process entry
 point.
+
+A traceback already carries every frame, so there is no equivalent of
+`stackFrameLimit` here — the innermost 200 are kept when there are more, which
+is the end a `RecursionError` keeps its answer at. Source context comes from
+`linecache`, which already has the file open for `sourceLine`, so it costs a
+slice rather than another read; the surrounding lines keep their indentation,
+which is what shows which block the failure sits in. `origin` is filled the same
+way it is in JavaScript, from `sysconfig` paths rather than module specifiers:
+`site-packages` and `purelib` are a `dependency`, the interpreter's `stdlib` is
+`runtime`, and everything else is the application. Dependencies are matched
+first, because a virtualenv normally puts `site-packages` _inside_ the standard
+library's own prefix.
 
 ### Testing your instrumentation
 
