@@ -42,5 +42,19 @@ pnpm sdk:python:lint
 pnpm sdk:python:typecheck
 ```
 
-Unit tests must not open a socket. Every transport is injectable; the fakes in
-`tests/conftest.py` are the pattern.
+Unit tests must not open a socket. Every transport is injectable, and
+`dolshoe.testing` — the same surface applications use to test their own
+instrumentation — is the shortest way to record what was reported:
+
+```python
+from dolshoe.testing import capture_telemetry
+
+with capture_telemetry() as captured:
+    handle_request()
+
+assert captured.span_tree() == [("POST /orders", [("price basket", [])])]
+```
+
+Snapshots are written with `inline-snapshot`; run
+`uv run pytest --inline-snapshot=fix` to update them, and read the diff before
+committing it.

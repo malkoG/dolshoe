@@ -641,8 +641,38 @@ Python fills in fields the JavaScript reporters cannot: `moduleName` and
 stored report's location is the line that failed rather than the process entry
 point.
 
+### Testing your instrumentation
+
+Whether an application reports what it should is the application's question,
+and answering it should not mean writing a fake transport in every project.
+`dolshoe.testing` records instead of sending:
+
+```python
+from dolshoe.testing import capture_telemetry
+
+def test_orders_are_measured():
+    with capture_telemetry() as captured:
+        handle_request()
+
+    assert captured.span_tree() == [("POST /orders", [("price basket", [])])]
+```
+
+Under pytest the same thing arrives as a `captured_telemetry` fixture, which
+needs no configuration — the package registers itself as a plugin, so
+installing it is enough.
+
+Ids and timestamps are sequential by default, which is what makes it worth
+comparing a whole payload rather than a hand-picked field: an assertion against
+a value you can read also catches the fields nobody thought to name, and the
+ingestion contract is `.strict()` about exactly those. Pass
+`deterministic=False` when the test is specifically about ids being unique.
+Reading `captured.spans`, `.records`, or `.reports` waits for the delivery
+thread first, so a test cannot pass or fail on timing.
+
 `examples/python-frameworks/` has the whole thing wired into Django and
-FastAPI, including where each framework needs a hand.
+FastAPI, including where each framework needs a hand. Its own tests use
+`dolshoe.testing` and nothing private — if the examples needed inside help to
+be testable, so would everybody else.
 
 ## Message queue
 

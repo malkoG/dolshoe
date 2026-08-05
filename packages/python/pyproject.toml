@@ -18,12 +18,17 @@ dependencies = []
 # an accidental `uv publish` is refused rather than landing on PyPI.
 classifiers = ["Private :: Do Not Upload"]
 
+# Makes `captured_telemetry` available to any project that installs this
+# package, without them adding a plugin to their pytest configuration.
+[project.entry-points.pytest11]
+dolshoe = "dolshoe.testing"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
-dev = ["mypy>=1.14", "pytest>=8.3", "ruff>=0.9"]
+dev = ["inline-snapshot>=0.14", "mypy>=1.14", "pytest>=8.3", "ruff>=0.9"]
 
 [tool.uv]
 # `mise.toml` pins every other toolchain in this repository, and it pins Python
@@ -32,6 +37,11 @@ dev = ["mypy>=1.14", "pytest>=8.3", "ruff>=0.9"]
 # disagree about which Python this package is tested on. Restricting uv to
 # interpreters already on PATH keeps mise the single pin point.
 python-preference = "only-system"
+
+[tool.inline-snapshot]
+# So `pytest --inline-snapshot=fix` writes snapshots the formatter already
+# agrees with, rather than leaving a diff for `ruff format` to undo.
+format-command = "ruff format --stdin-filename {filename} -"
 
 [tool.ruff]
 line-length = 100

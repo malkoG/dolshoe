@@ -78,6 +78,8 @@ class Client:
         before_send_span: Callable[[FinishedSpan], FinishedSpan | None] | None = None,
         on_transport_error: Callable[[str, BaseException, list[Any]], None] | None = None,
         generate_event_id: Callable[[], str] | None = None,
+        generate_trace_id: Callable[[], str] | None = None,
+        generate_span_id: Callable[[], str] | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         if not service.get("name", "").strip():
@@ -105,6 +107,8 @@ class Client:
         self._before_send_log_record = before_send_log_record
         self._before_send_span = before_send_span
         self._generate_event_id = generate_event_id or new_event_id
+        self._generate_trace_id = generate_trace_id
+        self._generate_span_id = generate_span_id
         self._now = now
         self._closed = False
 
@@ -332,6 +336,8 @@ class Client:
             start_time=start_time,
             on_end=self._finish_span,
             on_exception=report,
+            generate_trace_id=self._generate_trace_id,
+            generate_span_id=self._generate_span_id,
         )
 
     @contextmanager

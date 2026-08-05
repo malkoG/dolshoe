@@ -49,11 +49,19 @@ class Span:
         start_time: datetime | float | None = None,
         on_end: Callable[[FinishedSpan], None],
         on_exception: Callable[[object, TraceContext], None],
+        generate_trace_id: Callable[[], str] | None = None,
+        generate_span_id: Callable[[], str] | None = None,
     ) -> None:
+        # Injectable so a test can make ids predictable and compare a whole
+        # payload at once. Random ids force a test to assert field by field,
+        # which only ever checks the fields somebody thought to name.
+        make_trace_id = generate_trace_id or new_trace_id
+        make_span_id = generate_span_id or new_span_id
+
         # A child inherits its parent's trace, which is what makes the spans of
         # one request a tree rather than a list.
-        self.trace_id = parent["traceId"] if parent and "traceId" in parent else new_trace_id()
-        self.span_id = new_span_id()
+        self.trace_id = parent["traceId"] if parent and "traceId" in parent else make_trace_id()
+        self.span_id = make_span_id()
         self.parent_span_id = parent.get("spanId") if parent else None
 
         self._name = clip(name, MAX_SPAN_NAME_LENGTH)
