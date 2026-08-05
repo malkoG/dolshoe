@@ -1,106 +1,92 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { DataState } from "@dolshoe/ui/components/data-state";
+import { Panel, PanelBar, PanelControls, PanelSummary } from "@dolshoe/ui/components/panel";
+import { SecretField } from "@dolshoe/ui/components/secret-field";
+import { StatusBadge } from "@dolshoe/ui/components/status-badge";
 import {
-  AlertTriangle,
-  Check,
-  Copy,
-  KeyRound,
-  Loader2,
-  Plus,
-  RefreshCw,
-  ShieldAlert,
-} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@dolshoe/ui/components/ui/alert-dialog";
+import { Button } from "@dolshoe/ui/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@dolshoe/ui/components/ui/dialog";
+import { Input } from "@dolshoe/ui/components/ui/input";
+import { Label } from "@dolshoe/ui/components/ui/label";
+import { Spinner } from "@dolshoe/ui/components/ui/spinner";
+import { createFileRoute } from "@tanstack/react-router";
+import { KeyRound, Plus } from "lucide-react";
+import { useState } from "react";
 
-import { ApiError } from "../lib/api-request";
+import { describeError } from "../lib/api-request";
 import { buildProjectDsn } from "../lib/dsn";
-import { dateTimeFormatter } from "../lib/format";
+import { dateTimeFormatter, pluralize } from "../lib/format";
 import { fetchProjectTokens, issueProjectToken, revokeProjectToken } from "../lib/projects";
 import type { IssuedProjectToken, ProjectToken } from "../lib/projects";
+import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/tokens")({
   component: Tokens,
 });
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; error: unknown }
-  | { status: "ready"; tokens: ProjectToken[] };
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Something went wrong while loading ingestion tokens.";
-}
-
 /**
- * Copies to the clipboard, falling back to selecting the text. The Clipboard API
- * is unavailable on insecure origins, which a self-hosted instance served over
- * plain HTTP genuinely is.
+ * The one moment a token is readable.
+ *
+ * @remarks
+ * A modal rather than a panel on the page, which is the point: Dolshoe keeps
+ * only a hash, so this is genuinely the last time anyone can read the value.
+ * Dismissal is deliberately a single explicit button — no backdrop click, no
+ * Escape — so the secret is not lost to a stray keystroke.
  */
-function CopyButton({ label, value }: Readonly<{ label: string; value: string }>) {
-  const [copied, setCopied] = useState(false);
-  const [failed, setFailed] = useState(false);
-
-  async function copy(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setFailed(false);
-      setTimeout(() => setCopied(false), 2_000);
-    } catch {
-      setFailed(true);
-    }
-  }
-
-  return (
-    <button className="copy-button" onClick={() => void copy()} type="button">
-      {copied ? <Check size={13} /> : <Copy size={13} />}
-      {failed ? "Select and copy manually" : copied ? "Copied" : label}
-    </button>
-  );
-}
-
-function TokenReveal({
+function TokenRevealDialog({
   issued,
   onDismiss,
   projectId,
 }: Readonly<{ issued: IssuedProjectToken; onDismiss: () => void; projectId: string }>) {
   const dsn = buildProjectDsn(projectId, issued.token);
-  const dsnRef = useRef<HTMLElement>(null);
 
   return (
-    <div className="token-reveal" role="alert">
-      <div className="token-reveal-heading">
-        <ShieldAlert size={16} />
-        <strong>Copy this now — it will not be shown again</strong>
-      </div>
-      <p>
-        Dolshoe stores only a hash of this token, so it cannot show it to you a second time. A DSN
-        contains a live credential: treat it like a password.
-      </p>
+    <Dialog onOpenChange={(open) => !open && onDismiss()} open>
+      <DialogContent
+        className="sm:max-w-2xl"
+        showCloseButton={false}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle>Copy this now — it will not be shown again</DialogTitle>
+          <DialogDescription>
+            Dolshoe stores only a hash of this token, so it cannot show it to you a second time. A
+            DSN contains a live credential: treat it like a password.
+          </DialogDescription>
+        </DialogHeader>
 
-      <label className="token-field">
-        <span>DSN</span>
-        <code ref={dsnRef} className="token-value">
-          {dsn}
-        </code>
-        <CopyButton label="Copy DSN" value={dsn} />
-      </label>
-      <p className="token-hint">
-        Pass it as <code>Dolshoe.init(&#123; dsn &#125;)</code>. If your applications reach Dolshoe
-        on a different address than this browser does, change the host.
-      </p>
+        <SecretField copyLabel="Copy DSN" label="DSN" value={dsn} />
+        <p className="text-[11px] text-muted-foreground">
+          Pass it as <code className="font-mono">Dolshoe.init(&#123; dsn &#125;)</code>. If your
+          applications reach Dolshoe on a different address than this browser does, change the host.
+        </p>
 
-      <label className="token-field">
-        <span>Token</span>
-        <code className="token-value">{issued.token}</code>
-        <CopyButton label="Copy token" value={issued.token} />
-      </label>
+        <SecretField copyLabel="Copy token" label="Token" value={issued.token} />
 
-      <button className="primary-button" onClick={onDismiss} type="button">
-        I've stored it
-      </button>
-    </div>
+        <DialogFooter>
+          <Button onClick={onDismiss} type="button">
+            I've stored it
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -108,7 +94,6 @@ function TokenRow({
   onRevoke,
   token,
 }: Readonly<{ onRevoke: (tokenId: string) => Promise<void>; token: ProjectToken }>) {
-  const [confirming, setConfirming] = useState(false);
   const [revoking, setRevoking] = useState(false);
 
   async function revoke(): Promise<void> {
@@ -117,50 +102,58 @@ function TokenRow({
       await onRevoke(token.id);
     } finally {
       setRevoking(false);
-      setConfirming(false);
     }
   }
 
   return (
-    <div className="token-row">
-      <div>
-        <strong>{token.name}</strong>
-        <span className="token-prefix">dsh_{token.prefix}…</span>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-4 last:border-b-0">
+      <div className="min-w-0">
+        <strong className="block truncate text-[13px] font-bold">{token.name}</strong>
+        <span className="font-mono text-[10px] text-muted-foreground">dsh_{token.prefix}…</span>
       </div>
-      <div className="token-meta">
+
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
         <span>Created {dateTimeFormatter.format(new Date(token.createdAt))}</span>
-        <span className="meta-separator">·</span>
+        <span aria-hidden="true">·</span>
         <span>
           {token.lastUsedAt == null
             ? "Never used"
             : `Last used ${dateTimeFormatter.format(new Date(token.lastUsedAt))}`}
         </span>
       </div>
+
       {token.revokedAt == null ? (
-        confirming ? (
-          <span className="token-confirm">
-            <button
-              className="danger-button"
-              disabled={revoking}
-              onClick={() => void revoke()}
-              type="button"
-            >
-              {revoking && <Loader2 className="spin" size={12} />}
-              Confirm revoke
-            </button>
-            <button className="ghost-button" onClick={() => setConfirming(false)} type="button">
-              Keep
-            </button>
-          </span>
-        ) : (
-          <button className="ghost-button" onClick={() => setConfirming(true)} type="button">
-            Revoke
-          </button>
-        )
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button size="sm" type="button" variant="outline">
+              Revoke
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revoke “{token.name}”?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Anything still reporting with this token stops being accepted immediately. This
+                cannot be undone — issue a new token to replace it.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={revoking}
+                onClick={() => void revoke()}
+                variant="destructive"
+              >
+                {revoking && <Spinner />}
+                Revoke token
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       ) : (
-        <span className="token-badge token-badge-revoked">
+        <StatusBadge tone="danger">
           Revoked {dateTimeFormatter.format(new Date(token.revokedAt))}
-        </span>
+        </StatusBadge>
       )}
     </div>
   );
@@ -168,33 +161,16 @@ function TokenRow({
 
 function Tokens() {
   const { orgSlug, projectId } = Route.useParams();
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [reloadToken, setReloadToken] = useState(0);
   const [name, setName] = useState("");
   const [issuing, setIssuing] = useState(false);
   const [issueError, setIssueError] = useState<string | undefined>(undefined);
   // Held only here: never stored, never re-fetchable, gone once dismissed.
   const [issued, setIssued] = useState<IssuedProjectToken | undefined>(undefined);
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setState({ status: "loading" });
-
-    fetchProjectTokens(orgSlug, projectId, { signal: controller.signal })
-      .then((tokens) => {
-        if (!cancelled) setState({ status: "ready", tokens });
-        return;
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setState({ status: "error", error });
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [projectId, reloadToken]);
+  const { reload, state } = useResource(
+    ({ signal }) => fetchProjectTokens(orgSlug, projectId, { signal }),
+    [orgSlug, projectId],
+  );
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -205,9 +181,9 @@ function Tokens() {
     try {
       setIssued(await issueProjectToken(orgSlug, projectId, { name: name.trim() }));
       setName("");
-      setReloadToken((token) => token + 1);
+      reload();
     } catch (error) {
-      setIssueError(describeError(error));
+      setIssueError(describeError(error, "Something went wrong while issuing the token."));
     } finally {
       setIssuing(false);
     }
@@ -216,90 +192,97 @@ function Tokens() {
   async function revoke(tokenId: string): Promise<void> {
     try {
       await revokeProjectToken(orgSlug, projectId, tokenId);
-      setReloadToken((token) => token + 1);
+      reload();
     } catch (error) {
-      setIssueError(describeError(error));
+      setIssueError(describeError(error, "Something went wrong while revoking the token."));
     }
   }
 
-  const tokens = state.status === "ready" ? state.tokens : [];
+  const tokens = state.status === "ready" ? state.data : [];
 
   return (
     <>
       {issued && (
-        <TokenReveal issued={issued} onDismiss={() => setIssued(undefined)} projectId={projectId} />
+        <TokenRevealDialog
+          issued={issued}
+          onDismiss={() => setIssued(undefined)}
+          projectId={projectId}
+        />
       )}
 
-      <section className="report-panel">
-        <div className="filter-bar">
-          <span className="filter-summary">
-            {state.status === "ready"
-              ? `${tokens.length} ${tokens.length === 1 ? "token" : "tokens"}`
-              : "Tokens"}
-          </span>
+      <Panel>
+        <PanelBar>
+          <PanelSummary>
+            {state.status === "ready" ? pluralize(tokens.length, "token") : "Tokens"}
+          </PanelSummary>
 
-          <form className="inline-form" onSubmit={submit}>
-            <label className="search-field">
-              <span className="sr-only">Token name</span>
-              <input
+          <PanelControls>
+            <form
+              className="flex flex-wrap items-center gap-2"
+              onSubmit={(event) => void submit(event)}
+            >
+              <Label className="sr-only" htmlFor="token-name">
+                Token name
+              </Label>
+              <Input
+                className="w-full sm:w-[230px]"
+                id="token-name"
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Where will it be used?"
                 type="text"
                 value={name}
               />
-            </label>
-            <button className="primary-button" disabled={issuing} type="submit">
-              {issuing ? <Loader2 className="spin" size={13} /> : <Plus size={13} />}
-              Issue token
-            </button>
-          </form>
-        </div>
+              <Button disabled={issuing} type="submit">
+                {issuing ? <Spinner /> : <Plus />}
+                Issue token
+              </Button>
+            </form>
+          </PanelControls>
+        </PanelBar>
 
         {issueError && (
-          <p className="field-error" role="alert">
+          <p
+            className="border-b border-border bg-brand-soft px-5 py-3 text-[11px] font-semibold text-brand"
+            role="alert"
+          >
             {issueError}
           </p>
         )}
 
-        <div className="project-list" aria-live="polite">
+        <div aria-live="polite">
           {state.status === "loading" && (
-            <div className="state-panel state-panel-loading" role="status">
-              <span className="state-icon">
-                <Loader2 className="spin" size={19} />
-              </span>
-              <strong>Loading tokens…</strong>
-              <p>Fetching them from the API.</p>
-            </div>
+            <DataState
+              kind="loading"
+              title="Loading tokens…"
+              description="Fetching them from the API."
+            />
           )}
 
           {state.status === "error" && (
-            <div className="state-panel state-panel-error" role="alert">
-              <span className="state-icon">
-                <AlertTriangle size={19} />
-              </span>
-              <strong>Couldn't load ingestion tokens</strong>
-              <p>{describeError(state.error)}</p>
-              <button onClick={() => setReloadToken((token) => token + 1)} type="button">
-                <RefreshCw size={13} />
-                Try again
-              </button>
-            </div>
+            <DataState
+              kind="error"
+              title="Couldn't load ingestion tokens"
+              description={describeError(
+                state.error,
+                "Something went wrong while loading ingestion tokens.",
+              )}
+              onRetry={reload}
+            />
           )}
 
           {state.status === "ready" && tokens.length === 0 && (
-            <div className="state-panel">
-              <span className="state-icon">
-                <KeyRound size={19} />
-              </span>
-              <strong>No tokens yet</strong>
-              <p>Issue one to get the DSN your application reports with.</p>
-            </div>
+            <DataState
+              kind="empty"
+              icon={KeyRound}
+              title="No tokens yet"
+              description="Issue one to get the DSN your application reports with."
+            />
           )}
 
           {state.status === "ready" &&
             tokens.map((token) => <TokenRow key={token.id} onRevoke={revoke} token={token} />)}
         </div>
-      </section>
+      </Panel>
     </>
   );
 }

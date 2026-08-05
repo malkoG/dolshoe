@@ -1,68 +1,40 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { DataState } from "@dolshoe/ui/components/data-state";
 import {
-  AlertTriangle,
-  ChevronRight,
-  Clock3,
-  Loader2,
-  RefreshCw,
-  Search,
-  Waypoints,
-  X,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+  Panel,
+  PanelBar,
+  PanelControls,
+  PanelFooter,
+  PanelFooterNote,
+  PanelSummary,
+} from "@dolshoe/ui/components/panel";
+import { SearchField } from "@dolshoe/ui/components/search-field";
+import { Checkbox } from "@dolshoe/ui/components/ui/checkbox";
+import { Label } from "@dolshoe/ui/components/ui/label";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { ChevronRight, Clock3, Search, Waypoints } from "lucide-react";
+import { useMemo, useState } from "react";
 
-import { ApiError } from "../lib/api-request";
-import { formatDuration, formatRelativeTime } from "../lib/format";
+import { SpanKindBadge } from "../components/span-kind-badge";
+import { describeError } from "../lib/api-request";
+import { formatDuration, formatRelativeTime, pluralize } from "../lib/format";
 import { fetchTraces } from "../lib/traces";
-import type { TraceSummary } from "../lib/traces";
+import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/traces/")({
   component: Traces,
 });
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; error: unknown }
-  | { status: "ready"; traces: TraceSummary[] };
-
-function describeLoadError(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Something went wrong while loading traces.";
-}
-
-function pluralizeTraces(count: number): string {
-  return `${count} ${count === 1 ? "trace" : "traces"}`;
-}
-
 function Traces() {
   const { orgSlug, projectId } = Route.useParams();
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [reloadToken, setReloadToken] = useState(0);
   const [query, setQuery] = useState("");
   const [errorsOnly, setErrorsOnly] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setState({ status: "loading" });
+  const { reload, state } = useResource(
+    ({ signal }) => fetchTraces(orgSlug, projectId, { signal }),
+    [orgSlug, projectId],
+  );
 
-    fetchTraces(orgSlug, projectId, { signal: controller.signal })
-      .then((traces) => {
-        if (!cancelled) setState({ status: "ready", traces });
-        return;
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setState({ status: "error", error });
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [orgSlug, projectId, reloadToken]);
-
-  const traces = state.status === "ready" ? state.traces : [];
+  const traces = state.status === "ready" ? state.data : [];
 
   // Both filters are client-side, unlike the logs page's severity. The listing
   // is bounded to whole traces rather than to individual rows, and every summary
@@ -81,143 +53,135 @@ function Traces() {
   }, [traces, query, errorsOnly]);
 
   return (
-    <section className="report-panel">
-      <div className="filter-bar">
-        <span className="filter-summary">
-          {state.status === "ready" ? pluralizeTraces(filteredTraces.length) : "Traces"}
-        </span>
+    <Panel>
+      <PanelBar>
+        <PanelSummary>
+          {state.status === "ready" ? pluralize(filteredTraces.length, "trace") : "Traces"}
+        </PanelSummary>
 
-        <div className="filter-controls">
-          <label className="search-field">
-            <Search size={16} />
-            <span className="sr-only">Search traces</span>
-            <input
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search names, services, trace ids…"
-              type="search"
-              value={query}
-            />
-            {query.length > 0 && (
-              <button
-                className="clear-search"
-                onClick={() => setQuery("")}
-                type="button"
-                aria-label="Clear search"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </label>
+        <PanelControls>
+          <SearchField
+            label="Search traces"
+            onValueChange={setQuery}
+            placeholder="Search names, services, trace ids…"
+            value={query}
+          />
 
-          <label className="toggle-field">
-            <input
+          <Label className="h-9 gap-2 rounded-md border border-input bg-muted px-3 text-[11px] font-semibold text-muted-foreground">
+            {/*
+              Named explicitly. This renders as a button rather than a real
+              checkbox input, and a wrapping label does not name a button the
+              way it names a form control — without this the toggle reaches
+              assistive technology as an unlabelled checkbox.
+            */}
+            <Checkbox
+              aria-label="Errors only"
               checked={errorsOnly}
-              onChange={(event) => setErrorsOnly(event.target.checked)}
-              type="checkbox"
+              onCheckedChange={(checked) => setErrorsOnly(checked === true)}
             />
             Errors only
-          </label>
-        </div>
-      </div>
+          </Label>
+        </PanelControls>
+      </PanelBar>
 
-      <div className="report-list" aria-live="polite">
+      <div aria-live="polite">
         {state.status === "loading" && (
-          <div className="state-panel state-panel-loading" role="status">
-            <span className="state-icon">
-              <Loader2 className="spin" size={19} />
-            </span>
-            <strong>Loading traces…</strong>
-            <p>Fetching the newest traces from the API.</p>
-          </div>
+          <DataState
+            kind="loading"
+            title="Loading traces…"
+            description="Fetching the newest traces from the API."
+          />
         )}
 
         {state.status === "error" && (
-          <div className="state-panel state-panel-error" role="alert">
-            <span className="state-icon">
-              <AlertTriangle size={19} />
-            </span>
-            <strong>Couldn't load traces</strong>
-            <p>{describeLoadError(state.error)}</p>
-            <button onClick={() => setReloadToken((token) => token + 1)} type="button">
-              <RefreshCw size={13} />
-              Try again
-            </button>
-          </div>
+          <DataState
+            kind="error"
+            title="Couldn't load traces"
+            description={describeError(state.error, "Something went wrong while loading traces.")}
+            onRetry={reload}
+          />
         )}
 
         {state.status === "ready" && traces.length === 0 && (
-          <div className="state-panel">
-            <span className="state-icon">
-              <Waypoints size={19} />
-            </span>
-            <strong>No traces yet</strong>
-            <p>Spans exported to this project with OTLP will show up here.</p>
-          </div>
+          <DataState
+            kind="empty"
+            icon={Waypoints}
+            title="No traces yet"
+            description="Spans exported to this project with OTLP will show up here."
+          />
         )}
 
         {state.status === "ready" && traces.length > 0 && filteredTraces.length === 0 && (
-          <div className="state-panel">
-            <span className="state-icon">
-              <Search size={19} />
-            </span>
-            <strong>No matching traces</strong>
-            <p>{errorsOnly ? "No trace here has a failing span." : "Try another search."}</p>
-          </div>
+          <DataState
+            kind="empty"
+            icon={Search}
+            title="No matching traces"
+            description={errorsOnly ? "No trace here has a failing span." : "Try another search."}
+          />
         )}
 
-        {state.status === "ready" &&
-          filteredTraces.map((trace) => (
-            <Link
-              className="trace-row"
-              key={trace.traceId}
-              params={{ orgSlug, projectId, traceId: trace.traceId }}
-              to="/orgs/$orgSlug/projects/$projectId/traces/$traceId"
-            >
-              <span className={`span-kind span-kind-${trace.kind}`}>{trace.kind}</span>
+        {state.status === "ready" && filteredTraces.length > 0 && (
+          <ul>
+            {filteredTraces.map((trace) => (
+              <li className="border-b border-border last:border-b-0" key={trace.traceId}>
+                <Link
+                  className="grid grid-cols-1 items-start gap-x-4 gap-y-2 px-5 py-4 transition-colors hover:bg-muted sm:grid-cols-[66px_minmax(0,1fr)_auto_auto_16px] sm:items-center"
+                  params={{ orgSlug, projectId, traceId: trace.traceId }}
+                  to="/orgs/$orgSlug/projects/$projectId/traces/$traceId"
+                >
+                  <SpanKindBadge className="w-full sm:w-[66px]" kind={trace.kind} />
 
-              <div className="trace-copy">
-                <p className="trace-name">{trace.name}</p>
-                <div className="log-meta">
-                  <strong>{trace.serviceName}</strong>
-                  <span className="meta-separator">·</span>
-                  {trace.spanCount} {trace.spanCount === 1 ? "span" : "spans"}
-                  {trace.errorSpanCount > 0 && (
-                    <>
-                      <span className="meta-separator">·</span>
-                      <span className="trace-errors">{trace.errorSpanCount} failing</span>
-                    </>
-                  )}
-                  {trace.environment != null && (
-                    <>
-                      <span className="meta-separator">·</span>
-                      {trace.environment}
-                    </>
-                  )}
-                </div>
-              </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-semibold">{trace.name}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <strong className="font-bold text-foreground">{trace.serviceName}</strong>
+                      <span aria-hidden="true">·</span>
+                      {pluralize(trace.spanCount, "span")}
+                      {trace.errorSpanCount > 0 && (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span className="font-semibold text-brand">
+                            {trace.errorSpanCount} failing
+                          </span>
+                        </>
+                      )}
+                      {trace.environment != null && (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          {trace.environment}
+                        </>
+                      )}
+                    </div>
+                  </div>
 
-              <span className="span-duration">{formatDuration(trace.durationNanoseconds)}</span>
+                  <span className="font-mono text-[11px] whitespace-nowrap tabular-nums">
+                    {formatDuration(trace.durationNanoseconds)}
+                  </span>
 
-              <div className="time-cell">
-                <Clock3 size={14} />
-                <time dateTime={trace.startedAt} title={trace.startedAt}>
-                  {formatRelativeTime(trace.startedAt)}
-                </time>
-              </div>
+                  <span className="flex items-center gap-1.5 font-mono text-[10px] whitespace-nowrap text-muted-foreground">
+                    <Clock3 className="size-3.5" />
+                    <time dateTime={trace.startedAt} title={trace.startedAt}>
+                      {formatRelativeTime(trace.startedAt)}
+                    </time>
+                  </span>
 
-              <ChevronRight className="trace-chevron" size={16} />
-            </Link>
-          ))}
+                  <ChevronRight className="hidden size-4 text-faint sm:block" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {state.status === "ready" && (
-        <footer className="panel-footer">
+        <PanelFooter>
           <span>
-            Showing <strong>{filteredTraces.length}</strong> of {traces.length} traces
+            Showing <strong className="font-bold text-foreground">{filteredTraces.length}</strong>{" "}
+            of {traces.length} traces
           </span>
-          <span className="panel-footer-note">Sorted newest first</span>
-        </footer>
+          <PanelFooterNote>Sorted newest first</PanelFooterNote>
+        </PanelFooter>
       )}
-    </section>
+    </Panel>
   );
 }

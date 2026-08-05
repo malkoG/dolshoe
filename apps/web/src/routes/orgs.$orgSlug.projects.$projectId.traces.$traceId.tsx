@@ -1,31 +1,32 @@
+import { DataState } from "@dolshoe/ui/components/data-state";
+import {
+  Panel,
+  PanelBar,
+  PanelControls,
+  PanelFooter,
+  PanelFooterNote,
+} from "@dolshoe/ui/components/panel";
+import { Button } from "@dolshoe/ui/components/ui/button";
+import { cn } from "@dolshoe/ui/lib/utils";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, ArrowLeft, Clock3, Loader2, RefreshCw, Waypoints } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, Clock3, Waypoints } from "lucide-react";
+import { useState } from "react";
 
-import { ApiError } from "../lib/api-request";
-import { formatDuration, formatRelativeTime } from "../lib/format";
+import { SpanKindBadge } from "../components/span-kind-badge";
+import { describeError } from "../lib/api-request";
+import { formatDuration, formatRelativeTime, pluralize } from "../lib/format";
 import { fetchTrace } from "../lib/traces";
-import type { TraceDetailResponse, TraceSpan } from "../lib/traces";
+import type { TraceSpan } from "../lib/traces";
+import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/traces/$traceId")({
   component: Trace,
 });
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; error: unknown }
-  | { status: "ready"; trace: TraceDetailResponse };
-
 /** Narrow enough that a deep trace still leaves room for the bar. */
 const INDENT_PER_LEVEL = 14;
 /** A span far shorter than the trace would otherwise be an invisible bar. */
 const MINIMUM_BAR_PERCENT = 0.4;
-
-function describeLoadError(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Something went wrong while loading this trace.";
-}
 
 function attributeEntries(attributes: TraceSpan["attributes"]): Array<[string, string]> {
   if (attributes == null) return [];
@@ -46,54 +47,84 @@ function barGeometry(span: TraceSpan, traceDuration: number) {
   return { left: Math.min(left, 100 - MINIMUM_BAR_PERCENT), width };
 }
 
-function SpanRow({ span, traceDuration }: { span: TraceSpan; traceDuration: number }) {
+/**
+ * One span in the waterfall, and everything known about it once opened.
+ *
+ * @remarks
+ * The bar's position and width are the one thing here that genuinely cannot be
+ * a class: they are a proportion of the trace's own duration, computed per row.
+ * Logical properties keep them correct if the page is ever laid out
+ * right-to-left.
+ */
+function SpanRow({ span, traceDuration }: Readonly<{ span: TraceSpan; traceDuration: number }>) {
   const [expanded, setExpanded] = useState(false);
   const { left, width } = barGeometry(span, traceDuration);
   const attributes = attributeEntries(span.attributes);
   const failed = span.statusCode === "error";
 
   return (
-    <div className={`span-row${failed ? " span-row-error" : ""}`}>
+    <div className="border-b border-border last:border-b-0">
       <button
         aria-expanded={expanded}
-        className="span-summary"
+        className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-2.5 text-left transition-colors hover:bg-muted md:grid-cols-[minmax(180px,0.9fr)_minmax(0,1.4fr)_auto]"
         onClick={() => setExpanded((open) => !open)}
         type="button"
       >
-        <span className="span-label" style={{ paddingInlineStart: span.depth * INDENT_PER_LEVEL }}>
-          {span.depth > 0 && <span aria-hidden="true" className="span-guide" />}
-          <span className="span-name">{span.name}</span>
-          <span className={`span-kind span-kind-${span.kind}`}>{span.kind}</span>
+        <span
+          className="flex min-w-0 items-center gap-2"
+          style={{ paddingInlineStart: span.depth * INDENT_PER_LEVEL }}
+        >
+          {span.depth > 0 && (
+            <span
+              aria-hidden="true"
+              className="h-3.5 w-2 shrink-0 border-b border-l border-input"
+            />
+          )}
+          <span
+            className={cn("truncate text-[12px] font-semibold", failed && "text-brand")}
+            title={span.name}
+          >
+            {span.name}
+          </span>
+          <SpanKindBadge className="hidden sm:inline-flex" kind={span.kind} />
         </span>
 
-        <span className="span-bar-track">
+        <span className="relative col-span-2 h-1.5 overflow-hidden rounded-full bg-secondary md:col-span-1">
           <span
-            className={`span-bar${failed ? " span-bar-error" : ""}`}
+            className={cn("absolute inset-y-0 rounded-full", failed ? "bg-brand" : "bg-success")}
             style={{ insetInlineStart: `${left}%`, width: `${width}%` }}
           />
         </span>
 
-        <span className="span-duration">{formatDuration(span.durationNanoseconds)}</span>
+        <span className="font-mono text-[11px] whitespace-nowrap tabular-nums text-muted-foreground">
+          {formatDuration(span.durationNanoseconds)}
+        </span>
       </button>
 
       {expanded && (
-        <dl className="span-detail">
-          <dt>Span</dt>
-          <dd>
-            <code>{span.spanId}</code>
+        <dl className="grid grid-cols-[minmax(80px,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 border-t border-border bg-muted px-5 py-4 text-[11px]">
+          <dt className="font-semibold text-faint">Span</dt>
+          <dd className="min-w-0">
+            <code className="font-mono break-all">{span.spanId}</code>
           </dd>
-          <dt>Parent</dt>
-          <dd>{span.parentSpanId == null ? "—" : <code>{span.parentSpanId}</code>}</dd>
-          <dt>Service</dt>
-          <dd>{span.serviceName}</dd>
-          <dt>Started</dt>
-          <dd>
+          <dt className="font-semibold text-faint">Parent</dt>
+          <dd className="min-w-0">
+            {span.parentSpanId == null ? (
+              "—"
+            ) : (
+              <code className="font-mono break-all">{span.parentSpanId}</code>
+            )}
+          </dd>
+          <dt className="font-semibold text-faint">Service</dt>
+          <dd className="min-w-0">{span.serviceName}</dd>
+          <dt className="font-semibold text-faint">Started</dt>
+          <dd className="min-w-0">
             <time dateTime={span.startedAt}>{span.startedAt}</time>
           </dd>
           {span.scopeName != null && (
             <>
-              <dt>Scope</dt>
-              <dd>
+              <dt className="font-semibold text-faint">Scope</dt>
+              <dd className="min-w-0">
                 {span.scopeName}
                 {span.scopeVersion != null && ` ${span.scopeVersion}`}
               </dd>
@@ -101,22 +132,23 @@ function SpanRow({ span, traceDuration }: { span: TraceSpan; traceDuration: numb
           )}
           {span.statusMessage != null && (
             <>
-              <dt>Status</dt>
-              <dd>{span.statusMessage}</dd>
+              <dt className="font-semibold text-faint">Status</dt>
+              <dd className="min-w-0">{span.statusMessage}</dd>
             </>
           )}
           {attributes.length > 0 && (
             <>
-              <dt>Attributes</dt>
-              <dd>
-                <div className="log-attributes">
-                  {attributes.map(([key, value]) => (
-                    <span className="log-attribute" key={key}>
-                      <span className="log-attribute-key">{key}</span>
-                      {value}
-                    </span>
-                  ))}
-                </div>
+              <dt className="font-semibold text-faint">Attributes</dt>
+              <dd className="flex min-w-0 flex-wrap gap-1.5">
+                {attributes.map(([key, value]) => (
+                  <span
+                    className="inline-flex max-w-full items-center gap-1.5 truncate rounded-md border border-border bg-card px-2 py-1 font-mono text-[10px]"
+                    key={key}
+                  >
+                    <span className="text-faint">{key}</span>
+                    {value}
+                  </span>
+                ))}
               </dd>
             </>
           )}
@@ -128,115 +160,92 @@ function SpanRow({ span, traceDuration }: { span: TraceSpan; traceDuration: numb
 
 function Trace() {
   const { orgSlug, projectId, traceId } = Route.useParams();
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [reloadToken, setReloadToken] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setState({ status: "loading" });
-
-    fetchTrace(orgSlug, projectId, traceId, { signal: controller.signal })
-      .then((trace) => {
-        if (!cancelled) setState({ status: "ready", trace });
-        return;
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setState({ status: "error", error });
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [orgSlug, projectId, traceId, reloadToken]);
+  const { reload, state } = useResource(
+    ({ signal }) => fetchTrace(orgSlug, projectId, traceId, { signal }),
+    [orgSlug, projectId, traceId],
+  );
 
   return (
-    <section className="report-panel">
-      <div className="filter-bar">
-        <Link
-          className="back-link"
-          params={{ orgSlug, projectId }}
-          to="/orgs/$orgSlug/projects/$projectId/traces"
-        >
-          <ArrowLeft size={14} />
-          All traces
-        </Link>
+    <Panel>
+      <PanelBar>
+        <Button asChild size="sm" variant="ghost">
+          <Link params={{ orgSlug, projectId }} to="/orgs/$orgSlug/projects/$projectId/traces">
+            <ArrowLeft />
+            All traces
+          </Link>
+        </Button>
 
         {state.status === "ready" && (
-          <div className="filter-controls trace-header-meta">
-            <code className="trace-id">{traceId}</code>
-            <span className="meta-separator">·</span>
-            {state.trace.trace.spanCount} spans
-            <span className="meta-separator">·</span>
-            {formatDuration(state.trace.trace.durationNanoseconds)}
-            <span className="time-cell">
-              <Clock3 size={14} />
-              <time dateTime={state.trace.trace.startedAt}>
-                {formatRelativeTime(state.trace.trace.startedAt)}
+          <PanelControls className="gap-1.5 text-[11px] text-muted-foreground">
+            <code className="max-w-40 truncate font-mono text-[10px] md:max-w-none">{traceId}</code>
+            <span aria-hidden="true">·</span>
+            {pluralize(state.data.trace.spanCount, "span")}
+            <span aria-hidden="true">·</span>
+            {formatDuration(state.data.trace.durationNanoseconds)}
+            <span className="flex items-center gap-1.5 font-mono text-[10px]">
+              <Clock3 className="size-3.5" />
+              <time dateTime={state.data.trace.startedAt}>
+                {formatRelativeTime(state.data.trace.startedAt)}
               </time>
             </span>
-          </div>
+          </PanelControls>
         )}
-      </div>
+      </PanelBar>
 
-      <div className="trace-waterfall" aria-live="polite">
+      <div aria-live="polite">
         {state.status === "loading" && (
-          <div className="state-panel state-panel-loading" role="status">
-            <span className="state-icon">
-              <Loader2 className="spin" size={19} />
-            </span>
-            <strong>Loading trace…</strong>
-            <p>Fetching this trace's spans from the API.</p>
-          </div>
+          <DataState
+            kind="loading"
+            title="Loading trace…"
+            description="Fetching this trace's spans from the API."
+          />
         )}
 
         {state.status === "error" && (
-          <div className="state-panel state-panel-error" role="alert">
-            <span className="state-icon">
-              <AlertTriangle size={19} />
-            </span>
-            <strong>Couldn't load this trace</strong>
-            <p>{describeLoadError(state.error)}</p>
-            <button onClick={() => setReloadToken((token) => token + 1)} type="button">
-              <RefreshCw size={13} />
-              Try again
-            </button>
-          </div>
+          <DataState
+            kind="error"
+            title="Couldn't load this trace"
+            description={describeError(
+              state.error,
+              "Something went wrong while loading this trace.",
+            )}
+            onRetry={reload}
+          />
         )}
 
-        {state.status === "ready" && state.trace.spans.length === 0 && (
-          <div className="state-panel">
-            <span className="state-icon">
-              <Waypoints size={19} />
-            </span>
-            <strong>Nothing stored under this trace</strong>
-            <p>Its spans may never have been exported, or may have passed their retention.</p>
-          </div>
+        {state.status === "ready" && state.data.spans.length === 0 && (
+          <DataState
+            kind="empty"
+            icon={Waypoints}
+            title="Nothing stored under this trace"
+            description="Its spans may never have been exported, or may have passed their retention."
+          />
         )}
 
         {state.status === "ready" &&
-          state.trace.spans.map((span) => (
+          state.data.spans.map((span) => (
             <SpanRow
               key={span.id}
               span={span}
-              traceDuration={state.trace.trace.durationNanoseconds}
+              traceDuration={state.data.trace.durationNanoseconds}
             />
           ))}
       </div>
 
-      {state.status === "ready" && state.trace.spans.length > 0 && (
-        <footer className="panel-footer">
+      {state.status === "ready" && state.data.spans.length > 0 && (
+        <PanelFooter>
           <span>
-            Showing <strong>{state.trace.spans.length}</strong> spans
+            Showing <strong className="font-bold text-foreground">{state.data.spans.length}</strong>{" "}
+            spans
           </span>
-          <span className="panel-footer-note">
-            {state.trace.trace.truncated
+          <PanelFooterNote>
+            {state.data.trace.truncated
               ? "This trace holds more spans than are shown"
               : "Nested by parent, oldest first"}
-          </span>
-        </footer>
+          </PanelFooterNote>
+        </PanelFooter>
       )}
-    </section>
+    </Panel>
   );
 }

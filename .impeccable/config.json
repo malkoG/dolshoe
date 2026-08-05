@@ -1,0 +1,15 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": ["apps/web/src/styles.css"],
+        "createdAt": "2026-08-05T07:45:59.860Z",
+        "reason": "Pre-existing dolshoe brand backdrop; user confirmed preserving the grid identity in this refactor"
+      }
+    ]
+  }
+}

@@ -1,10 +1,34 @@
+import { DataState } from "@dolshoe/ui/components/data-state";
+import { PageHeading } from "@dolshoe/ui/components/page-heading";
+import { Panel, PanelBar, PanelSummary } from "@dolshoe/ui/components/panel";
+import { SecretField } from "@dolshoe/ui/components/secret-field";
+import { StatusBadge } from "@dolshoe/ui/components/status-badge";
+import { Button } from "@dolshoe/ui/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@dolshoe/ui/components/ui/dialog";
+import { Input } from "@dolshoe/ui/components/ui/input";
+import { Label } from "@dolshoe/ui/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dolshoe/ui/components/ui/select";
+import { Spinner } from "@dolshoe/ui/components/ui/spinner";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, Check, Copy, Loader2, UserPlus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { UserPlus } from "lucide-react";
+import { useState } from "react";
 
 import { PageShell } from "../components/page-shell";
-import { ApiError } from "../lib/api-request";
-import { dateFormatter } from "../lib/format";
+import { describeError } from "../lib/api-request";
+import { dateFormatter, pluralize } from "../lib/format";
 import {
   canAdminister,
   createInvitation,
@@ -14,75 +38,79 @@ import {
   revokeInvitation,
   updateMemberRole,
 } from "../lib/organizations";
-import type { Invitation, IssuedInvitation, Member, MembershipRole } from "../lib/organizations";
+import type { IssuedInvitation, MembershipRole } from "../lib/organizations";
+import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/members")({ component: Members });
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; error: unknown }
-  | { status: "ready"; members: Member[]; invitations: Invitation[] };
-
 const ROLES: MembershipRole[] = ["OWNER", "ADMIN", "MEMBER"];
 
-function describeError(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Something went wrong while loading members.";
-}
-
 /** The link exists once. Copying it is the whole delivery mechanism. */
-function InvitationReveal({
+function InvitationRevealDialog({
   issued,
   onDismiss,
 }: Readonly<{ issued: IssuedInvitation; onDismiss: () => void }>) {
-  const [copied, setCopied] = useState(false);
   const link = `${globalThis.location?.origin ?? ""}${issued.invitationUrl}`;
 
-  async function copy(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2_000);
-    } catch {
-      // The Clipboard API is unavailable on insecure origins, which a
-      // self-hosted instance over plain HTTP genuinely is. The link is on
-      // screen either way.
-    }
-  }
-
   return (
-    <div className="token-reveal" role="alert">
-      <div className="token-reveal-heading">
-        <UserPlus size={16} />
-        <strong>Send this link to @{issued.githubLogin}</strong>
-      </div>
-      <p>
-        Dolshoe does not send email, and stores only a hash of this link, so it cannot show it to
-        you again. It expires {dateFormatter.format(new Date(issued.expiresAt))}.
-      </p>
+    <Dialog onOpenChange={(open) => !open && onDismiss()} open>
+      <DialogContent
+        className="sm:max-w-2xl"
+        showCloseButton={false}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle>Send this link to @{issued.githubLogin}</DialogTitle>
+          <DialogDescription>
+            Dolshoe does not send email, and stores only a hash of this link, so it cannot show it
+            to you again. It expires {dateFormatter.format(new Date(issued.expiresAt))}.
+          </DialogDescription>
+        </DialogHeader>
 
-      <label className="token-field">
-        <span>Invitation</span>
-        <code className="token-value">{link}</code>
-        <button className="copy-button" onClick={() => void copy()} type="button">
-          {copied ? <Check size={13} /> : <Copy size={13} />}
-          {copied ? "Copied" : "Copy link"}
-        </button>
-      </label>
+        <SecretField copyLabel="Copy link" label="Invitation" value={link} />
 
-      <button className="primary-button" onClick={onDismiss} type="button">
-        I've sent it
-      </button>
-    </div>
+        <DialogFooter>
+          <Button onClick={onDismiss} type="button">
+            I've sent it
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The role picker, filtered to what the current viewer may actually grant. */
+function RoleSelect({
+  ariaLabel,
+  canGrantOwner,
+  onValueChange,
+  value,
+}: Readonly<{
+  ariaLabel: string;
+  canGrantOwner: boolean;
+  onValueChange: (role: MembershipRole) => void;
+  value: MembershipRole;
+}>) {
+  return (
+    <Select onValueChange={(next) => onValueChange(next as MembershipRole)} value={value}>
+      <SelectTrigger aria-label={ariaLabel} className="w-[130px]" size="sm">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {ROLES.filter((candidate) => candidate !== "OWNER" || canGrantOwner).map((candidate) => (
+          <SelectItem key={candidate} value={candidate}>
+            {candidate.toLowerCase()}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
 function Members() {
   const { orgSlug } = Route.useParams();
   const { organization, session } = Route.useRouteContext();
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [reloadToken, setReloadToken] = useState(0);
   const [githubLogin, setGithubLogin] = useState("");
   const [role, setRole] = useState<MembershipRole>("MEMBER");
   const [inviting, setInviting] = useState(false);
@@ -90,31 +118,20 @@ function Members() {
   const [issued, setIssued] = useState<IssuedInvitation | undefined>(undefined);
 
   const administers = canAdminister(organization.role);
+  const ownsOrganization = organization.role === "OWNER";
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setState({ status: "loading" });
-
-    // Only an owner or admin may read the invitation list, so a member loads
-    // just the roster rather than being shown a failure they cannot act on.
-    Promise.all([
-      fetchMembers(orgSlug, { signal: controller.signal }),
-      administers ? fetchInvitations(orgSlug, { signal: controller.signal }) : Promise.resolve([]),
-    ])
-      .then(([members, invitations]) => {
-        if (!cancelled) setState({ status: "ready", members, invitations });
-        return;
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setState({ status: "error", error });
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [administers, orgSlug, reloadToken]);
+  // Only an owner or admin may read the invitation list, so a member loads
+  // just the roster rather than being shown a failure they cannot act on.
+  const { reload, state } = useResource(
+    async ({ signal }) => {
+      const [members, invitations] = await Promise.all([
+        fetchMembers(orgSlug, { signal }),
+        administers ? fetchInvitations(orgSlug, { signal }) : Promise.resolve([]),
+      ]);
+      return { invitations, members };
+    },
+    [administers, orgSlug],
+  );
 
   async function invite(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -125,9 +142,9 @@ function Members() {
     try {
       setIssued(await createInvitation(orgSlug, { githubLogin: githubLogin.trim(), role }));
       setGithubLogin("");
-      setReloadToken((token) => token + 1);
+      reload();
     } catch (error) {
-      setActionError(describeError(error));
+      setActionError(describeError(error, "Something went wrong while sending the invitation."));
     } finally {
       setInviting(false);
     }
@@ -137,16 +154,16 @@ function Members() {
     setActionError(undefined);
     try {
       await action();
-      setReloadToken((token) => token + 1);
+      reload();
     } catch (error) {
-      setActionError(describeError(error));
+      setActionError(describeError(error, "Something went wrong while updating this member."));
     }
   }
 
-  const members = state.status === "ready" ? state.members : [];
+  const members = state.status === "ready" ? state.data.members : [];
   const pending =
     state.status === "ready"
-      ? state.invitations.filter(
+      ? state.data.invitations.filter(
           (invitation) => invitation.acceptedAt == null && invitation.revokedAt == null,
         )
       : [];
@@ -157,159 +174,162 @@ function Members() {
       orgSlug={orgSlug}
       viewer={session.viewer ?? undefined}
     >
-      <section className="page-heading">
-        <div>
-          <div className="eyebrow">{organization.slug}</div>
-          <h1>Members</h1>
-          <p>Who can read this organization's projects, and who can change them.</p>
-        </div>
-      </section>
+      <PageHeading
+        description="Who can read this organization's projects, and who can change them."
+        eyebrow={organization.slug}
+      >
+        Members
+      </PageHeading>
 
-      {issued && <InvitationReveal issued={issued} onDismiss={() => setIssued(undefined)} />}
+      {issued && <InvitationRevealDialog issued={issued} onDismiss={() => setIssued(undefined)} />}
 
       {administers && (
-        <section className="report-panel">
-          <form className="inline-form" onSubmit={(event) => void invite(event)}>
-            <label className="auth-field">
-              <span>Invite a GitHub account</span>
-              <input
+        <Panel className="mb-4">
+          <form
+            className="flex flex-wrap items-end gap-3 p-5"
+            onSubmit={(event) => void invite(event)}
+          >
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <Label htmlFor="invite-login">Invite a GitHub account</Label>
+              <Input
                 autoCapitalize="none"
                 autoCorrect="off"
+                id="invite-login"
                 onChange={(event) => setGithubLogin(event.target.value)}
                 placeholder="octocat"
                 spellCheck={false}
                 type="text"
                 value={githubLogin}
               />
-              <span className="auth-hint">
+              <span className="text-[11px] text-muted-foreground">
                 The handle, without the @. Only that account can redeem the link.
               </span>
-            </label>
-            <label className="auth-field">
-              <span>Role</span>
-              <select
-                onChange={(event) => setRole(event.target.value as MembershipRole)}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              {/* Not a <label for>: the trigger is a button, which nothing labels. */}
+              <span className="text-sm font-medium">Role</span>
+              <RoleSelect
+                ariaLabel="Role"
+                canGrantOwner={ownsOrganization}
+                onValueChange={setRole}
                 value={role}
-              >
-                {ROLES.filter(
-                  (candidate) => candidate !== "OWNER" || organization.role === "OWNER",
-                ).map((candidate) => (
-                  <option key={candidate} value={candidate}>
-                    {candidate.toLowerCase()}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button className="primary-button" disabled={inviting} type="submit">
-              {inviting ? <Loader2 className="spin" size={13} /> : <UserPlus size={13} />}
+              />
+            </div>
+
+            <Button className="mb-px" disabled={inviting} type="submit">
+              {inviting ? <Spinner /> : <UserPlus />}
               Invite
-            </button>
+            </Button>
           </form>
-        </section>
+        </Panel>
       )}
 
       {actionError != null && (
-        <p className="field-error" role="alert">
+        <p
+          className="mb-4 rounded-md border border-border bg-brand-soft px-5 py-3 text-[11px] font-semibold text-brand"
+          role="alert"
+        >
           {actionError}
         </p>
       )}
 
-      <section className="report-panel">
-        {state.status === "loading" && (
-          <div className="state-panel state-panel-loading" role="status">
-            <span className="state-icon">
-              <Loader2 className="spin" size={19} />
-            </span>
-            <strong>Loading members…</strong>
-          </div>
-        )}
+      <Panel>
+        <div aria-live="polite">
+          {state.status === "loading" && <DataState kind="loading" title="Loading members…" />}
 
-        {state.status === "error" && (
-          <div className="state-panel state-panel-error" role="alert">
-            <span className="state-icon">
-              <AlertTriangle size={19} />
-            </span>
-            <strong>Could not load members</strong>
-            <p>{describeError(state.error)}</p>
-          </div>
-        )}
+          {state.status === "error" && (
+            <DataState
+              kind="error"
+              title="Could not load members"
+              description={describeError(
+                state.error,
+                "Something went wrong while loading members.",
+              )}
+              onRetry={reload}
+            />
+          )}
 
-        {state.status === "ready" &&
-          members.map((member) => (
-            <div className="member-row" key={member.userId}>
-              <div>
-                <strong>{member.name}</strong>
-                <span className="organization-slug">
-                  {member.githubLogin == null ? member.email : `@${member.githubLogin}`}
-                </span>
+          {state.status === "ready" &&
+            members.map((member) => (
+              <div
+                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-4 last:border-b-0"
+                key={member.userId}
+              >
+                <div className="min-w-0">
+                  <strong className="block truncate text-[13px] font-bold">{member.name}</strong>
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    {member.githubLogin == null ? member.email : `@${member.githubLogin}`}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                  <span>Joined {dateFormatter.format(new Date(member.joinedAt))}</span>
+                  {administers && member.userId !== session.viewer?.id ? (
+                    <>
+                      <RoleSelect
+                        ariaLabel={`Role for ${member.name}`}
+                        canGrantOwner={ownsOrganization}
+                        onValueChange={(next) =>
+                          void act(() => updateMemberRole(orgSlug, member.userId, next))
+                        }
+                        value={member.role}
+                      />
+                      <Button
+                        onClick={() => void act(() => removeMember(orgSlug, member.userId))}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        Remove
+                      </Button>
+                    </>
+                  ) : (
+                    <StatusBadge>{member.role.toLowerCase()}</StatusBadge>
+                  )}
+                </div>
               </div>
-              <div className="organization-meta">
-                <span>Joined {dateFormatter.format(new Date(member.joinedAt))}</span>
-                {administers && member.userId !== session.viewer?.id ? (
-                  <>
-                    <select
-                      onChange={(event) =>
-                        void act(() =>
-                          updateMemberRole(
-                            orgSlug,
-                            member.userId,
-                            event.target.value as MembershipRole,
-                          ),
-                        )
-                      }
-                      value={member.role}
-                    >
-                      {ROLES.filter(
-                        (candidate) => candidate !== "OWNER" || organization.role === "OWNER",
-                      ).map((candidate) => (
-                        <option key={candidate} value={candidate}>
-                          {candidate.toLowerCase()}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="ghost-button"
-                      onClick={() => void act(() => removeMember(orgSlug, member.userId))}
-                      type="button"
-                    >
-                      Remove
-                    </button>
-                  </>
-                ) : (
-                  <span className="role-badge">{member.role.toLowerCase()}</span>
-                )}
-              </div>
-            </div>
-          ))}
-      </section>
+            ))}
+        </div>
+      </Panel>
 
       {administers && pending.length > 0 && (
-        <section className="report-panel">
-          <div className="filter-bar">
-            <span className="filter-summary">
-              {pending.length} outstanding {pending.length === 1 ? "invitation" : "invitations"}
-            </span>
-          </div>
+        <Panel className="mt-4">
+          <PanelBar>
+            <PanelSummary>
+              {pluralize(pending.length, "outstanding invitation", "outstanding invitations")}
+            </PanelSummary>
+          </PanelBar>
+
           {pending.map((invitation) => (
-            <div className="member-row" key={invitation.id}>
-              <div>
-                <strong>@{invitation.githubLogin}</strong>
-                <span className="organization-slug">Invited by {invitation.invitedBy}</span>
+            <div
+              className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-4 last:border-b-0"
+              key={invitation.id}
+            >
+              <div className="min-w-0">
+                <strong className="block truncate text-[13px] font-bold">
+                  @{invitation.githubLogin}
+                </strong>
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  Invited by {invitation.invitedBy}
+                </span>
               </div>
-              <div className="organization-meta">
-                <span className="role-badge">{invitation.role.toLowerCase()}</span>
+
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                <StatusBadge>{invitation.role.toLowerCase()}</StatusBadge>
                 <span>Expires {dateFormatter.format(new Date(invitation.expiresAt))}</span>
-                <button
-                  className="ghost-button"
+                <Button
                   onClick={() => void act(() => revokeInvitation(orgSlug, invitation.id))}
+                  size="sm"
                   type="button"
+                  variant="outline"
                 >
                   Withdraw
-                </button>
+                </Button>
               </div>
             </div>
           ))}
-        </section>
+        </Panel>
       )}
     </PageShell>
   );

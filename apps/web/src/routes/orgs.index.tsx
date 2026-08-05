@@ -1,8 +1,16 @@
+import { DataState } from "@dolshoe/ui/components/data-state";
+import { PageHeading } from "@dolshoe/ui/components/page-heading";
+import { Panel } from "@dolshoe/ui/components/panel";
+import { StatusBadge } from "@dolshoe/ui/components/status-badge";
+import { Button } from "@dolshoe/ui/components/ui/button";
+import { Input } from "@dolshoe/ui/components/ui/input";
+import { Label } from "@dolshoe/ui/components/ui/label";
+import { Spinner } from "@dolshoe/ui/components/ui/spinner";
 import { Link, createFileRoute, redirect, useRouter } from "@tanstack/react-router";
-import { Boxes, Loader2, Plus } from "lucide-react";
+import { Boxes, Plus } from "lucide-react";
 import { useState } from "react";
 
-import { ApiError } from "../lib/api-request";
+import { ApiError, describeError } from "../lib/api-request";
 import { dateFormatter } from "../lib/format";
 import { createOrganization } from "../lib/organizations";
 
@@ -14,12 +22,6 @@ export const Route = createFileRoute("/orgs/")({
   },
   component: Organizations,
 });
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Something went wrong while creating the organization.";
-}
 
 function Organizations() {
   const router = useRouter();
@@ -46,45 +48,43 @@ function Organizations() {
       setError(
         cause instanceof ApiError && cause.status === 409
           ? "An organization with that slug already exists. Try a different name."
-          : describeError(cause),
+          : describeError(cause, "Something went wrong while creating the organization."),
       );
       setCreating(false);
     }
   }
 
   return (
-    <main className="centered-shell">
-      <section className="page-heading">
-        <div>
-          <div className="eyebrow">Organizations</div>
-          <h1>Where your projects live</h1>
-        </div>
-      </section>
+    <main className="mx-auto w-full max-w-3xl px-5 py-12 md:py-16">
+      <PageHeading eyebrow="Organizations">Where your projects live</PageHeading>
 
-      <section className="report-panel">
+      <Panel>
         {organizations.length === 0 ? (
-          <div className="state-panel" role="status">
-            <span className="state-icon">
-              <Boxes size={19} />
-            </span>
-            <strong>You are not in an organization yet</strong>
-            <p>Create one below to start collecting error reports and logs.</p>
-          </div>
+          <DataState
+            kind="empty"
+            icon={Boxes}
+            title="You are not in an organization yet"
+            description="Create one below to start collecting error reports and logs."
+          />
         ) : (
-          <ul className="organization-list">
+          <ul>
             {organizations.map((organization) => (
-              <li key={organization.id}>
+              <li className="border-b border-border last:border-b-0" key={organization.id}>
                 <Link
+                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4 transition-colors hover:bg-muted"
                   params={{ orgSlug: organization.slug }}
                   to="/orgs/$orgSlug/projects"
-                  className="organization-row"
                 >
-                  <div>
-                    <strong>{organization.name}</strong>
-                    <span className="organization-slug">{organization.slug}</span>
+                  <div className="min-w-0">
+                    <strong className="block truncate text-[13px] font-bold">
+                      {organization.name}
+                    </strong>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {organization.slug}
+                    </span>
                   </div>
-                  <div className="organization-meta">
-                    <span className="role-badge">{organization.role.toLowerCase()}</span>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                    <StatusBadge>{organization.role.toLowerCase()}</StatusBadge>
                     <span>Created {dateFormatter.format(new Date(organization.createdAt))}</span>
                   </div>
                 </Link>
@@ -92,30 +92,38 @@ function Organizations() {
             ))}
           </ul>
         )}
-      </section>
+      </Panel>
 
-      <section className="report-panel">
-        <form className="inline-form" onSubmit={(event) => void submit(event)}>
-          <label className="auth-field">
-            <span>New organization</span>
-            <input
+      <Panel className="mt-4">
+        <form
+          className="flex flex-wrap items-end gap-3 p-5"
+          onSubmit={(event) => void submit(event)}
+        >
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <Label htmlFor="organization-name">New organization</Label>
+            <Input
+              id="organization-name"
               onChange={(event) => setName(event.target.value)}
               placeholder="Acme Payments"
               type="text"
               value={name}
             />
-          </label>
-          <button className="primary-button" disabled={creating} type="submit">
-            {creating ? <Loader2 className="spin" size={14} /> : <Plus size={14} />}
+          </div>
+          <Button className="mb-px" disabled={creating} type="submit">
+            {creating ? <Spinner /> : <Plus />}
             Create
-          </button>
+          </Button>
         </form>
+
         {error != null && (
-          <p className="auth-error" role="alert">
+          <p
+            className="border-t border-border bg-brand-soft px-5 py-3 text-[11px] font-semibold text-brand"
+            role="alert"
+          >
             {error}
           </p>
         )}
-      </section>
+      </Panel>
     </main>
   );
 }

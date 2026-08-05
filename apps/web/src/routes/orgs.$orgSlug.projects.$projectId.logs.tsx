@@ -1,41 +1,46 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { DataState } from "@dolshoe/ui/components/data-state";
 import {
-  AlertTriangle,
-  ChevronDown,
-  Clock3,
-  Loader2,
-  RefreshCw,
-  ScrollText,
-  Search,
-  X,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+  Panel,
+  PanelBar,
+  PanelControls,
+  PanelFooter,
+  PanelFooterNote,
+  PanelSummary,
+} from "@dolshoe/ui/components/panel";
+import { SearchField } from "@dolshoe/ui/components/search-field";
+import { StatusBadge } from "@dolshoe/ui/components/status-badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dolshoe/ui/components/ui/select";
+import { createFileRoute } from "@tanstack/react-router";
+import { Clock3, ScrollText, Search } from "lucide-react";
+import { useMemo, useState } from "react";
 
-import { ApiError } from "../lib/api-request";
-import { formatRelativeTime } from "../lib/format";
+import { describeError } from "../lib/api-request";
+import { formatRelativeTime, pluralize } from "../lib/format";
 import { fetchLogRecords } from "../lib/log-records";
 import type { LogLevel, LogRecordSummary } from "../lib/log-records";
+import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/logs")({
   component: Logs,
 });
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; error: unknown }
-  | { status: "ready"; records: LogRecordSummary[] };
-
 const LEVELS: LogLevel[] = ["trace", "debug", "info", "warning", "error", "fatal"];
 
-function describeLoadError(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Something went wrong while loading log records.";
-}
-
-function pluralizeRecords(count: number): string {
-  return `${count} ${count === 1 ? "record" : "records"}`;
-}
+/** How loudly each severity is allowed to shout. */
+const LEVEL_TONES: Record<LogLevel, "neutral" | "info" | "warning" | "danger"> = {
+  trace: "neutral",
+  debug: "neutral",
+  info: "info",
+  warning: "warning",
+  error: "danger",
+  fatal: "danger",
+};
 
 function attributeEntries(attributes: LogRecordSummary["attributes"]): Array<[string, string]> {
   if (attributes == null) return [];
@@ -47,37 +52,21 @@ function attributeEntries(attributes: LogRecordSummary["attributes"]): Array<[st
 
 function Logs() {
   const { orgSlug, projectId } = Route.useParams();
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [reloadToken, setReloadToken] = useState(0);
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState<LogLevel | "all">("all");
 
   // Severity is a server-side filter because the listing is bounded: filtering
   // it in the browser would only ever narrow the newest 100 records.
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setState({ status: "loading" });
+  const { reload, state } = useResource(
+    ({ signal }) =>
+      fetchLogRecords(orgSlug, projectId, {
+        ...(level === "all" ? {} : { level }),
+        signal,
+      }),
+    [orgSlug, projectId, level],
+  );
 
-    fetchLogRecords(orgSlug, projectId, {
-      ...(level === "all" ? {} : { level }),
-      signal: controller.signal,
-    })
-      .then((records) => {
-        if (!cancelled) setState({ status: "ready", records });
-        return;
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setState({ status: "error", error });
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [projectId, level, reloadToken]);
-
-  const records = state.status === "ready" ? state.records : [];
+  const records = state.status === "ready" ? state.data : [];
 
   const filteredRecords = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -91,154 +80,144 @@ function Logs() {
   }, [records, query]);
 
   return (
-    <section className="report-panel">
-      <div className="filter-bar">
-        <span className="filter-summary">
-          {state.status === "ready" ? pluralizeRecords(filteredRecords.length) : "Logs"}
-        </span>
+    <Panel>
+      <PanelBar>
+        <PanelSummary>
+          {state.status === "ready" ? pluralize(filteredRecords.length, "record") : "Logs"}
+        </PanelSummary>
 
-        <div className="filter-controls">
-          <label className="search-field">
-            <Search size={16} />
-            <span className="sr-only">Search log records</span>
-            <input
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search messages, categories…"
-              type="search"
-              value={query}
-            />
-            {query.length > 0 && (
-              <button
-                className="clear-search"
-                onClick={() => setQuery("")}
-                type="button"
-                aria-label="Clear search"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </label>
+        <PanelControls>
+          <SearchField
+            label="Search log records"
+            onValueChange={setQuery}
+            placeholder="Search messages, categories…"
+            value={query}
+          />
 
-          <label className="select-field">
-            <ScrollText size={15} />
-            <span className="sr-only">Filter by severity</span>
-            <select
-              onChange={(event) => setLevel(event.target.value as LogLevel | "all")}
-              value={level}
-            >
-              <option value="all">All levels</option>
+          <Select onValueChange={(value) => setLevel(value as LogLevel | "all")} value={level}>
+            <SelectTrigger aria-label="Filter by severity" className="w-[160px]">
+              <ScrollText className="size-4 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All levels</SelectItem>
               {LEVELS.map((option) => (
-                <option key={option} value={option}>
+                <SelectItem key={option} value={option}>
                   {option}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-            <ChevronDown className="select-chevron" size={14} />
-          </label>
-        </div>
-      </div>
+            </SelectContent>
+          </Select>
+        </PanelControls>
+      </PanelBar>
 
-      <div className="report-list" aria-live="polite">
+      <div aria-live="polite">
         {state.status === "loading" && (
-          <div className="state-panel state-panel-loading" role="status">
-            <span className="state-icon">
-              <Loader2 className="spin" size={19} />
-            </span>
-            <strong>Loading log records…</strong>
-            <p>Fetching the newest records from the API.</p>
-          </div>
+          <DataState
+            kind="loading"
+            title="Loading log records…"
+            description="Fetching the newest records from the API."
+          />
         )}
 
         {state.status === "error" && (
-          <div className="state-panel state-panel-error" role="alert">
-            <span className="state-icon">
-              <AlertTriangle size={19} />
-            </span>
-            <strong>Couldn't load log records</strong>
-            <p>{describeLoadError(state.error)}</p>
-            <button onClick={() => setReloadToken((token) => token + 1)} type="button">
-              <RefreshCw size={13} />
-              Try again
-            </button>
-          </div>
+          <DataState
+            kind="error"
+            title="Couldn't load log records"
+            description={describeError(
+              state.error,
+              "Something went wrong while loading log records.",
+            )}
+            onRetry={reload}
+          />
         )}
 
         {state.status === "ready" && records.length === 0 && (
-          <div className="state-panel">
-            <span className="state-icon">
-              <ScrollText size={19} />
-            </span>
-            <strong>{level === "all" ? "No log records yet" : `No ${level} records`}</strong>
-            <p>
-              {level === "all"
+          <DataState
+            kind="empty"
+            icon={ScrollText}
+            title={level === "all" ? "No log records yet" : `No ${level} records`}
+            description={
+              level === "all"
                 ? "Structured logs sent with this project's tokens will show up here."
-                : "Try a different severity."}
-            </p>
-          </div>
+                : "Try a different severity."
+            }
+          />
         )}
 
         {state.status === "ready" && records.length > 0 && filteredRecords.length === 0 && (
-          <div className="state-panel">
-            <span className="state-icon">
-              <Search size={19} />
-            </span>
-            <strong>No matching records</strong>
-            <p>Try another search.</p>
-          </div>
+          <DataState
+            kind="empty"
+            icon={Search}
+            title="No matching records"
+            description="Try another search."
+          />
         )}
 
-        {state.status === "ready" &&
-          filteredRecords.map((record) => (
-            <div className="log-row" key={record.id}>
-              <span className={`log-level log-level-${record.level}`}>{record.level}</span>
+        {state.status === "ready" && filteredRecords.length > 0 && (
+          <ul>
+            {filteredRecords.map((record) => (
+              <li
+                className="grid grid-cols-1 gap-x-4 gap-y-2 border-b border-border px-5 py-4 last:border-b-0 sm:grid-cols-[64px_minmax(0,1fr)_auto] sm:items-start"
+                key={record.id}
+              >
+                <StatusBadge className="w-full sm:w-16" tone={LEVEL_TONES[record.level]}>
+                  {record.level}
+                </StatusBadge>
 
-              <div className="log-copy">
-                <p className="log-message">{record.message}</p>
-                <div className="log-meta">
-                  <strong>{record.service.name}</strong>
-                  {record.category.length > 0 && (
-                    <>
-                      <span className="meta-separator">·</span>
-                      <code>{record.category.join(".")}</code>
-                    </>
-                  )}
-                  {record.service.environment && (
-                    <>
-                      <span className="meta-separator">·</span>
-                      {record.service.environment}
-                    </>
+                <div className="min-w-0">
+                  <p className="text-[13px] break-words">{record.message}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <strong className="font-bold text-foreground">{record.service.name}</strong>
+                    {record.category.length > 0 && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <code className="font-mono text-[10px]">{record.category.join(".")}</code>
+                      </>
+                    )}
+                    {record.service.environment && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        {record.service.environment}
+                      </>
+                    )}
+                  </div>
+                  {attributeEntries(record.attributes).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {attributeEntries(record.attributes).map(([key, value]) => (
+                        <span
+                          className="inline-flex max-w-full items-center gap-1.5 truncate rounded-md border border-border bg-muted px-2 py-1 font-mono text-[10px]"
+                          key={key}
+                        >
+                          <span className="text-faint">{key}</span>
+                          {value}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
-                {attributeEntries(record.attributes).length > 0 && (
-                  <div className="log-attributes">
-                    {attributeEntries(record.attributes).map(([key, value]) => (
-                      <span className="log-attribute" key={key}>
-                        <span className="log-attribute-key">{key}</span>
-                        {value}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
 
-              <div className="time-cell">
-                <Clock3 size={14} />
-                <time dateTime={record.occurredAt} title={record.occurredAt}>
-                  {formatRelativeTime(record.occurredAt)}
-                </time>
-              </div>
-            </div>
-          ))}
+                <span className="flex items-center gap-1.5 font-mono text-[10px] whitespace-nowrap text-muted-foreground">
+                  <Clock3 className="size-3.5" />
+                  <time dateTime={record.occurredAt} title={record.occurredAt}>
+                    {formatRelativeTime(record.occurredAt)}
+                  </time>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {state.status === "ready" && (
-        <footer className="panel-footer">
+        <PanelFooter>
           <span>
-            Showing <strong>{filteredRecords.length}</strong> of {records.length} records
+            Showing <strong className="font-bold text-foreground">{filteredRecords.length}</strong>{" "}
+            of {records.length} records
           </span>
-          <span className="panel-footer-note">Sorted newest first</span>
-        </footer>
+          <PanelFooterNote>Sorted newest first</PanelFooterNote>
+        </PanelFooter>
       )}
-    </section>
+    </Panel>
   );
 }

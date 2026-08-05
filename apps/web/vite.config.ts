@@ -1,5 +1,7 @@
 import { defineConfig } from "vite";
 
+import tailwindcss from "@tailwindcss/vite";
+
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
 import viteReact from "@vitejs/plugin-react";
@@ -21,7 +23,10 @@ const apiProxyTarget = process.env.VITE_API_PROXY_TARGET;
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
-  plugins: [tanstackStart(), viteReact()],
+  plugins: [tailwindcss(), tanstackStart(), viteReact()],
+  // The design system is consumed as TypeScript source rather than a build
+  // artefact, so the SSR pass has to compile it instead of requiring it.
+  ssr: { noExternal: ["@dolshoe/ui"] },
   server: {
     host: true,
     watch: usePolling ? { usePolling: true, interval: 300 } : undefined,

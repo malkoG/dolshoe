@@ -34,6 +34,18 @@ export function formatShortId(id: string): string {
 }
 
 /**
+ * A count and the thing being counted — "1 report", "12 reports".
+ *
+ * @remarks
+ * Every list screen wrote its own version of this, which is more chances to
+ * disagree about the phrasing than there are lists. English's regular plural is
+ * the default; `plural` is there for the words that do not take it.
+ */
+export function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+/**
  * A span duration, in whichever unit makes it readable.
  *
  * @remarks

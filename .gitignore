@@ -21,6 +21,9 @@ __pycache__/
 apps/api/src/generated/prisma/
 apps/api/prisma/dev.db*
 
+# The design detector's per-machine dedup cache. Its config beside it is shared.
+.impeccable/hook.cache.json
+
 .DS_Store
 .idea/
 .vscode/

@@ -60,6 +60,36 @@ The reporter packages must not open a socket in their unit tests either. Inject
 a transport instead — every one of them takes one, which is what that seam is
 for.
 
+### Style belongs to the design system
+
+`packages/ui` (`@dolshoe/ui`) owns how the web application looks: the colour,
+type, spacing, radius and shadow tokens in `src/styles/globals.css`, the
+shadcn/ui primitives in `src/components/ui/`, and the compositions built from
+them. `apps/web` composes screens out of those pieces and describes layout with
+Tailwind utilities. It does not decide appearance.
+
+The practical rule is that **no colour literal belongs outside `globals.css`**.
+A component that needs a shade the system does not have adds a token rather than
+a hex value. Variants of an existing component are `cva` variants, not a second
+component and not a template-literal class name.
+
+A note on "start concrete" above, which this package deliberately reads against:
+`apps/web` is its only consumer and a second one is not planned. It is a
+separate package because presentation is a boundary worth making explicit and
+awkward to cross — not because the components are expected to be reused
+elsewhere. Do not treat it as a precedent for extracting other shared packages
+ahead of a second caller.
+
+Two consequences worth knowing:
+
+- Files under `src/components/ui/` come from the shadcn CLI. They are excluded
+  from oxlint in `.oxlintrc.json` and are best left close to upstream, so that
+  re-adding a component is a routine operation rather than a merge. Put local
+  behaviour in a composition beside them instead.
+- The CLI writes `@/…` imports, which would resolve against `apps/web` at the
+  call site. After running `shadcn add`, rewrite them to relative paths and run
+  `pnpm format`.
+
 ## Development workflow
 
 1. Run `mise install`. This pins Python and uv alongside Node, so the Python
