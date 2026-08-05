@@ -5,6 +5,15 @@ import { projectReferenceSchema } from "../projects/project.contract";
 const MAX_EXCEPTION_DEPTH = 16;
 const MAX_STACK_FRAMES = 200;
 const MAX_EXCEPTION_CHILDREN = 20;
+/**
+ * Source lines kept either side of a frame's own line.
+ *
+ * @remarks
+ * Five is enough to see the block a failure sits in without turning a two
+ * hundred frame report into a file listing: 200 frames × 11 lines is already a
+ * megabyte of context before anything else in the payload.
+ */
+const MAX_CONTEXT_LINES = 5;
 
 const contractRegistry = z.registry<{ id?: string; description?: string }>();
 
@@ -59,10 +68,26 @@ export const stackFrameSchema = z
       .max(4_096)
       .optional()
       .meta({ description: "Optional source-code line captured by the reporter." }),
+    preContext: z.array(z.string().max(4_096)).max(MAX_CONTEXT_LINES).optional().meta({
+      description:
+        "Source lines immediately above sourceLine, in file order. The last entry is the line directly above the one that failed.",
+    }),
+    postContext: z.array(z.string().max(4_096)).max(MAX_CONTEXT_LINES).optional().meta({
+      description:
+        "Source lines immediately below sourceLine, in file order. The first entry is the line directly below the one that failed.",
+    }),
     inApp: z
       .boolean()
       .optional()
       .meta({ description: "Whether the reporter considers this frame application-owned code." }),
+    origin: z
+      .enum(["app", "dependency", "runtime"])
+      .optional()
+      .meta({
+        description:
+          "Which world the frame belongs to. Finer than inApp, which cannot separate the runtime's own standard library from a third-party dependency.",
+        examples: ["runtime"],
+      }),
     native: z.boolean().optional().meta({ description: "Whether this is a native runtime frame." }),
     async: z
       .boolean()
