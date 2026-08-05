@@ -1,0 +1,63 @@
+[project]
+name = "dolshoe"
+version = "0.1.0"
+description = "Dolshoe reporter for Python"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "malkoG", email = "rijgndqw012@gmail.com" }]
+
+# Deliberately empty, and worth keeping that way. The JavaScript core has no
+# dependencies either, which is what lets an application adopt the reporter
+# without a discussion about its dependency tree. Posting JSON and reading a
+# status code does not justify pulling in an HTTP library; an application that
+# would rather use its own can supply a transport.
+dependencies = []
+
+# The JavaScript packages are all `"private": true`. This is the equivalent:
+# an accidental `uv publish` is refused rather than landing on PyPI.
+classifiers = ["Private :: Do Not Upload"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["mypy>=1.14", "pytest>=8.3", "ruff>=0.9"]
+
+[tool.uv]
+# `mise.toml` pins every other toolchain in this repository, and it pins Python
+# too. Left to itself uv would download an interpreter of its own choosing that
+# merely satisfies `requires-python`, so `mise install` and `uv run` would
+# disagree about which Python this package is tested on. Restricting uv to
+# interpreters already on PATH keeps mise the single pin point.
+python-preference = "only-system"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+  "E", # pycodestyle
+  "F", # pyflakes
+  "I", # import sorting
+  "N", # pep8 naming
+  "UP", # pyupgrade
+  "B", # bugbear
+  "SIM", # simplify
+  "RUF",
+  "T20", # flake8-print: the analogue of the repo's no-console rule
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests print their scenario output for the cross-runtime comparison, the same
+# way the JavaScript scenarios do behind an eslint-disable comment.
+"tests/*" = ["T20"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+# tsconfig.packages.json sets noUncheckedIndexedAccess and
+# exactOptionalPropertyTypes; these are the closest equivalents.
+warn_unreachable = true
+disallow_any_explicit = false
