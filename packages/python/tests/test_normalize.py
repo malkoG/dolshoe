@@ -129,6 +129,74 @@ def test_frames_of_a_library_are_not_in_app() -> None:
     assert all(frame["inApp"] is False for frame in library_frames)
 
 
+def test_a_frame_carries_the_lines_around_the_one_that_failed() -> None:
+    """Read against this file, so the assertion names lines that really exist."""
+    error = _raise(ValueError("boom"))
+    frame = normalize_exception(error)["frames"][0]
+
+    assert frame["sourceLine"]
+    # `_raise` is defined above with a `raise` inside it; whatever surrounds that
+    # line here is what has to come back.
+    assert frame["preContext"]
+    assert frame["postContext"]
+    assert len(frame["preContext"]) <= 5
+    assert len(frame["postContext"]) <= 5
+    # Indentation is kept, which is what makes the block readable.
+    assert any(line.startswith(" ") for line in frame["preContext"] + frame["postContext"])
+    # The context lines sit either side of the failing one, not on top of it.
+    assert frame["sourceLine"] not in frame["preContext"]
+
+
+def test_only_the_application_pays_for_source_context() -> None:
+    import json
+
+    try:
+        json.loads("{")
+    except ValueError as error:
+        frames = normalize_exception(error)["frames"]
+
+    for frame in frames:
+        if frame["origin"] != "app":
+            assert "preContext" not in frame
+            assert "postContext" not in frame
+
+
+def test_the_standard_library_is_told_apart_from_a_dependency() -> None:
+    """`inApp` cannot say which kind of not-ours a frame is; `origin` can.
+
+    Also checked against a live interpreter: `json` is the standard library
+    wherever this runs, and pytest is installed the way any dependency is.
+    """
+    import json
+
+    try:
+        json.loads("{")
+    except ValueError as error:
+        frames = normalize_exception(error)["frames"]
+
+    origins = {frame.get("moduleName", ""): frame["origin"] for frame in frames}
+    assert origins[__name__] == "app"
+    assert any(
+        origin == "runtime" for module, origin in origins.items() if module.startswith("json")
+    )
+
+    # The frame this test itself is in stays application code, and the two
+    # fields never disagree.
+    assert all(frame["inApp"] is (frame["origin"] == "app") for frame in frames)
+
+
+def test_a_dependencys_frames_are_neither_app_nor_runtime() -> None:
+    import _pytest.outcomes
+
+    error = _raise_from(lambda: _pytest.outcomes.fail("deliberate"))
+    frames = normalize_exception(error)["frames"]
+
+    dependency_frames = [frame for frame in frames if "_pytest" in frame.get("moduleName", "")]
+    assert dependency_frames
+    assert all(frame["origin"] == "dependency" for frame in dependency_frames)
+    assert all(frame["inApp"] is False for frame in dependency_frames)
+
+
 def test_nesting_deeper_than_the_limit_is_truncated() -> None:
     """The server counts cause, context and children against one budget and
     rejects the whole report past 16, so the reporter has to cut first."""

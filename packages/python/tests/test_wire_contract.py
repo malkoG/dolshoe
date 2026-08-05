@@ -37,6 +37,9 @@ EXAMPLE_FRAME_FIELDS = {
     "lineNumber",
     "sourceLine",
     "inApp",
+    "origin",
+    "preContext",
+    "postContext",
 }
 
 
@@ -109,6 +112,7 @@ def test_a_child_frame_carries_the_python_only_fields(collected: Collected) -> N
     assert frame["functionName"].endswith("charge")
     assert frame["sourceLine"] == 'raise TimeoutError("processor timed out")'
     assert frame["inApp"] is True
+    assert frame["origin"] == "app"
 
 
 def test_the_whole_report_is_json_with_no_encoder_help(collected: Collected) -> None:

@@ -21,7 +21,7 @@ from functools import lru_cache
 from itertools import islice
 from typing import Any
 
-from .types import JsonValue, NormalizedException, StackFrame, ThrownValue
+from .types import FrameOrigin, JsonValue, NormalizedException, StackFrame, ThrownValue
 
 MAX_DEPTH = 16
 MAX_CHILDREN = 20
@@ -34,6 +34,7 @@ MAX_REPRESENTATION_LENGTH = 4_096
 MAX_ATTRIBUTE_DEPTH = 8
 MAX_ATTRIBUTE_ITEMS = 100
 MAX_ATTRIBUTE_KEY_LENGTH = 200
+MAX_CONTEXT_LINES = 5
 
 _SENSITIVE = re.compile(
     r"authorization|cookie|dsn|pass(?:word|wd)?|secret|token"
@@ -90,42 +91,59 @@ def clip(value: str, maximum: int) -> str:
 # -- exceptions -----------------------------------------------------------
 
 
-def _library_prefixes() -> tuple[str, ...]:
+def _normalized_prefixes(candidates: list[str | None]) -> tuple[str, ...]:
+    return tuple(os.path.normcase(os.path.realpath(path)) for path in candidates if path)
+
+
+def _stdlib_prefixes() -> tuple[str, ...]:
     paths = sysconfig.get_paths()
-    candidates = [
-        paths.get("stdlib"),
-        paths.get("platstdlib"),
-        paths.get("purelib"),
-        paths.get("platlib"),
-    ]
+    return _normalized_prefixes([paths.get("stdlib"), paths.get("platstdlib")])
+
+
+def _dependency_prefixes() -> tuple[str, ...]:
+    paths = sysconfig.get_paths()
+    candidates: list[str | None] = [paths.get("purelib"), paths.get("platlib")]
     # Absent in some embedded and virtualenv-less builds.
     with contextlib.suppress(AttributeError):
         candidates.extend(site.getsitepackages())
     with contextlib.suppress(AttributeError):
         candidates.append(site.getusersitepackages())
-    return tuple(os.path.normcase(os.path.realpath(path)) for path in candidates if path)
+    return _normalized_prefixes(candidates)
 
 
-_LIBRARY_PREFIXES = _library_prefixes()
+_STDLIB_PREFIXES = _stdlib_prefixes()
+_DEPENDENCY_PREFIXES = _dependency_prefixes()
 
 
 @lru_cache(maxsize=1024)
-def _is_in_app(file_name: str, module_name: str | None) -> bool:
-    """Whether a frame belongs to the application rather than to a library.
+def _origin_of(file_name: str, module_name: str | None) -> FrameOrigin:
+    """Which world a frame belongs to: the application, a library, or Python itself.
 
     Cached because it resolves a real path, and an exception on a hot path can
     otherwise turn one report into hundreds of filesystem calls.
+
+    Dependencies are tested before the standard library, and that order is the
+    whole point: `purelib` normally sits *inside* `stdlib`
+    (`…/lib/python3.13/site-packages` under `…/lib/python3.13`), so asking about
+    the standard library first would file every third-party frame under
+    `runtime` and hide the dependency a reader is looking for.
     """
     if not file_name or file_name.startswith("<"):
-        return False
+        # `<frozen importlib._bootstrap>`, `<string>`: no file, and none of them
+        # are ever application code.
+        return "runtime"
     if module_name is not None and module_name.split(".")[0] == "dolshoe":
-        return False
+        return "dependency"
 
     resolved = os.path.normcase(os.path.realpath(file_name))
-    if resolved.startswith(_LIBRARY_PREFIXES):
-        return False
     parts = resolved.split(os.sep)
-    return "site-packages" not in parts and "dist-packages" not in parts
+    if "site-packages" in parts or "dist-packages" in parts:
+        return "dependency"
+    if resolved.startswith(_DEPENDENCY_PREFIXES):
+        return "dependency"
+    if resolved.startswith(_STDLIB_PREFIXES):
+        return "runtime"
+    return "app"
 
 
 def _column_of(traceback_object: Any) -> int | None:
@@ -158,6 +176,35 @@ def _source_line(file_name: str, line_number: int, frame_globals: dict[str, Any]
         return None
     stripped = line.strip()
     return stripped or None
+
+
+def _source_context(
+    file_name: str, line_number: int, frame_globals: dict[str, Any]
+) -> tuple[list[str], list[str]]:
+    """The lines either side of the one that failed, in file order.
+
+    Kept unstripped, unlike `sourceLine`: indentation is what shows a reader
+    which block the failing line sits in, and a context stripped of it reads as
+    a flat list of unrelated statements. `linecache` has the file cached from
+    reading `sourceLine`, so this costs a slice rather than another read.
+    """
+    if not file_name or file_name.startswith("<") or line_number <= 0:
+        return [], []
+
+    try:
+        lines = linecache.getlines(file_name, frame_globals)
+    except (OSError, UnicodeDecodeError):  # pragma: no cover
+        return [], []
+    if not lines:
+        return [], []
+
+    index = line_number - 1
+    if index < 0 or index >= len(lines):
+        return [], []
+
+    before = [line.rstrip("\r\n") for line in lines[max(0, index - MAX_CONTEXT_LINES) : index]]
+    after = [line.rstrip("\r\n") for line in lines[index + 1 : index + 1 + MAX_CONTEXT_LINES]]
+    return before, after
 
 
 def _frames_of(exception: BaseException) -> list[StackFrame]:
@@ -196,7 +243,18 @@ def _frames_of(exception: BaseException) -> list[StackFrame]:
         source_line = _source_line(file_name, line_number, current.tb_frame.f_globals)
         if source_line is not None:
             frame["sourceLine"] = truncate(source_line, 4_096)
-        frame["inApp"] = _is_in_app(file_name, module_name)
+        origin = _origin_of(file_name, module_name)
+        # Only the application's own frames, matching the JavaScript reporters:
+        # a failure inside a dependency is rarely read by looking at that
+        # library's source, and 200 frames of context is a payload nobody wants.
+        if origin == "app":
+            before, after = _source_context(file_name, line_number, current.tb_frame.f_globals)
+            if before:
+                frame["preContext"] = [truncate(line, 4_096) for line in before]
+            if after:
+                frame["postContext"] = [truncate(line, 4_096) for line in after]
+        frame["origin"] = origin
+        frame["inApp"] = origin == "app"
 
         collected.append(frame)
         current = current.tb_next
