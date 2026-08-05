@@ -1,13 +1,15 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 
 import { PrismaService } from "../database/prisma.service";
 import { Prisma } from "../generated/prisma/client";
 import {
   ERROR_REPORT_LIST_LIMIT,
+  ErrorReportDetail,
   ErrorReportListResponse,
   ErrorReportReceipt,
   ErrorReportRequest,
 } from "./error-report.contract";
+import { readStoredException } from "./read-stored-exception";
 import { summarizeException } from "./summarize-exception";
 
 function asPrismaJson(value: unknown): Prisma.InputJsonValue {
@@ -101,6 +103,78 @@ export class ErrorReportService {
         },
         exception: summarizeException(row.exception),
       })),
+    };
+  }
+
+  /**
+   * One report in full, frames and all.
+   *
+   * @remarks
+   * Scoped exactly as `list` is, and for the same reason: a report id guessed
+   * from another tenant matches nothing here rather than relying on a check
+   * further up to have happened. A miss and a wrong tenant are the same 404, so
+   * the endpoint does not confirm that an id exists somewhere else.
+   */
+  async get(
+    organizationId: string,
+    projectId: string,
+    reportId: string,
+  ): Promise<ErrorReportDetail> {
+    const row = await this.database.errorReport.findFirst({
+      where: { id: reportId, projectId, project: { organizationId } },
+      select: {
+        id: true,
+        eventId: true,
+        occurredAt: true,
+        receivedAt: true,
+        serviceName: true,
+        environment: true,
+        release: true,
+        runtimeName: true,
+        runtimeVersion: true,
+        reporterName: true,
+        reporterVersion: true,
+        mechanismType: true,
+        handled: true,
+        traceId: true,
+        spanId: true,
+        exception: true,
+        attributes: true,
+        project: { select: { id: true, slug: true, name: true } },
+      },
+    });
+
+    if (row == null) {
+      throw new NotFoundException("No such error report.");
+    }
+
+    return {
+      id: row.id,
+      eventId: row.eventId,
+      occurredAt: row.occurredAt.toISOString(),
+      receivedAt: row.receivedAt.toISOString(),
+      project: row.project,
+      service: {
+        name: row.serviceName,
+        environment: row.environment ?? undefined,
+        release: row.release ?? undefined,
+      },
+      runtime: {
+        name: row.runtimeName,
+        version: row.runtimeVersion ?? undefined,
+      },
+      reporter: {
+        name: row.reporterName,
+        version: row.reporterVersion ?? undefined,
+      },
+      mechanism:
+        row.mechanismType == null
+          ? undefined
+          : { type: row.mechanismType, handled: row.handled ?? undefined },
+      trace:
+        row.traceId == null ? undefined : { traceId: row.traceId, spanId: row.spanId ?? undefined },
+      exception: readStoredException(row.exception),
+      attributes: (row.attributes ?? undefined) as ErrorReportDetail["attributes"],
     };
   }
 }

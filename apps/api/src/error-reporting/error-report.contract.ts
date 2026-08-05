@@ -5,6 +5,15 @@ import { projectReferenceSchema } from "../projects/project.contract";
 const MAX_EXCEPTION_DEPTH = 16;
 const MAX_STACK_FRAMES = 200;
 const MAX_EXCEPTION_CHILDREN = 20;
+/**
+ * Source lines kept either side of a frame's own line.
+ *
+ * @remarks
+ * Five is enough to see the block a failure sits in without turning a two
+ * hundred frame report into a file listing: 200 frames × 11 lines is already a
+ * megabyte of context before anything else in the payload.
+ */
+const MAX_CONTEXT_LINES = 5;
 
 const contractRegistry = z.registry<{ id?: string; description?: string }>();
 
@@ -59,10 +68,26 @@ export const stackFrameSchema = z
       .max(4_096)
       .optional()
       .meta({ description: "Optional source-code line captured by the reporter." }),
+    preContext: z.array(z.string().max(4_096)).max(MAX_CONTEXT_LINES).optional().meta({
+      description:
+        "Source lines immediately above sourceLine, in file order. The last entry is the line directly above the one that failed.",
+    }),
+    postContext: z.array(z.string().max(4_096)).max(MAX_CONTEXT_LINES).optional().meta({
+      description:
+        "Source lines immediately below sourceLine, in file order. The first entry is the line directly below the one that failed.",
+    }),
     inApp: z
       .boolean()
       .optional()
       .meta({ description: "Whether the reporter considers this frame application-owned code." }),
+    origin: z
+      .enum(["app", "dependency", "runtime"])
+      .optional()
+      .meta({
+        description:
+          "Which world the frame belongs to. Finer than inApp, which cannot separate the runtime's own standard library from a third-party dependency.",
+        examples: ["runtime"],
+      }),
     native: z.boolean().optional().meta({ description: "Whether this is a native runtime frame." }),
     async: z
       .boolean()
@@ -304,6 +329,8 @@ export const errorReportReceiptSchema = z
 
 export const ERROR_REPORT_LIST_LIMIT = 50;
 
+export const errorReportIdParamSchema = z.uuid("An error report id is a UUID.");
+
 export const errorReportExceptionSummarySchema = z
   .object({
     type: nonEmptyText(512)
@@ -351,6 +378,46 @@ export const errorReportSummarySchema = z
     description: "Newest-first summary of a persisted error report for the web inbox.",
   });
 
+export const errorReportDetailSchema = z
+  .object({
+    id: z.uuid().meta({ description: "Server-assigned error report identifier." }),
+    eventId: z
+      .uuid()
+      .meta({ description: "Client-generated idempotency key the reporter supplied." }),
+    occurredAt: z.iso
+      .datetime()
+      .meta({ description: "UTC timestamp at which the failure occurred." }),
+    receivedAt: z.iso.datetime().meta({
+      description: "UTC timestamp at which the server first accepted the event.",
+    }),
+    project: projectReferenceSchema.meta({
+      description: "Project the report was ingested into, determined by the token that sent it.",
+    }),
+    service: serviceSchema.meta({ description: "Service that reported the failure." }),
+    runtime: runtimeSchema.meta({ description: "Runtime that reported the failure." }),
+    reporter: reporterSchema.meta({ description: "Reporter library that sent the report." }),
+    mechanism: mechanismSchema
+      .optional()
+      .meta({ description: "How the failure was captured, when the reporter said." }),
+    trace: traceSchema
+      .optional()
+      .meta({ description: "Trace context the report was captured under, if any." }),
+    exception: normalizedExceptionSchema.meta({
+      description:
+        "The whole stored exception tree, frames included — not the summary the list returns.",
+    }),
+    attributes: z
+      .record(z.string(), z.json())
+      .optional()
+      .meta({ description: "Application-specific context stored with the report." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "ErrorReportDetailV1",
+    description:
+      "One persisted error report in full, read defensively from stored JSON so an older or newer payload still renders.",
+  });
+
 export const errorReportListResponseSchema = z
   .object({
     reports: z
@@ -371,7 +438,9 @@ export type ErrorReportReceipt = z.infer<typeof errorReportReceiptSchema>;
 export type SourceLocation = z.infer<typeof sourceLocationSchema>;
 export type ErrorReportExceptionSummary = z.infer<typeof errorReportExceptionSummarySchema>;
 export type ErrorReportSummary = z.infer<typeof errorReportSummarySchema>;
+export type ErrorReportDetail = z.infer<typeof errorReportDetailSchema>;
 export type ErrorReportListResponse = z.infer<typeof errorReportListResponseSchema>;
+export type StackFrame = z.infer<typeof stackFrameSchema>;
 
 function adaptJsonSchemaToOpenApi(value: unknown): unknown {
   if (Array.isArray(value)) {

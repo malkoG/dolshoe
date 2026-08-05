@@ -17,7 +17,9 @@ export { newSpanId, newTraceId, nowUnixNano } from "./ids.js";
 export { normalizeException, parseJavaScriptStack, sanitizeAttributes } from "./normalize.js";
 export { toOtlpTraceRequest } from "./otlp.js";
 export type { OtlpExportTraceRequest, ReporterIdentity } from "./otlp.js";
+export { attachSourceContext, setSourceReader } from "./source-context.js";
 export { createSynchronousSpanScope } from "./span-scope.js";
+export { DEFAULT_STACK_FRAME_LIMIT, applyStackFrameLimit } from "./stack-frame-limit.js";
 export { HttpLogTransport, HttpTransport, OtlpSpanTransport } from "./transport.js";
 export type {
   CaptureMechanism,
@@ -26,6 +28,7 @@ export type {
   ClientOptions,
   ErrorReport,
   FinishedSpan,
+  FrameOrigin,
   JsonPrimitive,
   JsonValue,
   LogLevel,
@@ -40,6 +43,7 @@ export type {
   RuntimeInitOptions,
   ServiceInfo,
   SourceLocation,
+  SourceReader,
   Span,
   SpanContext,
   SpanKind,

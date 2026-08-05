@@ -16,6 +16,7 @@ JsonValue: TypeAlias = "str | int | float | bool | list[JsonValue] | dict[str, J
 LogLevel = Literal["trace", "debug", "info", "warning", "error", "fatal"]
 SpanKind = Literal["internal", "server", "client", "producer", "consumer"]
 SpanStatusCode = Literal["unset", "ok", "error"]
+FrameOrigin = Literal["app", "dependency", "runtime"]
 
 LOG_LEVELS: frozenset[str] = frozenset(("trace", "debug", "info", "warning", "error", "fatal"))
 
@@ -64,7 +65,10 @@ class StackFrame(TypedDict, total=False):
     lineNumber: int
     columnNumber: int
     sourceLine: str
+    preContext: list[str]
+    postContext: list[str]
     inApp: bool
+    origin: FrameOrigin
     native: bool
     async_: bool
 

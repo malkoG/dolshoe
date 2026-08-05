@@ -5,21 +5,21 @@ const MAX_MESSAGE_LENGTH = 16_384;
 const MAX_FILE_NAME_LENGTH = 2_048;
 const MAX_FUNCTION_NAME_LENGTH = 1_024;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function asBoundedString(value: unknown, maximumLength: number): string | undefined {
+export function asBoundedString(value: unknown, maximumLength: number): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed.slice(0, maximumLength);
 }
 
-function asPositiveInt(value: unknown): number | undefined {
+export function asPositiveInt(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
-function asNonNegativeInt(value: unknown): number | undefined {
+export function asNonNegativeInt(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 

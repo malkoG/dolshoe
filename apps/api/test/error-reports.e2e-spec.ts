@@ -197,6 +197,59 @@ describe("Error report ingestion", () => {
     await request(app.getHttpServer()).get(REPORTS_URL).expect(401);
   });
 
+  it("serves one report in full, with every frame the reporter sent", async () => {
+    const receipt = await request(app.getHttpServer())
+      .post("/api/v1/error-reports")
+      .send(pythonErrorReportExample)
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .get(`${REPORTS_URL}/${receipt.body.id}`)
+      .set("cookie", viewer)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      id: receipt.body.id,
+      eventId: pythonErrorReportExample.eventId,
+      occurredAt: pythonErrorReportExample.occurredAt,
+      service: pythonErrorReportExample.service,
+      runtime: pythonErrorReportExample.runtime,
+      reporter: pythonErrorReportExample.reporter,
+      project: { id: DEFAULT_PROJECT_ID, slug: DEFAULT_PROJECT_SLUG },
+    });
+
+    // The list gives back a summary; this is the endpoint that carries frames,
+    // and the grouped children each carry their own.
+    expect(response.body.exception).toEqual(pythonErrorReportExample.exception);
+    expect(response.body.exception.children[0].frames.length).toBeGreaterThan(0);
+  });
+
+  it("hides another project's report behind the same 404 as one that never existed", async () => {
+    const receipt = await request(app.getHttpServer())
+      .post("/api/v1/error-reports")
+      .send(nodeErrorReportExample)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(
+        `/api/v1/orgs/${DEFAULT_ORGANIZATION_SLUG}/projects/11111111-2222-4333-8444-555555555555/error-reports/${receipt.body.id}`,
+      )
+      .set("cookie", viewer)
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get(`${REPORTS_URL}/99999999-8888-4777-8666-555555555555`)
+      .set("cookie", viewer)
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get(`${REPORTS_URL}/not-a-uuid`)
+      .set("cookie", viewer)
+      .expect(400);
+
+    await request(app.getHttpServer()).get(`${REPORTS_URL}/${receipt.body.id}`).expect(401);
+  });
+
   it("rejects a report outside the documented contract", async () => {
     const response = await request(app.getHttpServer())
       .post("/api/v1/error-reports")
@@ -235,8 +288,13 @@ describe("Error report ingestion", () => {
         ErrorReportListResponseV1: expect.any(Object),
         ErrorReportSummaryV1: expect.any(Object),
         ErrorReportExceptionSummaryV1: expect.any(Object),
+        ErrorReportDetailV1: expect.any(Object),
       }),
     );
+    expect(
+      response.body.paths["/api/v1/orgs/{orgSlug}/projects/{projectId}/error-reports/{reportId}"]
+        .get,
+    ).toEqual(expect.any(Object));
     expect(
       response.body.components.schemas.ErrorReportRequestV1.properties.runtime.properties.name
         .description,

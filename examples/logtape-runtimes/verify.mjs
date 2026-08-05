@@ -3,7 +3,12 @@ import { spawnSync } from "node:child_process";
 
 const scenarios = {
   node: ["node", ["node.mjs"]],
-  deno: ["deno", ["run", "deno.mjs"]],
+  // `--allow-read` is what source context costs on Deno: the reporter reads the
+  // application's own files to attach the lines around a failure, and a Deno
+  // process grants nothing by default. Without it the reporter still works and
+  // simply reports frames without context — which is what makes it worth
+  // granting here, where the point is to prove the context arrives.
+  deno: ["deno", ["run", "--allow-read", "deno.mjs"]],
   bun: ["bun", ["run", "bun.mjs"]],
 };
 
@@ -102,6 +107,34 @@ for (const runtime of Object.keys(scenarios)) {
   assert.equal(report.eventId, "bf695c6d-8a75-4b1d-8434-9ddb1ce54ee7");
   assert.equal(typeof report.exception.stacktrace, "string");
   assert.ok(report.exception.frames.length > 0);
+
+  // The frame budget, measured on the runtime rather than assumed from the
+  // assignment: every one of these keeps ten frames by default, which is where
+  // every JavaScript stack used to stop no matter what the contract allowed.
+  const { deepStack } = reports;
+  assert.ok(
+    deepStack.frameCount > 10,
+    `${runtime} kept only ${deepStack.frameCount} frames of a ${deepStack.requestedDepth}-deep stack`,
+  );
+  assert.ok(
+    deepStack.frameCount >= deepStack.requestedDepth,
+    `${runtime} kept ${deepStack.frameCount} frames of a ${deepStack.requestedDepth}-deep stack`,
+  );
+  // And every frame is classified, so the viewer can fold the ones nobody here
+  // wrote rather than showing sixty rows of undifferentiated trace.
+  assert.equal(deepStack.innermost, "app");
+  // Source context, measured the same way: each runtime reads its own files
+  // through its own API, so that it works is only knowable by running it.
+  assert.ok(
+    deepStack.sourceLine?.includes("descend(depth - 1)") === true ||
+      deepStack.sourceLine?.includes("bottom of a deep stack") === true,
+    `${runtime} attached no source line, got ${JSON.stringify(deepStack.sourceLine)}`,
+  );
+  assert.ok(deepStack.contextLines > 0, `${runtime} attached a source line but no lines around it`);
+  assert.ok(
+    deepStack.origins.every((origin) => ["app", "dependency", "runtime"].includes(origin)),
+    `${runtime} produced an unrecognised frame origin: ${deepStack.origins.join(", ")}`,
+  );
   assert.equal(report.exception.cause.message, "Cart was not loaded");
   assert.equal(report.exception.children.length, 2);
 

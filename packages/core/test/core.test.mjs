@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { Client, normalizeException, parseJavaScriptStack } from "../dist/index.mjs";
+import {
+  Client,
+  DEFAULT_STACK_FRAME_LIMIT,
+  applyStackFrameLimit,
+  attachSourceContext,
+  normalizeException,
+  parseJavaScriptStack,
+} from "../dist/index.mjs";
 
 test("normalizes Error cause and AggregateError children", () => {
   const cause = new Error("cart missing");
@@ -37,6 +44,7 @@ test("parses V8-style Node, Deno, and Bun stack frames", () => {
       lineNumber: 42,
       columnNumber: 18,
       inApp: true,
+      origin: "app",
       async: true,
     },
     {
@@ -44,14 +52,130 @@ test("parses V8-style Node, Deno, and Bun stack frames", () => {
       lineNumber: 10,
       columnNumber: 3,
       inApp: true,
+      origin: "app",
     },
     {
       fileName: "node:internal/process/task_queues",
       lineNumber: 105,
       columnNumber: 5,
       inApp: false,
+      origin: "runtime",
     },
   ]);
+});
+
+test("tells each runtime's own internals apart from a dependency", () => {
+  const stack = [
+    "Error: failed",
+    "    at handler (/srv/app/routes.ts:8:5)",
+    "    at Layer.handle (/srv/app/node_modules/express/lib/router/layer.js:95:5)",
+    "    at serve (https://deno.land/std@0.224.0/http/server.ts:298:20)",
+    "    at assertEquals (jsr:@std/assert@1.0.0/equals:32:9)",
+    "    at ext:deno_web/06_streams.js:1024:11",
+    "    at bun:main:14:3",
+  ].join("\n");
+
+  assert.deepEqual(
+    parseJavaScriptStack(stack).map((frame) => [frame.fileName, frame.origin, frame.inApp]),
+    [
+      ["/srv/app/routes.ts", "app", true],
+      ["/srv/app/node_modules/express/lib/router/layer.js", "dependency", false],
+      ["https://deno.land/std@0.224.0/http/server.ts", "dependency", false],
+      ["jsr:@std/assert@1.0.0/equals", "dependency", false],
+      ["ext:deno_web/06_streams.js", "runtime", false],
+      ["bun:main", "runtime", false],
+    ],
+  );
+});
+
+test("surrounds an application frame with the lines around it", () => {
+  const source = Array.from({ length: 12 }, (_, index) => `line ${index + 1}`);
+  const frames = parseJavaScriptStack(
+    [
+      "Error: failed",
+      "    at handle (/srv/app/handler.ts:8:3)",
+      "    at Layer (/srv/app/node_modules/express/layer.js:4:1)",
+      "    at run (node:internal/timers:9:1)",
+    ].join("\n"),
+  );
+
+  attachSourceContext(frames, () => source);
+
+  assert.equal(frames[0]?.sourceLine, "line 8");
+  assert.deepEqual(frames[0]?.preContext, ["line 3", "line 4", "line 5", "line 6", "line 7"]);
+  assert.deepEqual(frames[0]?.postContext, ["line 9", "line 10", "line 11", "line 12"]);
+
+  // Only the application's own frames are read: a failure inside a library is
+  // not diagnosed by reading that library, and 200 frames of context is a
+  // payload nobody wants.
+  assert.equal(frames[1]?.sourceLine, undefined);
+  assert.equal(frames[2]?.sourceLine, undefined);
+});
+
+test("asks for no source when the reader has nothing, or the line is off the end", () => {
+  const frames = parseJavaScriptStack("Error: failed\n    at handle (/srv/app/handler.ts:99:3)");
+
+  attachSourceContext(frames, () => undefined);
+  assert.equal(frames[0]?.sourceLine, undefined);
+
+  attachSourceContext(frames, () => ["only one line"]);
+  assert.equal(frames[0]?.sourceLine, undefined);
+  assert.equal(frames[0]?.preContext, undefined);
+});
+
+function descend(depth) {
+  if (depth === 0) throw new Error("bottom");
+  descend(depth - 1);
+}
+
+test("raises the runtime's frame budget, and puts it back", () => {
+  const before = Error.stackTraceLimit;
+
+  const restore = applyStackFrameLimit(DEFAULT_STACK_FRAME_LIMIT);
+  try {
+    assert.equal(Error.stackTraceLimit, DEFAULT_STACK_FRAME_LIMIT);
+
+    // The point of the limit, measured rather than asserted about: a stack
+    // deeper than the runtime's default of 10 now arrives whole.
+    let frames = [];
+    try {
+      descend(60);
+    } catch (error) {
+      frames = parseJavaScriptStack(error.stack);
+    }
+
+    assert.ok(frames.length > 10, `expected more than 10 frames, got ${frames.length}`);
+  } finally {
+    restore();
+  }
+
+  assert.equal(Error.stackTraceLimit, before);
+});
+
+test("keeps a frame it cannot place rather than leaving a hole", () => {
+  const stack = [
+    "Error: failed",
+    "    at loadOrders (/srv/app/orders.ts:12:9)",
+    "    at async Promise.all (index 0)",
+    "    at <anonymous>",
+    "    at listen (native)",
+    "    at flush (/srv/app/flush.ts:3:1)",
+  ].join("\n");
+
+  const frames = parseJavaScriptStack(stack);
+
+  // Every line survives, so a reader counting frames sees the real distance
+  // between the two located ones.
+  assert.equal(frames.length, 5);
+  assert.deepEqual(frames[1], { functionName: "Promise.all (index 0)", async: true });
+  assert.deepEqual(frames[2], { functionName: "<anonymous>" });
+  assert.deepEqual(frames[3], {
+    functionName: "listen",
+    native: true,
+    origin: "runtime",
+    inApp: false,
+  });
+  assert.equal(frames[4]?.fileName, "/srv/app/flush.ts");
 });
 
 test("creates a V1 report and redacts sensitive attributes", async () => {

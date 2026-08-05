@@ -5,6 +5,41 @@ const PROJECT_ID = "3f1d0a4c-6b2e-4f7a-9c5d-8e1b2a3c4d5e";
 const TOKEN = "dsh_a1b2c3d4e5f6_TFhQb2xzaG9lRXhhbXBsZVNlY3JldFZhbHVlSGVyZQ";
 const DSN = `https://${TOKEN}@dolshoe.example/${PROJECT_ID}`;
 
+/** Deeper than the ten frames a JavaScript runtime keeps by default. */
+const DEEP_STACK_DEPTH = 60;
+
+function descend(depth) {
+  if (depth === 0) throw new Error("bottom of a deep stack");
+  descend(depth - 1);
+}
+
+/**
+ * What each runtime actually kept, rather than what it was asked to keep.
+ *
+ * @remarks
+ * `Error.stackTraceLimit` is V8's, and Deno and Bun reach it through their own
+ * compatibility surfaces; whether writing it took effect is not something the
+ * reporter can know from the inside. Throwing from a known depth and counting
+ * what came back is the only honest test, and it has to run on all three.
+ */
+function measureDeepStack(dolshoe) {
+  try {
+    descend(DEEP_STACK_DEPTH);
+  } catch (thrown) {
+    const { frames } = dolshoe.normalizeException(thrown);
+    const innermost = frames[0];
+    return {
+      requestedDepth: DEEP_STACK_DEPTH,
+      frameCount: frames.length,
+      origins: [...new Set(frames.map((frame) => frame.origin))].toSorted(),
+      innermost: innermost?.origin,
+      sourceLine: innermost?.sourceLine,
+      contextLines: (innermost?.preContext?.length ?? 0) + (innermost?.postContext?.length ?? 0),
+    };
+  }
+  throw new Error("expected a throw");
+}
+
 export async function runScenario(dolshoe) {
   const reports = [];
   const logRecords = [];
@@ -146,5 +181,12 @@ export async function runScenario(dolshoe) {
   };
 
   // eslint-disable-next-line no-console
-  console.log(JSON.stringify({ report: reports[0], logRecord: logRecords[0], trace }));
+  console.log(
+    JSON.stringify({
+      report: reports[0],
+      logRecord: logRecords[0],
+      trace,
+      deepStack: measureDeepStack(dolshoe),
+    }),
+  );
 }

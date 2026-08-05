@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@dolshoe/ui/components/ui/table";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { Clock3, Inbox, Search, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -35,7 +35,7 @@ import type { ErrorReportSummary } from "../lib/error-reports";
 import { formatRelativeTime, formatShortId, pluralize } from "../lib/format";
 import { useResource } from "../lib/use-resource";
 
-export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/reports")({
+export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/reports/")({
   component: Reports,
 });
 
@@ -241,9 +241,18 @@ function Reports() {
                 return (
                   <TableRow className="border-border" key={report.id}>
                     <TableCell className="px-5 py-4 align-top">
-                      <strong className="block truncate text-[13px] font-bold">
+                      {/*
+                        The whole heading is the target rather than a separate
+                        "view" affordance in a fifth column: the exception's name
+                        is what a reader is already aiming at.
+                      */}
+                      <Link
+                        className="block truncate text-[13px] font-bold hover:underline"
+                        params={{ orgSlug, projectId, reportId: report.id }}
+                        to="/orgs/$orgSlug/projects/$projectId/reports/$reportId"
+                      >
                         {report.exception.type ?? "Unknown exception"}
-                      </strong>
+                      </Link>
                       {report.exception.message && (
                         <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">
                           {report.exception.message}

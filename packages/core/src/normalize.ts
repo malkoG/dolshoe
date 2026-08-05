@@ -1,4 +1,5 @@
-import type { JsonValue, NormalizedException, StackFrame } from "./types.js";
+import { attachSourceContext } from "./source-context.js";
+import type { FrameOrigin, JsonValue, NormalizedException, StackFrame } from "./types.js";
 
 const MAX_DEPTH = 16;
 const MAX_CHILDREN = 20;
@@ -67,6 +68,29 @@ function safeRepresentation(value: unknown): string {
   }
 }
 
+/** Specifiers for a runtime's own internals. None of the three runtimes reuse another's. */
+const runtimePrefixes = ["node:", "bun:", "ext:", "deno:"];
+/** Specifiers for code the application chose but did not write. */
+const dependencyPrefixes = ["jsr:", "npm:", "http://", "https://"];
+
+/**
+ * Which world a frame's file belongs to.
+ *
+ * @remarks
+ * One classifier serves Node, Deno and Bun because their internal schemes do
+ * not collide. A remote Deno module counts as a dependency rather than as the
+ * runtime: `https://deno.land/std` is a library the application reached for, and
+ * a reader skipping "runtime" frames still wants to see it.
+ */
+function classifyFrameOrigin(fileName: string): FrameOrigin {
+  if (runtimePrefixes.some((prefix) => fileName.startsWith(prefix))) return "runtime";
+  if (fileName.includes("/node_modules/") || fileName.includes("\\node_modules\\")) {
+    return "dependency";
+  }
+  if (dependencyPrefixes.some((prefix) => fileName.startsWith(prefix))) return "dependency";
+  return "app";
+}
+
 export function parseJavaScriptStack(stack: string): StackFrame[] {
   const frames: StackFrame[] = [];
 
@@ -75,6 +99,7 @@ export function parseJavaScriptStack(stack: string): StackFrame[] {
     if (!atMatch) continue;
 
     const isAsync = atMatch[1] === "async";
+    const asyncFlag = isAsync ? { async: true } : {};
     let body = atMatch[2] ?? "";
     let functionName: string | undefined;
 
@@ -90,30 +115,38 @@ export function parseJavaScriptStack(stack: string): StackFrame[] {
       frames.push({
         ...(functionName == null ? {} : { functionName }),
         native: true,
-        ...(isAsync ? { async: true } : {}),
+        origin: "runtime",
+        inApp: false,
+        ...asyncFlag,
       });
-      continue;
+    } else {
+      const locationMatch = /^(.*):(\d+):(\d+)$/.exec(body);
+      const fileName = locationMatch?.[1];
+
+      if (locationMatch == null || fileName == null || fileName.length === 0) {
+        // A frame this parser cannot place — `at async Promise.all (index 0)`,
+        // `at <anonymous>`, JavaScriptCore's `unknown location`. Dropping it
+        // would put a silent hole in the trace exactly where a reader is
+        // counting frames, so it is kept with whatever text there was. Every
+        // field on the wire contract's frame is optional, which is what makes
+        // that expressible.
+        const label = functionName == null ? body : `${functionName} (${body})`;
+        if (label.length > 0) {
+          frames.push({ functionName: truncate(label, 1_024), ...asyncFlag });
+        }
+      } else {
+        const origin = classifyFrameOrigin(fileName);
+        frames.push({
+          ...(functionName == null ? {} : { functionName }),
+          fileName,
+          lineNumber: Number(locationMatch[2]),
+          columnNumber: Number(locationMatch[3]),
+          inApp: origin === "app",
+          origin,
+          ...asyncFlag,
+        });
+      }
     }
-
-    const locationMatch = /^(.*):(\d+):(\d+)$/.exec(body);
-    if (!locationMatch) continue;
-
-    const fileName = locationMatch[1];
-    const lineNumber = Number(locationMatch[2]);
-    const columnNumber = Number(locationMatch[3]);
-    if (fileName == null || fileName.length === 0) continue;
-
-    frames.push({
-      ...(functionName == null ? {} : { functionName }),
-      fileName,
-      lineNumber,
-      columnNumber,
-      inApp:
-        !fileName.startsWith("node:") &&
-        !fileName.includes("/node_modules/") &&
-        !fileName.includes("\\node_modules\\"),
-      ...(isAsync ? { async: true } : {}),
-    });
 
     if (frames.length >= MAX_FRAMES) break;
   }
@@ -172,6 +205,9 @@ export function normalizeException(
   if (typeof stack === "string") {
     normalized.stacktrace = truncate(stack, MAX_STACK_LENGTH);
     const frames = parseJavaScriptStack(stack);
+    // Here rather than inside the parser, which stays a pure function of its
+    // input so a stack fixture in a test means one thing on every machine.
+    attachSourceContext(frames);
     if (frames.length > 0) normalized.frames = frames;
   }
   if (cause !== undefined) {

@@ -5,6 +5,15 @@ import {
 } from "./error-report.contract";
 import { nodeErrorReportExample, pythonErrorReportExample } from "./error-report.examples";
 
+const withOrigin = (origin: string) =>
+  errorReportRequestSchema.safeParse({
+    ...nodeErrorReportExample,
+    exception: {
+      type: "Error",
+      frames: [{ fileName: "node:internal/process/task_queues", origin }],
+    },
+  }).success;
+
 describe("error report contract", () => {
   it.each([nodeErrorReportExample, pythonErrorReportExample])(
     "accepts a documented runtime example",
@@ -21,6 +30,25 @@ describe("error report contract", () => {
           type: "string",
           representation: "request aborted",
         },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a frame origin, and only the three the contract names", () => {
+    expect(withOrigin("app")).toBe(true);
+    expect(withOrigin("dependency")).toBe(true);
+    expect(withOrigin("runtime")).toBe(true);
+    expect(withOrigin("stdlib")).toBe(false);
+  });
+
+  it("still accepts a frame from a reporter that predates origin", () => {
+    const result = errorReportRequestSchema.safeParse({
+      ...nodeErrorReportExample,
+      exception: {
+        type: "Error",
+        frames: [{ fileName: "/srv/app/order.js", lineNumber: 42, inApp: true }],
       },
     });
 

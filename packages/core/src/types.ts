@@ -8,6 +8,16 @@ export interface SourceLocation {
   functionName?: string;
 }
 
+/**
+ * Which world a frame belongs to.
+ *
+ * @remarks
+ * Finer than `inApp`, which is a boolean and so cannot separate the runtime's
+ * own standard library from a dependency the application chose. A reader
+ * following a failure wants those collapsed differently.
+ */
+export type FrameOrigin = "app" | "dependency" | "runtime";
+
 export interface StackFrame {
   functionName?: string;
   moduleName?: string;
@@ -15,10 +25,25 @@ export interface StackFrame {
   lineNumber?: number;
   columnNumber?: number;
   sourceLine?: string;
+  preContext?: string[];
+  postContext?: string[];
   inApp?: boolean;
+  origin?: FrameOrigin;
   native?: boolean;
   async?: boolean;
 }
+
+/**
+ * Reads a source file so a frame can carry the lines around the one that failed.
+ *
+ * @remarks
+ * A seam rather than a direct `node:fs` call because `@dolshoe/core` runs on
+ * four runtimes and can import none of their file APIs. Each runtime package
+ * installs one; a reporter without one simply reports frames without context.
+ * It returns whole-file lines and is expected to cache: one exception can name
+ * the same file in fifty frames.
+ */
+export type SourceReader = (fileName: string) => readonly string[] | undefined;
 
 export interface ThrownValue {
   type: string;
@@ -244,6 +269,22 @@ export interface ClientOptions {
 
 export interface RuntimeInitOptions extends Omit<ClientOptions, "runtime" | "reporter"> {
   captureUnhandledErrors?: boolean;
+  /**
+   * How many frames the runtime keeps on an `Error`, written to the global
+   * `Error.stackTraceLimit` and restored by `close()`. Defaults to 200, matching
+   * what the normalizer and the ingestion contract already allow; the runtime's
+   * own default of 10 is otherwise where every JavaScript stack stops. Pass
+   * `false` to leave the global alone.
+   */
+  stackFrameLimit?: number | false;
+  /**
+   * Whether frames in the application's own code carry the source lines around
+   * the one that failed. On by default. Reading is synchronous, cached, bounded
+   * to application frames, and silent about every failure; pass `false` where
+   * the deployed source is not the reported source anyway — a minified bundle,
+   * an image that ships without its sources — and the lines would only mislead.
+   */
+  sourceContext?: boolean;
 }
 
 export interface ReporterNamespace {
