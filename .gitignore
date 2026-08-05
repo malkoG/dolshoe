@@ -4,6 +4,15 @@ dist/
 coverage/
 *.log
 
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
 .env
 .env.*
 !.env.example
