@@ -26,6 +26,13 @@ export type ResourceState<T> =
  * stops the request; the flag stops a response that was already in flight from
  * writing state into a screen that has moved on.
  *
+ * A screen that already has rows keeps them while the next answer is on its
+ * way, and says so through `refreshing` instead. Blanking a list back to a
+ * spinner to re-fetch what is almost certainly the same content reads as the
+ * page breaking, and it moves everything under the reader's pointer. A failure
+ * still replaces what is on screen: a list that quietly kept showing stale rows
+ * after the call behind it started failing would be the more expensive lie.
+ *
  * @param load - Runs the request. It is given the `AbortSignal` to pass through
  * to `fetch`, and is read fresh on every run rather than being a dependency, so
  * a caller does not have to memoize it.
@@ -36,29 +43,43 @@ export type ResourceState<T> =
 export function useResource<T>(
   load: (options: { signal: AbortSignal }) => Promise<T>,
   dependencies: readonly unknown[],
-): Readonly<{ reload: () => void; state: ResourceState<T> }> {
+): Readonly<{ refreshing: boolean; reload: () => void; state: ResourceState<T> }> {
   const [state, setState] = useState<ResourceState<T>>({ status: "loading" });
+  const [refreshing, setRefreshing] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
 
-  // Written during render on purpose, and never read during one: it exists so
-  // the effect below can call the newest `load` without listing it as a
-  // dependency, which would restart the request on every parent render.
+  // Both written during render on purpose, and never read during one. `load`
+  // exists so the effect below can call the newest one without listing it as a
+  // dependency, which would restart the request on every parent render;
+  // `state` so the effect can tell a first load from a refresh without making
+  // itself re-run whenever the state it sets changes.
   const latestLoad = useRef(load);
   latestLoad.current = load;
+  const latestState = useRef(state);
+  latestState.current = state;
 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    setState({ status: "loading" });
+    const hasRows = latestState.current.status === "ready";
+
+    if (!hasRows) setState({ status: "loading" });
+    setRefreshing(hasRows);
 
     latestLoad
       .current({ signal: controller.signal })
       .then((data) => {
-        if (!cancelled) setState({ status: "ready", data });
+        if (!cancelled) {
+          setState({ status: "ready", data });
+          setRefreshing(false);
+        }
         return;
       })
       .catch((error: unknown) => {
-        if (!cancelled) setState({ status: "error", error });
+        if (!cancelled) {
+          setState({ status: "error", error });
+          setRefreshing(false);
+        }
       });
 
     return () => {
@@ -69,5 +90,5 @@ export function useResource<T>(
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
-  return { reload, state };
+  return { refreshing, reload, state };
 }
