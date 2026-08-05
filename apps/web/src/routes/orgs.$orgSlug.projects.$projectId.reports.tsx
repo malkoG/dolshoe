@@ -1,30 +1,43 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { DataState } from "@dolshoe/ui/components/data-state";
 import {
-  AlertTriangle,
-  ChevronDown,
-  Clock3,
-  Inbox,
-  Loader2,
-  RefreshCw,
-  Search,
-  SlidersHorizontal,
-  X,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+  Panel,
+  PanelBar,
+  PanelControls,
+  PanelFooter,
+  PanelFooterNote,
+  PanelSummary,
+} from "@dolshoe/ui/components/panel";
+import { SearchField } from "@dolshoe/ui/components/search-field";
+import { StatusDot } from "@dolshoe/ui/components/status-badge";
+import { Button } from "@dolshoe/ui/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dolshoe/ui/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@dolshoe/ui/components/ui/table";
+import { createFileRoute } from "@tanstack/react-router";
+import { Clock3, Inbox, Search, SlidersHorizontal } from "lucide-react";
+import { useMemo, useState } from "react";
 
-import { ApiError } from "../lib/api-request";
+import { describeError } from "../lib/api-request";
 import { fetchErrorReports } from "../lib/error-reports";
 import type { ErrorReportSummary } from "../lib/error-reports";
-import { formatRelativeTime, formatShortId } from "../lib/format";
+import { formatRelativeTime, formatShortId, pluralize } from "../lib/format";
+import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/reports")({
   component: Reports,
 });
-
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; error: unknown }
-  | { status: "ready"; reports: ErrorReportSummary[] };
 
 const RUNTIME_DISPLAY_NAMES: Record<string, string> = {
   node: "Node",
@@ -32,6 +45,12 @@ const RUNTIME_DISPLAY_NAMES: Record<string, string> = {
   python: "Python",
   deno: "Deno",
   bun: "Bun",
+};
+
+/** Which environments get a colour of their own, and which stay deliberately grey. */
+const ENVIRONMENT_TONES: Record<string, "success" | "violet"> = {
+  production: "success",
+  staging: "violet",
 };
 
 function formatRuntimeLabel(runtime: ErrorReportSummary["runtime"]): string {
@@ -59,44 +78,17 @@ function formatSourceLocation(
   return source.functionName ?? place;
 }
 
-function pluralizeReports(count: number): string {
-  return `${count} ${count === 1 ? "report" : "reports"}`;
-}
-
-function describeLoadError(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Something went wrong while loading error reports.";
-}
-
 function Reports() {
   const { orgSlug, projectId } = Route.useParams();
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [reloadToken, setReloadToken] = useState(0);
   const [query, setQuery] = useState("");
   const [environment, setEnvironment] = useState("all");
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setState({ status: "loading" });
+  const { reload, state } = useResource(
+    ({ signal }) => fetchErrorReports(orgSlug, projectId, { signal }),
+    [orgSlug, projectId],
+  );
 
-    fetchErrorReports(orgSlug, projectId, { signal: controller.signal })
-      .then((reports) => {
-        if (!cancelled) setState({ status: "ready", reports });
-        return;
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setState({ status: "error", error });
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [projectId, reloadToken]);
-
-  const reports = state.status === "ready" ? state.reports : [];
+  const reports = state.status === "ready" ? state.data : [];
 
   const environmentOptions = useMemo(() => {
     const values = new Set<string>();
@@ -131,169 +123,216 @@ function Reports() {
   const hasActiveFilters = query.length > 0 || environment !== "all";
 
   return (
-    <section className="report-panel">
-      <div className="filter-bar">
-        <span className="filter-summary">
-          {state.status === "ready" ? pluralizeReports(filteredReports.length) : "Reports"}
-        </span>
+    <Panel>
+      <PanelBar>
+        <PanelSummary>
+          {state.status === "ready" ? pluralize(filteredReports.length, "report") : "Reports"}
+        </PanelSummary>
 
-        <div className="filter-controls">
-          <label className="search-field">
-            <Search size={16} />
-            <span className="sr-only">Search reports</span>
-            <input
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search errors, services…"
-              type="search"
-              value={query}
-            />
-            {query.length > 0 && (
-              <button
-                className="clear-search"
-                onClick={() => setQuery("")}
-                type="button"
-                aria-label="Clear search"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </label>
+        <PanelControls>
+          <SearchField
+            label="Search reports"
+            onValueChange={setQuery}
+            placeholder="Search errors, services…"
+            value={query}
+          />
 
-          <label className="select-field">
-            <SlidersHorizontal size={15} />
-            <span className="sr-only">Filter by environment</span>
-            <select onChange={(event) => setEnvironment(event.target.value)} value={environment}>
-              <option value="all">All environments</option>
+          <Select onValueChange={setEnvironment} value={environment}>
+            <SelectTrigger aria-label="Filter by environment" className="w-[190px]">
+              <SlidersHorizontal className="size-4 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All environments</SelectItem>
               {environmentOptions.map((option) => (
-                <option key={option} value={option}>
+                <SelectItem key={option} value={option}>
                   {option}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-            <ChevronDown className="select-chevron" size={14} />
-          </label>
-        </div>
-      </div>
+            </SelectContent>
+          </Select>
+        </PanelControls>
+      </PanelBar>
 
-      {state.status === "ready" && reports.length > 0 && (
-        <div className="list-header" aria-hidden="true">
-          <span>Issue</span>
-          <span>Service</span>
-          <span>Occurred</span>
-          <span>Report</span>
-        </div>
-      )}
-
-      <div className="report-list" aria-live="polite">
+      <div aria-live="polite">
         {state.status === "loading" && (
-          <div className="state-panel state-panel-loading" role="status">
-            <span className="state-icon">
-              <Loader2 className="spin" size={19} />
-            </span>
-            <strong>Loading error reports…</strong>
-            <p>Fetching the newest events from the API.</p>
-          </div>
+          <DataState
+            kind="loading"
+            title="Loading error reports…"
+            description="Fetching the newest events from the API."
+          />
         )}
 
         {state.status === "error" && (
-          <div className="state-panel state-panel-error" role="alert">
-            <span className="state-icon">
-              <AlertTriangle size={19} />
-            </span>
-            <strong>Couldn't load error reports</strong>
-            <p>{describeLoadError(state.error)}</p>
-            <button onClick={() => setReloadToken((token) => token + 1)} type="button">
-              <RefreshCw size={13} />
-              Try again
-            </button>
-          </div>
+          <DataState
+            kind="error"
+            title="Couldn't load error reports"
+            description={describeError(
+              state.error,
+              "Something went wrong while loading error reports.",
+            )}
+            onRetry={reload}
+          />
         )}
 
         {state.status === "ready" && reports.length === 0 && (
-          <div className="state-panel">
-            <span className="state-icon">
-              <Inbox size={19} />
-            </span>
-            <strong>No error reports yet</strong>
-            <p>Once this project's reporters send a failure, it will show up here.</p>
-          </div>
+          <DataState
+            kind="empty"
+            icon={Inbox}
+            title="No error reports yet"
+            description="Once this project's reporters send a failure, it will show up here."
+          />
         )}
 
         {state.status === "ready" && reports.length > 0 && filteredReports.length === 0 && (
-          <div className="state-panel">
-            <span className="state-icon">
-              <Search size={19} />
-            </span>
-            <strong>No matching reports</strong>
-            <p>Try another search or clear your active filters.</p>
-            {hasActiveFilters && (
-              <button
-                onClick={() => {
-                  setQuery("");
-                  setEnvironment("all");
-                }}
-                type="button"
-              >
-                Clear all filters
-              </button>
-            )}
-          </div>
+          <DataState
+            kind="empty"
+            icon={Search}
+            title="No matching reports"
+            description="Try another search or clear your active filters."
+            action={
+              hasActiveFilters && (
+                <Button
+                  onClick={() => {
+                    setQuery("");
+                    setEnvironment("all");
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Clear all filters
+                </Button>
+              )
+            }
+          />
         )}
 
-        {state.status === "ready" &&
-          filteredReports.map((report) => {
-            const sourceLabel = formatSourceLocation(report.exception.source);
+        {/*
+          The table's layout is fixed, not automatic. The issue column holds the
+          longest text on the page and would otherwise be the one the browser
+          squeezes, clipping an exception message mid-word while the service
+          column sits half empty. Fixing the layout lets the narrow columns claim
+          what they need and hands everything left over to the issue.
+        */}
+        {state.status === "ready" && filteredReports.length > 0 && (
+          <Table className="table-fixed">
+            <TableHeader>
+              <TableRow className="border-border bg-muted hover:bg-muted">
+                <TableHead className="h-9 px-5 font-mono text-[9px] tracking-[0.08em] text-faint uppercase">
+                  Issue
+                </TableHead>
+                <TableHead className="hidden h-9 font-mono text-[9px] tracking-[0.08em] text-faint uppercase md:table-cell md:w-[230px] lg:w-[260px]">
+                  Service
+                </TableHead>
+                <TableHead className="hidden h-9 font-mono text-[9px] tracking-[0.08em] text-faint uppercase lg:table-cell lg:w-[130px]">
+                  Occurred
+                </TableHead>
+                <TableHead className="hidden h-9 pr-5 font-mono text-[9px] tracking-[0.08em] text-faint uppercase lg:table-cell lg:w-[100px]">
+                  Report
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredReports.map((report) => {
+                const sourceLabel = formatSourceLocation(report.exception.source);
+                const environmentName = report.service.environment;
 
-            return (
-              <div className="report-row" key={report.id}>
-                <div className="issue-copy">
-                  <div className="issue-title-line">
-                    <strong>{report.exception.type ?? "Unknown exception"}</strong>
-                  </div>
-                  {report.exception.message && <p>{report.exception.message}</p>}
-                  {sourceLabel && (
-                    <span className="issue-location" title={report.exception.source?.fileName}>
-                      {sourceLabel}
-                    </span>
-                  )}
-                </div>
+                return (
+                  <TableRow className="border-border" key={report.id}>
+                    <TableCell className="px-5 py-4 align-top">
+                      <strong className="block truncate text-[13px] font-bold">
+                        {report.exception.type ?? "Unknown exception"}
+                      </strong>
+                      {report.exception.message && (
+                        <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">
+                          {report.exception.message}
+                        </p>
+                      )}
+                      {sourceLabel && (
+                        <span
+                          className="mt-1.5 block truncate font-mono text-[10px] text-faint"
+                          title={report.exception.source?.fileName}
+                        >
+                          {sourceLabel}
+                        </span>
+                      )}
 
-                <div className="service-cell">
-                  <strong>{report.service.name}</strong>
-                  <div>
-                    <span
-                      className={`environment-dot environment-${report.service.environment ?? "unspecified"}`}
-                      aria-hidden="true"
-                    />
-                    {report.service.environment ?? "Unspecified environment"}
-                    <span className="meta-separator">·</span>
-                    {formatRuntimeLabel(report.runtime)}
-                  </div>
-                </div>
+                      {/*
+                        Below the widest breakpoint the other three columns are
+                        gone, so what they carried is restated here rather than
+                        simply lost.
+                      */}
+                      <span className="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[10px] text-muted-foreground md:hidden">
+                        <strong className="font-sans text-[11px] font-bold text-foreground">
+                          {report.service.name}
+                        </strong>
+                        <StatusDot
+                          tone={
+                            environmentName == null
+                              ? "neutral"
+                              : (ENVIRONMENT_TONES[environmentName] ?? "neutral")
+                          }
+                        />
+                        {environmentName ?? "Unspecified environment"}
+                        <span aria-hidden="true">·</span>
+                        <time dateTime={report.occurredAt}>
+                          {formatRelativeTime(report.occurredAt)}
+                        </time>
+                      </span>
+                    </TableCell>
 
-                <div className="time-cell">
-                  <Clock3 size={14} />
-                  <time dateTime={report.occurredAt} title={report.occurredAt}>
-                    {formatRelativeTime(report.occurredAt)}
-                  </time>
-                </div>
+                    <TableCell className="hidden py-4 align-top md:table-cell">
+                      <strong className="block truncate text-[11px] font-bold">
+                        {report.service.name}
+                      </strong>
+                      <div className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                        <StatusDot
+                          tone={
+                            environmentName == null
+                              ? "neutral"
+                              : (ENVIRONMENT_TONES[environmentName] ?? "neutral")
+                          }
+                        />
+                        <span className="truncate">
+                          {environmentName ?? "Unspecified environment"}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span className="truncate">{formatRuntimeLabel(report.runtime)}</span>
+                      </div>
+                    </TableCell>
 
-                <div className="report-id-cell">
-                  <span title={report.id}>#{formatShortId(report.id)}</span>
-                </div>
-              </div>
-            );
-          })}
+                    <TableCell className="hidden py-4 align-top whitespace-nowrap lg:table-cell">
+                      <span className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                        <Clock3 className="size-3.5" />
+                        <time dateTime={report.occurredAt} title={report.occurredAt}>
+                          {formatRelativeTime(report.occurredAt)}
+                        </time>
+                      </span>
+                    </TableCell>
+
+                    <TableCell className="hidden py-4 pr-5 align-top lg:table-cell">
+                      <span className="font-mono text-[10px] text-faint" title={report.id}>
+                        #{formatShortId(report.id)}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
       </div>
 
       {state.status === "ready" && (
-        <footer className="panel-footer">
+        <PanelFooter>
           <span>
-            Showing <strong>{filteredReports.length}</strong> of {reports.length} reports
+            Showing <strong className="font-bold text-foreground">{filteredReports.length}</strong>{" "}
+            of {reports.length} reports
           </span>
-          <span className="panel-footer-note">Sorted newest first</span>
-        </footer>
+          <PanelFooterNote>Sorted newest first</PanelFooterNote>
+        </PanelFooter>
       )}
-    </section>
+    </Panel>
   );
 }
