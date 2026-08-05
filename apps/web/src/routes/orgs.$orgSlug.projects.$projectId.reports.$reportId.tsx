@@ -10,8 +10,17 @@ import { describeError } from "../lib/api-request";
 import { fetchErrorReport } from "../lib/error-reports";
 import { formatRelativeTime, formatShortId } from "../lib/format";
 import { useResource } from "../lib/use-resource";
+import { validateReportFilters } from "./orgs.$orgSlug.projects.$projectId.reports.index";
 
+/**
+ * The list's filters are declared here too, though nothing on this screen reads
+ * them. They arrived in the URL that opened this report, and declaring them is
+ * what lets the way back out hand them straight back — so a reader who searched
+ * for one exception among four hundred returns to those results rather than to
+ * the four hundred.
+ */
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/reports/$reportId")({
+  validateSearch: validateReportFilters,
   component: Report,
 });
 
@@ -25,6 +34,7 @@ const RUNTIME_DISPLAY_NAMES: Record<string, string> = {
 
 function Report() {
   const { orgSlug, projectId, reportId } = Route.useParams();
+  const search = Route.useSearch();
 
   const { reload, state } = useResource(
     ({ signal }) => fetchErrorReport(orgSlug, projectId, reportId, { signal }),
@@ -41,9 +51,13 @@ function Report() {
     <Panel>
       <PanelBar>
         <Button asChild size="sm" variant="ghost">
-          <Link params={{ orgSlug, projectId }} to="/orgs/$orgSlug/projects/$projectId/reports">
+          <Link
+            params={{ orgSlug, projectId }}
+            search={search}
+            to="/orgs/$orgSlug/projects/$projectId/reports"
+          >
             <ArrowLeft />
-            All reports
+            {search.q == null && search.env == null ? "All reports" : "Back to results"}
           </Link>
         </Button>
 

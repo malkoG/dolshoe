@@ -5,7 +5,7 @@ import { Button } from "@dolshoe/ui/components/ui/button";
 import { Input } from "@dolshoe/ui/components/ui/input";
 import { Label } from "@dolshoe/ui/components/ui/label";
 import { Spinner } from "@dolshoe/ui/components/ui/spinner";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Boxes, ChevronRight, Plus } from "lucide-react";
 import { useState } from "react";
 
@@ -20,6 +20,7 @@ export const Route = createFileRoute("/orgs/$orgSlug/projects/")({ component: Pr
 
 function Projects() {
   const { orgSlug } = Route.useParams();
+  const navigate = useNavigate();
   const { organization, session } = Route.useRouteContext();
   const { organizations, viewer } = session;
   const [name, setName] = useState("");
@@ -38,9 +39,16 @@ function Projects() {
     setCreating(true);
     setCreateError(undefined);
     try {
-      await createProject(orgSlug, { name: name.trim() });
+      const created = await createProject(orgSlug, { name: name.trim() });
       setName("");
-      reload();
+      // Into the project rather than back to a list with one more row on it.
+      // Nobody creates a project to look at its name: the next thing to do is
+      // issue it a token and point something at it, and that is the screen this
+      // lands on.
+      await navigate({
+        to: "/orgs/$orgSlug/projects/$projectId/reports",
+        params: { orgSlug, projectId: created.id },
+      });
     } catch (error) {
       // A taken slug is the one failure the operator can fix inline, so it is
       // reported on the field rather than as a page-level error.

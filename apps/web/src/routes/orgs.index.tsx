@@ -7,12 +7,13 @@ import { Input } from "@dolshoe/ui/components/ui/input";
 import { Label } from "@dolshoe/ui/components/ui/label";
 import { Spinner } from "@dolshoe/ui/components/ui/spinner";
 import { Link, createFileRoute, redirect, useRouter } from "@tanstack/react-router";
-import { Boxes, Plus } from "lucide-react";
+import { ArrowLeft, Boxes, LogOut, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { ApiError, describeError } from "../lib/api-request";
 import { dateFormatter } from "../lib/format";
 import { createOrganization } from "../lib/organizations";
+import { useSignOut } from "../lib/use-sign-out";
 
 export const Route = createFileRoute("/orgs/")({
   beforeLoad: ({ context, location }) => {
@@ -25,8 +26,10 @@ export const Route = createFileRoute("/orgs/")({
 
 function Organizations() {
   const router = useRouter();
+  const signOut = useSignOut();
   // Already loaded by the root route, so this page needs no request of its own.
   const { organizations } = Route.useRouteContext().session;
+  const first = organizations[0];
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -56,6 +59,33 @@ function Organizations() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-12 md:py-16">
+      {/*
+        This screen sits outside the application chrome, which left the two ways
+        off it — back into the app, and out of the session — with nothing to
+        reach them by. Somebody who belongs to no organization yet had neither,
+        and the only exit was the browser's own.
+      */}
+      <div className="mb-6 flex items-center justify-between gap-3">
+        {first == null ? (
+          <span className="flex items-center gap-2.5 text-lg font-extrabold tracking-[-0.03em]">
+            <img className="size-7" src="/dolshoe-mark.svg" alt="" />
+            dolshoe
+          </span>
+        ) : (
+          <Button asChild size="sm" variant="ghost">
+            <Link params={{ orgSlug: first.slug }} to="/orgs/$orgSlug/projects">
+              <ArrowLeft />
+              Back to {first.name}
+            </Link>
+          </Button>
+        )}
+
+        <Button onClick={() => void signOut()} size="sm" type="button" variant="ghost">
+          <LogOut />
+          Sign out
+        </Button>
+      </div>
+
       <PageHeading eyebrow="Organizations">Where your projects live</PageHeading>
 
       <Panel>

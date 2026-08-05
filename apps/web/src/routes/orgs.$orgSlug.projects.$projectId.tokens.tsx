@@ -29,9 +29,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { KeyRound, Plus } from "lucide-react";
 import { useState } from "react";
 
+import { ReporterSnippet } from "../components/reporter-snippet";
 import { describeError } from "../lib/api-request";
 import { buildProjectDsn } from "../lib/dsn";
 import { dateTimeFormatter, pluralize } from "../lib/format";
+import { canAdminister } from "../lib/organizations";
 import { fetchProjectTokens, issueProjectToken, revokeProjectToken } from "../lib/projects";
 import type { IssuedProjectToken, ProjectToken } from "../lib/projects";
 import { useResource } from "../lib/use-resource";
@@ -91,9 +93,14 @@ function TokenRevealDialog({
 }
 
 function TokenRow({
+  administers,
   onRevoke,
   token,
-}: Readonly<{ onRevoke: (tokenId: string) => Promise<void>; token: ProjectToken }>) {
+}: Readonly<{
+  administers: boolean;
+  onRevoke: (tokenId: string) => Promise<void>;
+  token: ProjectToken;
+}>) {
   const [revoking, setRevoking] = useState(false);
 
   async function revoke(): Promise<void> {
@@ -122,38 +129,40 @@ function TokenRow({
         </span>
       </div>
 
-      {token.revokedAt == null ? (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button size="sm" type="button" variant="outline">
-              Revoke
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Revoke “{token.name}”?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Anything still reporting with this token stops being accepted immediately. This
-                cannot be undone — issue a new token to replace it.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Keep</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={revoking}
-                onClick={() => void revoke()}
-                variant="destructive"
-              >
-                {revoking && <Spinner />}
-                Revoke token
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      ) : (
+      {token.revokedAt != null ? (
         <StatusBadge tone="danger">
           Revoked {dateTimeFormatter.format(new Date(token.revokedAt))}
         </StatusBadge>
+      ) : (
+        administers && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" type="button" variant="outline">
+                Revoke
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Revoke “{token.name}”?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Anything still reporting with this token stops being accepted immediately. This
+                  cannot be undone — issue a new token to replace it.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={revoking}
+                  onClick={() => void revoke()}
+                  variant="destructive"
+                >
+                  {revoking && <Spinner />}
+                  Revoke token
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )
       )}
     </div>
   );
@@ -161,6 +170,12 @@ function TokenRow({
 
 function Tokens() {
   const { orgSlug, projectId } = Route.useParams();
+  const { organization } = Route.useRouteContext();
+  // Issuing and revoking both need the owner or admin role. A member sees the
+  // tokens and the wiring instructions, and is not offered two controls the API
+  // would answer with a 403 — the same call the projects screen makes about
+  // creating a project.
+  const administers = canAdminister(organization.role);
   const [name, setName] = useState("");
   const [issuing, setIssuing] = useState(false);
   const [issueError, setIssueError] = useState<string | undefined>(undefined);
@@ -216,28 +231,30 @@ function Tokens() {
             {state.status === "ready" ? pluralize(tokens.length, "token") : "Tokens"}
           </PanelSummary>
 
-          <PanelControls>
-            <form
-              className="flex flex-wrap items-center gap-2"
-              onSubmit={(event) => void submit(event)}
-            >
-              <Label className="sr-only" htmlFor="token-name">
-                Token name
-              </Label>
-              <Input
-                className="w-full sm:w-[230px]"
-                id="token-name"
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Where will it be used?"
-                type="text"
-                value={name}
-              />
-              <Button disabled={issuing} type="submit">
-                {issuing ? <Spinner /> : <Plus />}
-                Issue token
-              </Button>
-            </form>
-          </PanelControls>
+          {administers && (
+            <PanelControls>
+              <form
+                className="flex flex-wrap items-center gap-2"
+                onSubmit={(event) => void submit(event)}
+              >
+                <Label className="sr-only" htmlFor="token-name">
+                  Token name
+                </Label>
+                <Input
+                  className="w-full sm:w-[230px]"
+                  id="token-name"
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Where will it be used?"
+                  type="text"
+                  value={name}
+                />
+                <Button disabled={issuing} type="submit">
+                  {issuing ? <Spinner /> : <Plus />}
+                  Issue token
+                </Button>
+              </form>
+            </PanelControls>
+          )}
         </PanelBar>
 
         {issueError && (
@@ -275,12 +292,34 @@ function Tokens() {
               kind="empty"
               icon={KeyRound}
               title="No tokens yet"
-              description="Issue one to get the DSN your application reports with."
+              description={
+                administers
+                  ? "Issue one to get the DSN your application reports with."
+                  : "An owner or admin of this organization issues these. The DSN one gives them is what an application reports with."
+              }
             />
           )}
 
           {state.status === "ready" &&
-            tokens.map((token) => <TokenRow key={token.id} onRevoke={revoke} token={token} />)}
+            tokens.map((token) => (
+              <TokenRow administers={administers} key={token.id} onRevoke={revoke} token={token} />
+            ))}
+        </div>
+      </Panel>
+
+      {/*
+        Below the tokens rather than on a page of its own: the DSN and the code
+        that consumes it are one task, and the moment somebody is looking at
+        this screen is the moment they are doing it. It stays after the first
+        report arrives, because the second application to be wired up needs it
+        just as much as the first did.
+      */}
+      <Panel className="mt-4">
+        <PanelBar>
+          <PanelSummary>Reporting from your application</PanelSummary>
+        </PanelBar>
+        <div className="p-5">
+          <ReporterSnippet />
         </div>
       </Panel>
     </>

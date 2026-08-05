@@ -1,5 +1,5 @@
 import { Button } from "@dolshoe/ui/components/ui/button";
-import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
+import { HeadContent, Link, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 
 import { SIGNED_OUT_SESSION, fetchSession } from "../lib/session";
 import type { Session } from "../lib/session";
@@ -69,8 +69,13 @@ function NotFound() {
       <p className="mb-6 text-[13px] text-muted-foreground">
         The link may be out of date, or the page may have moved.
       </p>
+      {/*
+        A router link rather than a document load: the root route already knows
+        who the visitor is and which organization to send them to, and reloading
+        the page only makes it work that out a second time.
+      */}
       <Button asChild className="mx-auto w-fit">
-        <a href="/">Return to Dolshoe</a>
+        <Link to="/">Return to Dolshoe</Link>
       </Button>
     </main>
   );

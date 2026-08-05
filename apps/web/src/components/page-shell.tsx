@@ -1,5 +1,4 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@dolshoe/ui/components/ui/avatar";
-import { Button } from "@dolshoe/ui/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -23,13 +22,12 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@dolshoe/ui/components/ui/sidebar";
-import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  Bell,
   Boxes,
   Building2,
+  ChevronsUpDown,
   CircleAlert,
-  Command,
   KeyRound,
   LogOut,
   ScrollText,
@@ -41,8 +39,8 @@ import type { ReactNode } from "react";
 import { initialsOf } from "../lib/format";
 import type { Organization } from "../lib/organizations";
 import type { Project } from "../lib/projects";
-import { logout } from "../lib/session";
 import type { Viewer } from "../lib/session";
+import { useSignOut } from "../lib/use-sign-out";
 
 /** Marks the link TanStack Router considers current, for the menu button's own styling. */
 const ACTIVE_LINK_PROPS = { "data-active": "true" } as const;
@@ -73,15 +71,8 @@ export function PageShell({
   viewer?: Viewer;
 }>) {
   const navigate = useNavigate();
-  const router = useRouter();
+  const signOut = useSignOut();
   const inProject = projects.some((project) => project.id === activeProjectId);
-
-  async function signOut(): Promise<void> {
-    await logout();
-    // Re-runs the root load, so the app forgets who this was before navigating.
-    await router.invalidate();
-    await router.navigate({ to: "/login" });
-  }
 
   return (
     <SidebarProvider>
@@ -264,36 +255,22 @@ export function PageShell({
           </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter className="flex-row items-center gap-2 border-t border-sidebar-border p-4">
-          <Button
-            className="border border-sidebar-border text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-            aria-label="Open command menu"
-          >
-            <Command />
-          </Button>
-          <Button
-            className="relative border border-sidebar-border text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-            aria-label="Notifications"
-          >
-            <Bell />
-            <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-sidebar-primary ring-1 ring-sidebar" />
-          </Button>
-
+        <SidebarFooter className="border-t border-sidebar-border p-3">
           {/*
             A <details> rather than a popover library: it gives keyboard access
-            and dismissal for free, and this menu holds three things. Radix is
+            and dismissal for free, and this menu holds two things. Radix is
             available now, but nothing here needs what it would add.
+
+            It used to share this bar with a command-menu button and a
+            notification bell wearing a permanent unread dot, neither of which
+            was wired to anything. A control that cannot do what it says is
+            worse than a missing one: the dot in particular asked to be cleared
+            every time somebody looked at it, forever.
           */}
           {viewer != null && (
-            <details className="group relative ml-auto">
+            <details className="group relative">
               <summary
-                className="flex cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden"
+                className="flex w-full cursor-pointer list-none items-center gap-2.5 rounded-md p-2 hover:bg-sidebar-accent [&::-webkit-details-marker]:hidden"
                 aria-label="Open account menu"
               >
                 <Avatar className="size-8 rounded-lg">
@@ -306,17 +283,18 @@ export function PageShell({
                     {initialsOf(viewer.name)}
                   </AvatarFallback>
                 </Avatar>
-              </summary>
-
-              <div className="absolute right-0 bottom-11 z-30 w-60 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-panel">
-                <div className="flex flex-col gap-0.5 border-b border-border px-3 py-2.5">
-                  <strong className="truncate text-[13px]">{viewer.name}</strong>
-                  <span className="truncate text-[11px] text-muted-foreground">
+                <span className="flex min-w-0 flex-1 flex-col text-left">
+                  <strong className="truncate text-[13px] font-bold">{viewer.name}</strong>
+                  <span className="truncate text-[11px] text-sidebar-muted-foreground">
                     {viewer.githubLogin == null ? viewer.email : `@${viewer.githubLogin}`}
                   </span>
-                </div>
+                </span>
+                <ChevronsUpDown className="size-3.5 shrink-0 text-sidebar-muted-foreground" />
+              </summary>
+
+              <div className="absolute right-0 bottom-14 left-0 z-30 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-panel">
                 <Link
-                  className="mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium hover:bg-accent"
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium hover:bg-accent"
                   to="/orgs"
                 >
                   <Building2 className="size-3.5" />

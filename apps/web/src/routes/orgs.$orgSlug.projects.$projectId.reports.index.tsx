@@ -25,17 +25,37 @@ import {
   TableHeader,
   TableRow,
 } from "@dolshoe/ui/components/ui/table";
-import { Link, createFileRoute } from "@tanstack/react-router";
-import { Clock3, Inbox, Search, SlidersHorizontal } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Clock3, Search, SlidersHorizontal } from "lucide-react";
+import { useMemo } from "react";
 
+import { ProjectSetup } from "../components/project-setup";
+import { RefreshButton } from "../components/refresh-button";
 import { describeError } from "../lib/api-request";
 import { fetchErrorReports } from "../lib/error-reports";
 import type { ErrorReportSummary } from "../lib/error-reports";
 import { formatRelativeTime, formatShortId, pluralize } from "../lib/format";
+import { textParam } from "../lib/list-filters";
 import { useResource } from "../lib/use-resource";
+import { useUrlTextFilter } from "../lib/use-url-text-filter";
+
+/**
+ * What a reader narrowed the list to, kept in the URL rather than in this
+ * component. Exported because the report screen carries the same values through
+ * untouched, which is what lets its way back out restore the list exactly as it
+ * was left.
+ */
+export interface ReportFilters {
+  q?: string;
+  env?: string;
+}
+
+export function validateReportFilters(search: Record<string, unknown>): ReportFilters {
+  return { q: textParam(search.q), env: textParam(search.env) };
+}
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/reports/")({
+  validateSearch: validateReportFilters,
   component: Reports,
 });
 
@@ -80,10 +100,21 @@ function formatSourceLocation(
 
 function Reports() {
   const { orgSlug, projectId } = Route.useParams();
-  const [query, setQuery] = useState("");
-  const [environment, setEnvironment] = useState("all");
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const query = search.q ?? "";
+  const environment = search.env ?? "all";
 
-  const { reload, state } = useResource(
+  // `replace` rather than a new history entry: typing six characters into the
+  // search field should leave one thing behind the back button, and that thing
+  // should be the screen this reader came from.
+  function setFilters(next: ReportFilters): void {
+    void navigate({ replace: true, search: (previous) => ({ ...previous, ...next }) });
+  }
+
+  const { draft, setDraft } = useUrlTextFilter(query, (q) => setFilters({ q }));
+
+  const { refreshing, reload, state } = useResource(
     ({ signal }) => fetchErrorReports(orgSlug, projectId, { signal }),
     [orgSlug, projectId],
   );
@@ -122,6 +153,22 @@ function Reports() {
 
   const hasActiveFilters = query.length > 0 || environment !== "all";
 
+  /*
+    A project with no reports at all is almost never a project being read — it
+    is a project being set up. It gets instructions instead of an empty table,
+    and they poll, so the first report to arrive puts the list back.
+  */
+  if (state.status === "ready" && reports.length === 0) {
+    return (
+      <ProjectSetup
+        checking={refreshing}
+        onCheck={reload}
+        orgSlug={orgSlug}
+        projectId={projectId}
+      />
+    );
+  }
+
   return (
     <Panel>
       <PanelBar>
@@ -132,12 +179,15 @@ function Reports() {
         <PanelControls>
           <SearchField
             label="Search reports"
-            onValueChange={setQuery}
+            onValueChange={setDraft}
             placeholder="Search errors, services…"
-            value={query}
+            value={draft}
           />
 
-          <Select onValueChange={setEnvironment} value={environment}>
+          <Select
+            onValueChange={(value) => setFilters({ env: value === "all" ? undefined : value })}
+            value={environment}
+          >
             <SelectTrigger aria-label="Filter by environment" className="w-[190px]">
               <SlidersHorizontal className="size-4 text-muted-foreground" />
               <SelectValue />
@@ -151,6 +201,8 @@ function Reports() {
               ))}
             </SelectContent>
           </Select>
+
+          <RefreshButton label="Check for new reports" onRefresh={reload} refreshing={refreshing} />
         </PanelControls>
       </PanelBar>
 
@@ -175,16 +227,7 @@ function Reports() {
           />
         )}
 
-        {state.status === "ready" && reports.length === 0 && (
-          <DataState
-            kind="empty"
-            icon={Inbox}
-            title="No error reports yet"
-            description="Once this project's reporters send a failure, it will show up here."
-          />
-        )}
-
-        {state.status === "ready" && reports.length > 0 && filteredReports.length === 0 && (
+        {state.status === "ready" && filteredReports.length === 0 && (
           <DataState
             kind="empty"
             icon={Search}
@@ -193,10 +236,7 @@ function Reports() {
             action={
               hasActiveFilters && (
                 <Button
-                  onClick={() => {
-                    setQuery("");
-                    setEnvironment("all");
-                  }}
+                  onClick={() => setFilters({ env: undefined, q: undefined })}
                   size="sm"
                   type="button"
                   variant="outline"
@@ -249,6 +289,7 @@ function Reports() {
                       <Link
                         className="block truncate text-[13px] font-bold hover:underline"
                         params={{ orgSlug, projectId, reportId: report.id }}
+                        search={search}
                         to="/orgs/$orgSlug/projects/$projectId/reports/$reportId"
                       >
                         {report.exception.type ?? "Unknown exception"}
