@@ -130,6 +130,21 @@ export async function requestJson<T>(
   return parsed.data;
 }
 
+/**
+ * Turns whatever was thrown into a sentence a person can read.
+ *
+ * @remarks
+ * `ApiError` already carries a message written for display, so it is passed
+ * straight through. `fallback` is only reached by something that is not an
+ * `Error` at all, which in practice means a bug rather than a failed call —
+ * hence the deliberately vague wording it invites.
+ */
+export function describeError(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error) return error.message;
+  return fallback;
+}
+
 export function jsonBody(value: unknown): RequestInit {
   return {
     method: "POST",
