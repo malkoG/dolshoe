@@ -9,6 +9,7 @@
     "**/dist/**",
     "**/coverage/**",
     "**/node_modules/**",
+    "**/.venv/**",
     "apps/api/src/generated/prisma/**"
   ],
   "rules": {

@@ -20,8 +20,8 @@ with LogTape, OTLP trace ingestion, and a database-aware health endpoint.
 - [mise](https://mise.jdx.dev/)
 - Docker with Docker Compose
 
-Node.js, pnpm, Deno, and Bun are pinned in `mise.toml`; no global NestJS or
-Prisma CLI is required.
+Node.js, pnpm, Deno, Bun, Python, and uv are pinned in `mise.toml`; no global
+NestJS, Prisma, or Python CLI is required.
 
 ## Quick start
 
@@ -142,9 +142,11 @@ packages/
 ├── node/             Node.js reporter
 ├── deno/             Deno reporter
 ├── bun/              Bun reporter
-└── logtape/          LogTape-to-Dolshoe bridge
+├── logtape/          LogTape-to-Dolshoe bridge
+└── python/           Python reporter, with a stdlib logging bridge
 examples/
-└── logtape-runtimes/  Equivalent Node, Deno, and Bun reporting scenarios
+├── logtape-runtimes/   Equivalent Node, Deno, and Bun reporting scenarios
+└── python-frameworks/  Dolshoe wired into Django and FastAPI
 docs/
 └── github-sign-in.md  Registering an OAuth app and pointing an instance at it
 ```
@@ -152,6 +154,15 @@ docs/
 Prisma remains inside the API because it has only one consumer. The reporter
 packages share the versioned ingestion contract because Node, Deno, and Bun are
 concrete consumers of the same payload.
+
+JavaScript is five packages and Python is one for a reason that is worth
+knowing before adding to either. `core` exists because it cannot import
+`node:async_hooks` and still has to run on four runtimes, so tracking the active
+span is a seam each runtime package fills. Python has one runtime and one
+answer — a `ContextVar` is per-thread and per-task at once — so the same split
+would create a seam with nothing on the other side of it. The logging bridge is
+inside the Python package for the matching reason: LogTape is a third-party peer
+dependency to isolate, and `logging` is standard library.
 
 ## Organizations and viewers
 
@@ -560,6 +571,109 @@ A DSN enables structured logs along with error reports; set `logEndpoint`
 explicitly only when routing them elsewhere. Log requests are limited to 1 MiB
 and each batch is validated atomically.
 
+## Python reporter
+
+The same three endpoints, the same DSN, from Python:
+
+```python
+import dolshoe
+
+dolshoe.init(
+    dsn=os.environ["DOLSHOE_DSN"],
+    service={"name": "checkout-api", "environment": "production"},
+)
+
+with dolshoe.with_span("POST /orders", kind="server") as span:
+    span.set_attributes({"http.route": "/orders"})
+    dolshoe.capture_log("info", "Order submitted", category=["checkout", "orders"])
+```
+
+A span is a context manager rather than the callback JavaScript uses, because
+JavaScript has no `with` and Python does. The active span lives in a
+`ContextVar`, which is per-thread _and_ per-task, so threads and asyncio tasks
+are both handled without an application choosing between them — and two
+requests in flight never become each other's parent.
+
+The package has **no dependencies**, and should keep having none. A reporter
+that drags an HTTP stack into an application can create a version conflict in
+exactly the application that is already failing, which is the worst moment to
+find one. The cost is that `urllib` does not reuse connections, so each batch
+pays a handshake; batches of up to 100 make that cheap, and `transport=` is
+there for an application that would rather use its own client.
+
+`init()` installs `sys.excepthook`, `threading.excepthook`, and
+`sys.unraisablehook`, each **chaining to whatever was there before** rather than
+replacing it — the reporter observes a crashing process without changing how it
+crashes. Pass `capture_unhandled_errors=False` to install none of them. Delivery
+happens on one background thread, so a capture call returns an event id without
+waiting on a request; `flush()` waits for the queue and reports whether
+everything landed, and `close()` drains it during shutdown.
+
+> [!IMPORTANT]
+> gunicorn and uWSGI fork worker processes, and a thread does not survive
+> `fork()`. The reporter rebuilds its delivery thread in the child through
+> `os.register_at_fork`. Without that a forked worker would queue events nothing
+> was draining — silently dead in production while working in development.
+
+### Bridging the logging module
+
+`logging` is what a Python application already uses, so existing calls should
+not have to change:
+
+```python
+dolshoe.install_logging_handler(level=logging.INFO)
+
+logging.getLogger("checkout.orders").info("Basket priced", extra={"total": 45_000})
+```
+
+The logger's dotted name becomes the record's category, `extra=` becomes its
+attributes, and an `exc_info` at error level or above becomes an error report
+rather than a log record, so tracebacks stay first-class — the same split the
+LogTape bridge makes. Records from the `dolshoe` logger are never forwarded,
+which is also where a failed send is reported, so a delivery failure cannot
+become an event that fails to deliver. A service already propagating W3C trace
+context can put `trace_id` and `span_id` in `extra=` and have its logs
+correlated without adopting the span API at all.
+
+Python fills in fields the JavaScript reporters cannot: `moduleName` and
+`sourceLine` on every frame, `context` from an exception's `__context__`, and
+`children` from an `ExceptionGroup`. Frames are ordered innermost first, so a
+stored report's location is the line that failed rather than the process entry
+point.
+
+### Testing your instrumentation
+
+Whether an application reports what it should is the application's question,
+and answering it should not mean writing a fake transport in every project.
+`dolshoe.testing` records instead of sending:
+
+```python
+from dolshoe.testing import capture_telemetry
+
+def test_orders_are_measured():
+    with capture_telemetry() as captured:
+        handle_request()
+
+    assert captured.span_tree() == [("POST /orders", [("price basket", [])])]
+```
+
+Under pytest the same thing arrives as a `captured_telemetry` fixture, which
+needs no configuration — the package registers itself as a plugin, so
+installing it is enough.
+
+Ids and timestamps are sequential by default, which is what makes it worth
+comparing a whole payload rather than a hand-picked field: an assertion against
+a value you can read also catches the fields nobody thought to name, and the
+ingestion contract is `.strict()` about exactly those. Pass
+`deterministic=False` when the test is specifically about ids being unique.
+Reading `captured.spans`, `.records`, or `.reports` waits for the delivery
+thread first, so a test cannot pass or fail on timing.
+
+`examples/python-frameworks/` has the whole thing wired into Django and
+FastAPI, including where each framework needs a hand. Its own tests use
+`dolshoe.testing` and nothing private — if the examples needed inside help to
+be testable, so would everybody else.
+
 ## Message queue
 
 The API exposes an internal, at-least-once `MessageQueue` contract. Application
@@ -629,6 +743,8 @@ pnpm test            # Unit and e2e tests
 pnpm test:e2e:cold   # Stops the test DB first, then measures a cold run
 pnpm test:coverage
 pnpm sdk:test:runtimes # Compare Node, Deno, and Bun V1 report payloads
+pnpm sdk:python:test   # The Python reporter
+pnpm sdk:python:test:frameworks # The Django and FastAPI examples
 ```
 
 The test database uses an in-memory Docker `tmpfs` and is kept running between
