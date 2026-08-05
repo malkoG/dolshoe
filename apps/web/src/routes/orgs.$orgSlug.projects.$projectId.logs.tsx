@@ -16,21 +16,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dolshoe/ui/components/ui/select";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Clock3, ScrollText, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
+import { RefreshButton } from "../components/refresh-button";
 import { describeError } from "../lib/api-request";
 import { formatRelativeTime, pluralize } from "../lib/format";
+import { optionParam, textParam } from "../lib/list-filters";
 import { fetchLogRecords } from "../lib/log-records";
 import type { LogLevel, LogRecordSummary } from "../lib/log-records";
 import { useResource } from "../lib/use-resource";
-
-export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/logs")({
-  component: Logs,
-});
+import { useUrlTextFilter } from "../lib/use-url-text-filter";
 
 const LEVELS: LogLevel[] = ["trace", "debug", "info", "warning", "error", "fatal"];
+
+export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/logs")({
+  validateSearch: (search: Record<string, unknown>): { q?: string; level?: LogLevel } => ({
+    q: textParam(search.q),
+    level: optionParam(search.level, LEVELS),
+  }),
+  component: Logs,
+});
 
 /** How loudly each severity is allowed to shout. */
 const LEVEL_TONES: Record<LogLevel, "neutral" | "info" | "warning" | "danger"> = {
@@ -52,12 +59,20 @@ function attributeEntries(attributes: LogRecordSummary["attributes"]): Array<[st
 
 function Logs() {
   const { orgSlug, projectId } = Route.useParams();
-  const [query, setQuery] = useState("");
-  const [level, setLevel] = useState<LogLevel | "all">("all");
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const query = search.q ?? "";
+  const level = search.level ?? "all";
+
+  function setFilters(next: { q?: string; level?: LogLevel }): void {
+    void navigate({ replace: true, search: (previous) => ({ ...previous, ...next }) });
+  }
+
+  const { draft, setDraft } = useUrlTextFilter(query, (q) => setFilters({ q }));
 
   // Severity is a server-side filter because the listing is bounded: filtering
   // it in the browser would only ever narrow the newest 100 records.
-  const { reload, state } = useResource(
+  const { refreshing, reload, state } = useResource(
     ({ signal }) =>
       fetchLogRecords(orgSlug, projectId, {
         ...(level === "all" ? {} : { level }),
@@ -89,12 +104,17 @@ function Logs() {
         <PanelControls>
           <SearchField
             label="Search log records"
-            onValueChange={setQuery}
+            onValueChange={setDraft}
             placeholder="Search messages, categories…"
-            value={query}
+            value={draft}
           />
 
-          <Select onValueChange={(value) => setLevel(value as LogLevel | "all")} value={level}>
+          <Select
+            onValueChange={(value) =>
+              setFilters({ level: value === "all" ? undefined : (value as LogLevel) })
+            }
+            value={level}
+          >
             <SelectTrigger aria-label="Filter by severity" className="w-[160px]">
               <ScrollText className="size-4 text-muted-foreground" />
               <SelectValue />
@@ -108,6 +128,8 @@ function Logs() {
               ))}
             </SelectContent>
           </Select>
+
+          <RefreshButton label="Check for new records" onRefresh={reload} refreshing={refreshing} />
         </PanelControls>
       </PanelBar>
 

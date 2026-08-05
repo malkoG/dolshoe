@@ -10,26 +10,41 @@ import {
 import { SearchField } from "@dolshoe/ui/components/search-field";
 import { Checkbox } from "@dolshoe/ui/components/ui/checkbox";
 import { Label } from "@dolshoe/ui/components/ui/label";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Clock3, Search, Waypoints } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
+import { RefreshButton } from "../components/refresh-button";
 import { SpanKindBadge } from "../components/span-kind-badge";
 import { describeError } from "../lib/api-request";
 import { formatDuration, formatRelativeTime, pluralize } from "../lib/format";
+import { flagParam, textParam } from "../lib/list-filters";
 import { fetchTraces } from "../lib/traces";
 import { useResource } from "../lib/use-resource";
+import { useUrlTextFilter } from "../lib/use-url-text-filter";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/traces/")({
+  validateSearch: (search: Record<string, unknown>): { q?: string; errors?: true } => ({
+    q: textParam(search.q),
+    errors: flagParam(search.errors),
+  }),
   component: Traces,
 });
 
 function Traces() {
   const { orgSlug, projectId } = Route.useParams();
-  const [query, setQuery] = useState("");
-  const [errorsOnly, setErrorsOnly] = useState(false);
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const query = search.q ?? "";
+  const errorsOnly = search.errors === true;
 
-  const { reload, state } = useResource(
+  function setFilters(next: { q?: string; errors?: true }): void {
+    void navigate({ replace: true, search: (previous) => ({ ...previous, ...next }) });
+  }
+
+  const { draft, setDraft } = useUrlTextFilter(query, (q) => setFilters({ q }));
+
+  const { refreshing, reload, state } = useResource(
     ({ signal }) => fetchTraces(orgSlug, projectId, { signal }),
     [orgSlug, projectId],
   );
@@ -62,9 +77,9 @@ function Traces() {
         <PanelControls>
           <SearchField
             label="Search traces"
-            onValueChange={setQuery}
+            onValueChange={setDraft}
             placeholder="Search names, services, trace ids…"
-            value={query}
+            value={draft}
           />
 
           <Label className="h-9 gap-2 rounded-md border border-input bg-muted px-3 text-[11px] font-semibold text-muted-foreground">
@@ -77,10 +92,12 @@ function Traces() {
             <Checkbox
               aria-label="Errors only"
               checked={errorsOnly}
-              onCheckedChange={(checked) => setErrorsOnly(checked === true)}
+              onCheckedChange={(checked) => setFilters({ errors: checked === true || undefined })}
             />
             Errors only
           </Label>
+
+          <RefreshButton label="Check for new traces" onRefresh={reload} refreshing={refreshing} />
         </PanelControls>
       </PanelBar>
 
