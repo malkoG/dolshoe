@@ -1,56 +1,35 @@
+import { DataState } from "@dolshoe/ui/components/data-state";
+import { PageHeading } from "@dolshoe/ui/components/page-heading";
+import { Panel, PanelBar, PanelControls, PanelSummary } from "@dolshoe/ui/components/panel";
+import { Button } from "@dolshoe/ui/components/ui/button";
+import { Input } from "@dolshoe/ui/components/ui/input";
+import { Label } from "@dolshoe/ui/components/ui/label";
+import { Spinner } from "@dolshoe/ui/components/ui/spinner";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, Boxes, ChevronRight, Loader2, Plus, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Boxes, ChevronRight, Plus } from "lucide-react";
+import { useState } from "react";
 
 import { PageShell } from "../components/page-shell";
-import { ApiError } from "../lib/api-request";
-import { dateFormatter } from "../lib/format";
+import { ApiError, describeError } from "../lib/api-request";
+import { dateFormatter, pluralize } from "../lib/format";
 import { canAdminister } from "../lib/organizations";
 import { createProject, fetchProjects } from "../lib/projects";
-import type { Project } from "../lib/projects";
+import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/")({ component: Projects });
-
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; error: unknown }
-  | { status: "ready"; projects: Project[] };
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Something went wrong while loading projects.";
-}
 
 function Projects() {
   const { orgSlug } = Route.useParams();
   const { organization, session } = Route.useRouteContext();
   const { organizations, viewer } = session;
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [reloadToken, setReloadToken] = useState(0);
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setState({ status: "loading" });
-
-    fetchProjects(orgSlug, { signal: controller.signal })
-      .then((projects) => {
-        if (!cancelled) setState({ status: "ready", projects });
-        return;
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setState({ status: "error", error });
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [orgSlug, reloadToken]);
+  const { reload, state } = useResource(
+    ({ signal }) => fetchProjects(orgSlug, { signal }),
+    [orgSlug],
+  );
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -61,21 +40,21 @@ function Projects() {
     try {
       await createProject(orgSlug, { name: name.trim() });
       setName("");
-      setReloadToken((token) => token + 1);
+      reload();
     } catch (error) {
       // A taken slug is the one failure the operator can fix inline, so it is
       // reported on the field rather than as a page-level error.
       setCreateError(
         error instanceof ApiError && error.status === 409
           ? "A project with that slug already exists. Try a different name."
-          : describeError(error),
+          : describeError(error, "Something went wrong while creating the project."),
       );
     } finally {
       setCreating(false);
     }
   }
 
-  const projects = state.status === "ready" ? state.projects : [];
+  const projects = state.status === "ready" ? state.data : [];
 
   return (
     <PageShell
@@ -84,27 +63,23 @@ function Projects() {
       projects={projects}
       viewer={viewer ?? undefined}
     >
-      <section className="page-heading">
-        <div>
-          <div className="eyebrow">
-            <Boxes size={13} />
+      <PageHeading
+        description="A project owns the ingestion tokens your applications report with, and every event those tokens deliver."
+        eyebrow={
+          <span className="flex items-center gap-1.5">
+            <Boxes className="size-3.5" />
             One token set per project
-          </div>
-          <h1>Projects</h1>
-          <p>
-            A project owns the ingestion tokens your applications report with, and every event those
-            tokens deliver.
-          </p>
-        </div>
-      </section>
-
-      <section className="report-panel">
-        <div className="filter-bar">
-          <span className="filter-summary">
-            {state.status === "ready"
-              ? `${projects.length} ${projects.length === 1 ? "project" : "projects"}`
-              : "Projects"}
           </span>
+        }
+      >
+        Projects
+      </PageHeading>
+
+      <Panel>
+        <PanelBar>
+          <PanelSummary>
+            {state.status === "ready" ? pluralize(projects.length, "project") : "Projects"}
+          </PanelSummary>
 
           {/*
             Hidden rather than disabled for a member: the API refuses this with
@@ -112,85 +87,95 @@ function Projects() {
             answer than not offering it.
           */}
           {canAdminister(organization.role) && (
-            <form className="inline-form" onSubmit={submit}>
-              <label className="search-field">
-                <span className="sr-only">New project name</span>
-                <input
+            <PanelControls>
+              <form className="flex flex-wrap items-center gap-2" onSubmit={submit}>
+                <Label className="sr-only" htmlFor="project-name">
+                  New project name
+                </Label>
+                <Input
+                  className="w-full sm:w-[230px]"
+                  id="project-name"
                   onChange={(event) => setName(event.target.value)}
                   placeholder="New project name…"
                   type="text"
                   value={name}
                 />
-              </label>
-              <button className="primary-button" disabled={creating} type="submit">
-                {creating ? <Loader2 className="spin" size={13} /> : <Plus size={13} />}
-                Create project
-              </button>
-            </form>
+                <Button disabled={creating} type="submit">
+                  {creating ? <Spinner /> : <Plus />}
+                  Create project
+                </Button>
+              </form>
+            </PanelControls>
           )}
-        </div>
+        </PanelBar>
 
         {createError && (
-          <p className="field-error" role="alert">
+          <p
+            className="border-b border-border bg-brand-soft px-5 py-3 text-[11px] font-semibold text-brand"
+            role="alert"
+          >
             {createError}
           </p>
         )}
 
-        <div className="project-list" aria-live="polite">
+        <div aria-live="polite">
           {state.status === "loading" && (
-            <div className="state-panel state-panel-loading" role="status">
-              <span className="state-icon">
-                <Loader2 className="spin" size={19} />
-              </span>
-              <strong>Loading projects…</strong>
-              <p>Fetching them from the API.</p>
-            </div>
+            <DataState
+              kind="loading"
+              title="Loading projects…"
+              description="Fetching them from the API."
+            />
           )}
 
           {state.status === "error" && (
-            <div className="state-panel state-panel-error" role="alert">
-              <span className="state-icon">
-                <AlertTriangle size={19} />
-              </span>
-              <strong>Couldn't load projects</strong>
-              <p>{describeError(state.error)}</p>
-              <button onClick={() => setReloadToken((token) => token + 1)} type="button">
-                <RefreshCw size={13} />
-                Try again
-              </button>
-            </div>
+            <DataState
+              kind="error"
+              title="Couldn't load projects"
+              description={describeError(
+                state.error,
+                "Something went wrong while loading projects.",
+              )}
+              onRetry={reload}
+            />
           )}
 
           {state.status === "ready" && projects.length === 0 && (
-            <div className="state-panel">
-              <span className="state-icon">
-                <Boxes size={19} />
-              </span>
-              <strong>No projects yet</strong>
-              <p>Create one, issue it a token, and point a reporter at the DSN it gives you.</p>
-            </div>
+            <DataState
+              kind="empty"
+              icon={Boxes}
+              title="No projects yet"
+              description="Create one, issue it a token, and point a reporter at the DSN it gives you."
+            />
           )}
 
-          {state.status === "ready" &&
-            projects.map((project) => (
-              <Link
-                className="project-row"
-                key={project.id}
-                params={{ orgSlug, projectId: project.id }}
-                to="/orgs/$orgSlug/projects/$projectId/reports"
-              >
-                <div>
-                  <strong>{project.name}</strong>
-                  <span className="project-slug">{project.slug}</span>
-                </div>
-                <span className="project-created">
-                  Created {dateFormatter.format(new Date(project.createdAt))}
-                </span>
-                <ChevronRight className="project-chevron" size={15} />
-              </Link>
-            ))}
+          {state.status === "ready" && projects.length > 0 && (
+            <ul>
+              {projects.map((project) => (
+                <li className="border-b border-border last:border-b-0" key={project.id}>
+                  <Link
+                    className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-4 transition-colors hover:bg-muted"
+                    params={{ orgSlug, projectId: project.id }}
+                    to="/orgs/$orgSlug/projects/$projectId/reports"
+                  >
+                    <div className="min-w-0">
+                      <strong className="block truncate text-[13px] font-bold">
+                        {project.name}
+                      </strong>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {project.slug}
+                      </span>
+                    </div>
+                    <span className="ml-auto text-[11px] text-muted-foreground">
+                      Created {dateFormatter.format(new Date(project.createdAt))}
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-faint" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-      </section>
+      </Panel>
     </PageShell>
   );
 }
