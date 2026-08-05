@@ -1,0 +1,22 @@
+[project]
+name = "dolshoe-example-python-frameworks"
+version = "0.0.0"
+description = "Dolshoe wired into Django and FastAPI"
+requires-python = ">=3.11"
+dependencies = ["dolshoe", "django>=5.1", "fastapi>=0.115", "httpx>=0.28", "uvicorn>=0.34"]
+classifiers = ["Private :: Do Not Upload"]
+
+[tool.uv.sources]
+dolshoe = { path = "../../packages/python" }
+
+[tool.uv]
+python-preference = "only-system"
+
+[dependency-groups]
+dev = ["pytest>=8.3"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["."]
