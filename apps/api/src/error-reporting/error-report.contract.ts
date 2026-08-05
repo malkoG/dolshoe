@@ -329,6 +329,8 @@ export const errorReportReceiptSchema = z
 
 export const ERROR_REPORT_LIST_LIMIT = 50;
 
+export const errorReportIdParamSchema = z.uuid("An error report id is a UUID.");
+
 export const errorReportExceptionSummarySchema = z
   .object({
     type: nonEmptyText(512)
@@ -376,6 +378,46 @@ export const errorReportSummarySchema = z
     description: "Newest-first summary of a persisted error report for the web inbox.",
   });
 
+export const errorReportDetailSchema = z
+  .object({
+    id: z.uuid().meta({ description: "Server-assigned error report identifier." }),
+    eventId: z
+      .uuid()
+      .meta({ description: "Client-generated idempotency key the reporter supplied." }),
+    occurredAt: z.iso
+      .datetime()
+      .meta({ description: "UTC timestamp at which the failure occurred." }),
+    receivedAt: z.iso.datetime().meta({
+      description: "UTC timestamp at which the server first accepted the event.",
+    }),
+    project: projectReferenceSchema.meta({
+      description: "Project the report was ingested into, determined by the token that sent it.",
+    }),
+    service: serviceSchema.meta({ description: "Service that reported the failure." }),
+    runtime: runtimeSchema.meta({ description: "Runtime that reported the failure." }),
+    reporter: reporterSchema.meta({ description: "Reporter library that sent the report." }),
+    mechanism: mechanismSchema
+      .optional()
+      .meta({ description: "How the failure was captured, when the reporter said." }),
+    trace: traceSchema
+      .optional()
+      .meta({ description: "Trace context the report was captured under, if any." }),
+    exception: normalizedExceptionSchema.meta({
+      description:
+        "The whole stored exception tree, frames included — not the summary the list returns.",
+    }),
+    attributes: z
+      .record(z.string(), z.json())
+      .optional()
+      .meta({ description: "Application-specific context stored with the report." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "ErrorReportDetailV1",
+    description:
+      "One persisted error report in full, read defensively from stored JSON so an older or newer payload still renders.",
+  });
+
 export const errorReportListResponseSchema = z
   .object({
     reports: z
@@ -396,7 +438,9 @@ export type ErrorReportReceipt = z.infer<typeof errorReportReceiptSchema>;
 export type SourceLocation = z.infer<typeof sourceLocationSchema>;
 export type ErrorReportExceptionSummary = z.infer<typeof errorReportExceptionSummarySchema>;
 export type ErrorReportSummary = z.infer<typeof errorReportSummarySchema>;
+export type ErrorReportDetail = z.infer<typeof errorReportDetailSchema>;
 export type ErrorReportListResponse = z.infer<typeof errorReportListResponseSchema>;
+export type StackFrame = z.infer<typeof stackFrameSchema>;
 
 function adaptJsonSchemaToOpenApi(value: unknown): unknown {
   if (Array.isArray(value)) {
