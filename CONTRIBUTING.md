@@ -56,9 +56,15 @@ integration or e2e tests using PostgreSQL. The complete cold test run has a
 two-minute budget; investigate regressions rather than normalizing a slower
 suite.
 
+The reporter packages must not open a socket in their unit tests either. Inject
+a transport instead — every one of them takes one, which is what that seam is
+for.
+
 ## Development workflow
 
-1. Run `mise install`.
+1. Run `mise install`. This pins Python and uv alongside Node, so the Python
+   reporter needs no separate setup — `uv run` prepares its environment on
+   demand.
 2. Copy `.env.example` to `.env`.
 3. Run `pnpm install`.
 4. Start PostgreSQL with `pnpm docker:up`.
@@ -84,6 +90,9 @@ pnpm test:e2e
 - Use LogTape structured properties instead of manually concatenating context
   into messages.
 - Let oxlint and oxfmt settle mechanical style questions.
+- Python follows the same posture: type it strictly, model absence explicitly,
+  and let ruff settle style. The Python reporter has no runtime dependencies,
+  and adding one needs the same justification a new root dependency does.
 
 ## Commits
 
