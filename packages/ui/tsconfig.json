@@ -1,0 +1,31 @@
+{
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "compilerOptions": {
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+
+    /* Bundler mode: apps/web consumes this package as source. */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+
+    /*
+      Deliberately not extending tsconfig.packages.json. That file is the
+      contract for the published reporter SDKs, and its exactOptionalPropertyTypes
+      and noUncheckedIndexedAccess are stricter than the upstream shadcn/ui
+      sources are written against. The settings below match apps/web instead, so
+      a component type-checks the same way here and at its only call site.
+    */
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}

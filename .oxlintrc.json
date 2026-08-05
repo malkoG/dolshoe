@@ -10,7 +10,9 @@
     "**/coverage/**",
     "**/node_modules/**",
     "**/.venv/**",
-    "apps/api/src/generated/prisma/**"
+    "apps/api/src/generated/prisma/**",
+    "apps/web/src/routeTree.gen.ts",
+    "packages/ui/src/components/ui/**"
   ],
   "rules": {
     "no-console": "error",

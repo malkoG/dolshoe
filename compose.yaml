@@ -85,8 +85,14 @@ services:
     volumes:
       - ./apps/web:/app/apps/web
       - web-node-modules:/app/apps/web/node_modules
+      # The web app renders from the design system's TypeScript source rather
+      # than a built artefact, so editing a component has to reach the dev
+      # server the same way editing a route does.
+      - ./packages/ui:/app/packages/ui
+      - ui-node-modules:/app/packages/ui/node_modules
 
 volumes:
   postgres-data:
   api-node-modules:
   web-node-modules:
+  ui-node-modules:

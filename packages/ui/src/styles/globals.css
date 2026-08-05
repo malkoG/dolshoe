@@ -1,0 +1,257 @@
+/*
+ * The Dolshoe design system's single source of appearance.
+ *
+ * Every colour, radius and font the interface uses is named here and nowhere
+ * else. A component that needs a new shade adds a token to this file rather
+ * than a hex literal to itself — that is the rule that keeps the system from
+ * drifting back into the per-page stylesheet it replaced.
+ *
+ * The palette is not new. It is the one the hand-written stylesheet grew, read
+ * back out and given the names shadcn/ui's primitives expect, so the app keeps
+ * its own face while the components underneath become standard.
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Class scanning. Tailwind finds this package's own sources on its own, but the
+ * application that consumes the package sits outside the tree it walks, so the
+ * app's markup has to be pointed at explicitly or every utility used only there
+ * would be dropped from the build.
+ */
+@source "../../src";
+@source "../../../../apps/web/src";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.5rem;
+
+  /* Paper and ink: the warm off-white page, the near-black text on it. */
+  --background: #f5f5f2;
+  --foreground: #171719;
+
+  /* Raised surfaces sit white against the paper, which is what separates them. */
+  --card: #ffffff;
+  --card-foreground: #171719;
+  --popover: #ffffff;
+  --popover-foreground: #171719;
+
+  /* The filled button. Slightly lifted off pure ink so it reads as a control. */
+  --primary: #242427;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f0f0ec;
+  --secondary-foreground: #4e4e53;
+
+  --muted: #fafaf8;
+  --muted-foreground: #6f6f73;
+
+  /* shadcn's "accent" is the hover wash under menu items, not the brand colour. */
+  --accent: #f0f0ec;
+  --accent-foreground: #171719;
+
+  /*
+   * Coral is both the brand and the danger signal in this design. That is
+   * deliberate: an error reporter's accent colour *is* the colour of a failure,
+   * and splitting it into two near-identical reds would only invite drift.
+   */
+  --destructive: #ff4d59;
+  --destructive-foreground: #ffffff;
+
+  --border: #e4e4df;
+  --input: #d8d8d2;
+  --ring: #ff4d59;
+
+  /*
+   * The status palette. shadcn's contract stops at "destructive", but log
+   * levels, span kinds and deployment environments all need their own voice.
+   * Each pairs a legible foreground with the wash it sits on.
+   */
+  --brand: #ff4d59;
+  --brand-soft: #fff0f1;
+  --success: #1d9b67;
+  --success-soft: #eaf8f1;
+  --warning: #c77a14;
+  --warning-soft: #fff6e8;
+  --info: #1d5f9b;
+  --info-soft: #e9f2fb;
+  --violet: #8f72d9;
+  --violet-soft: #f2edfc;
+
+  /* Third-rank text: timestamps and ids that should recede below muted. */
+  --faint: #9a9a9f;
+
+  /* The 32px graph-paper rule the page is drawn on. */
+  --grid-line: #e6e6e1;
+
+  /*
+   * The navigation is a dark island on the light page — the one part of the
+   * interface that does not invert with the theme, because it is chrome rather
+   * than content.
+   */
+  --sidebar: #18181a;
+  --sidebar-foreground: #f9f9f7;
+  --sidebar-muted-foreground: #9e9ea4;
+  --sidebar-primary: #ff4d59;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2a2e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2d2d30;
+  --sidebar-ring: #ff4d59;
+
+  /* The signed-in account's square. Amber so it is never mistaken for a status. */
+  --identity: #f3cd58;
+  --identity-foreground: #4c3b00;
+}
+
+/*
+ * Authored, but not yet reachable: no toggle ships with this change. Having the
+ * dark values written down is what keeps the light ones honest — a token that
+ * cannot state its dark counterpart is usually a hardcoded decision wearing a
+ * variable's name.
+ */
+.dark {
+  --background: #101012;
+  --foreground: #f4f4f0;
+
+  --card: #18181a;
+  --card-foreground: #f4f4f0;
+  --popover: #18181a;
+  --popover-foreground: #f4f4f0;
+
+  --primary: #f4f4f0;
+  --primary-foreground: #171719;
+
+  --secondary: #232326;
+  --secondary-foreground: #d4d4d0;
+
+  --muted: #1c1c1f;
+  --muted-foreground: #9a9aa0;
+
+  --accent: #232326;
+  --accent-foreground: #f4f4f0;
+
+  --destructive: #ff5c67;
+  --destructive-foreground: #ffffff;
+
+  --border: #2d2d30;
+  --input: #37373b;
+  --ring: #ff5c67;
+
+  --brand: #ff5c67;
+  --brand-soft: #331f21;
+  --success: #35b981;
+  --success-soft: #10261d;
+  --warning: #e0a44a;
+  --warning-soft: #2b2113;
+  --info: #5aa3e0;
+  --info-soft: #12212e;
+  --violet: #a68df0;
+  --violet-soft: #221d33;
+
+  --faint: #6f6f76;
+  --grid-line: #1a1a1d;
+
+  --sidebar: #161618;
+  --sidebar-foreground: #f4f4f0;
+  --sidebar-muted-foreground: #9a9aa0;
+  --sidebar-primary: #ff5c67;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #262629;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2d2d30;
+  --sidebar-ring: #ff5c67;
+
+  --identity: #f3cd58;
+  --identity-foreground: #4c3b00;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+  --color-faint: var(--faint);
+  --color-grid-line: var(--grid-line);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted-foreground: var(--sidebar-muted-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-identity: var(--identity);
+  --color-identity-foreground: var(--identity-foreground);
+
+  --font-sans: Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /*
+   * One long, soft drop shadow, used only to lift a panel off the paper. It is
+   * a token rather than an arbitrary utility so the whole app casts the same
+   * shadow, and so the dark theme can soften it without hunting call sites.
+   */
+  --shadow-panel: 0 18px 55px rgb(24 24 26 / 6%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * A coral ring rather than the platform default. Kept as a global rule and
+   * not a per-component one because it has to hold for the plain anchors and
+   * <details> summaries the app still uses directly.
+   */
+  :focus-visible {
+    @apply outline-ring/25;
+    outline-width: 3px;
+    outline-style: solid;
+    outline-offset: 2px;
+  }
+}
