@@ -11,17 +11,13 @@ from __future__ import annotations
 
 from typing import Literal, Protocol, TypeAlias, TypedDict
 
-JsonValue: TypeAlias = (
-    "str | int | float | bool | list[JsonValue] | dict[str, JsonValue] | None"
-)
+JsonValue: TypeAlias = "str | int | float | bool | list[JsonValue] | dict[str, JsonValue] | None"
 
 LogLevel = Literal["trace", "debug", "info", "warning", "error", "fatal"]
 SpanKind = Literal["internal", "server", "client", "producer", "consumer"]
 SpanStatusCode = Literal["unset", "ok", "error"]
 
-LOG_LEVELS: frozenset[str] = frozenset(
-    ("trace", "debug", "info", "warning", "error", "fatal")
-)
+LOG_LEVELS: frozenset[str] = frozenset(("trace", "debug", "info", "warning", "error", "fatal"))
 
 
 class ServiceInfo(TypedDict, total=False):
@@ -149,9 +145,7 @@ class UrlOpen(Protocol):
     URL and the bearer header without opening a socket.
     """
 
-    def __call__(
-        self, url: str, *, headers: dict[str, str], body: bytes
-    ) -> tuple[int, bytes]: ...
+    def __call__(self, url: str, *, headers: dict[str, str], body: bytes) -> tuple[int, bytes]: ...
 
 
 class Transport(Protocol):

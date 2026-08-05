@@ -51,11 +51,7 @@ def to_iso8601(value: datetime | float | str | None = None) -> str:
     else:
         moment = datetime.fromtimestamp(value, UTC)
 
-    return (
-        moment.astimezone(UTC)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
-    )
+    return moment.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _as_aware(moment: datetime) -> datetime:

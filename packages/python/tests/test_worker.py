@@ -184,6 +184,5 @@ def test_the_tail_of_the_queue_is_flushed_at_exit() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "delivered" in result.stdout, (
-        "nothing was sent: the atexit flush did not run before the daemon "
-        "thread was killed"
+        "nothing was sent: the atexit flush did not run before the daemon thread was killed"
     )

@@ -55,9 +55,7 @@ def test_accepts_http_and_a_non_default_port_for_instances_without_tls() -> None
         (f"https://{TOKEN}:secret@dolshoe.example/{PROJECT_ID}", "no password component"),
     ],
 )
-def test_rejects_a_malformed_dsn_with_a_message_naming_the_problem(
-    dsn: str, expected: str
-) -> None:
+def test_rejects_a_malformed_dsn_with_a_message_naming_the_problem(dsn: str, expected: str) -> None:
     with pytest.raises(DolshoeConfigurationError, match=expected):
         parse_dsn(dsn)
 

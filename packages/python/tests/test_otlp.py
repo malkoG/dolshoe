@@ -27,9 +27,7 @@ SPAN: FinishedSpan = {
 
 
 def test_describes_the_resource_with_semantic_convention_names() -> None:
-    request = to_otlp_trace_request(
-        [SPAN], service=SERVICE, reporter=REPORTER, runtime=RUNTIME
-    )
+    request = to_otlp_trace_request([SPAN], service=SERVICE, reporter=REPORTER, runtime=RUNTIME)
 
     attributes = request["resourceSpans"][0]["resource"]["attributes"]
     assert attributes == [
@@ -49,17 +47,13 @@ def test_absent_resource_values_are_dropped_not_sent_empty() -> None:
         [SPAN], service={"name": "checkout-api"}, reporter=REPORTER, runtime=RUNTIME
     )
 
-    keys = [
-        entry["key"] for entry in request["resourceSpans"][0]["resource"]["attributes"]
-    ]
+    keys = [entry["key"] for entry in request["resourceSpans"][0]["resource"]["attributes"]]
     assert "service.version" not in keys
     assert "deployment.environment.name" not in keys
 
 
 def test_encodes_the_span_the_way_the_server_reads_it() -> None:
-    request = to_otlp_trace_request(
-        [SPAN], service=SERVICE, reporter=REPORTER, runtime=RUNTIME
-    )
+    request = to_otlp_trace_request([SPAN], service=SERVICE, reporter=REPORTER, runtime=RUNTIME)
     encoded = request["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
 
     assert encoded["traceId"] == "a" * 32
@@ -67,17 +61,13 @@ def test_encodes_the_span_the_way_the_server_reads_it() -> None:
     assert encoded["kind"] == 2
     assert encoded["startTimeUnixNano"] == "1000"
     assert encoded["status"] == {"code": 2, "message": "payment declined"}
-    assert encoded["attributes"] == [
-        {"key": "http.route", "value": {"stringValue": "/orders"}}
-    ]
+    assert encoded["attributes"] == [{"key": "http.route", "value": {"stringValue": "/orders"}}]
 
 
 def test_a_root_span_has_no_parent_key() -> None:
     root: FinishedSpan = {**SPAN}
     del root["parentSpanId"]
-    request = to_otlp_trace_request(
-        [root], service=SERVICE, reporter=REPORTER, runtime=RUNTIME
-    )
+    request = to_otlp_trace_request([root], service=SERVICE, reporter=REPORTER, runtime=RUNTIME)
 
     assert "parentSpanId" not in request["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
 

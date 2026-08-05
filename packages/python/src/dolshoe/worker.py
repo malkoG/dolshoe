@@ -118,9 +118,7 @@ class DeliveryWorker:
             # Started lazily rather than in `init()`, so a process that imports
             # the application and forks without capturing never pays for a
             # thread — and so the post-fork restart below costs nothing.
-            self._thread = threading.Thread(
-                target=self._run, name="dolshoe-delivery", daemon=True
-            )
+            self._thread = threading.Thread(target=self._run, name="dolshoe-delivery", daemon=True)
             self._thread.start()
 
     # -- the thread -------------------------------------------------------

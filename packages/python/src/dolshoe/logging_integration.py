@@ -28,9 +28,11 @@ MAX_CATEGORY_SEGMENT_LENGTH = 200
 # extra the application supplied, and belongs in the event's attributes.
 # Derived from a real record rather than hard-coded, so a new stdlib field does
 # not silently start arriving as an attribute.
-_RESERVED: frozenset[str] = frozenset(
-    vars(logging.LogRecord("", 0, "", 0, "", None, None))
-) | {"message", "asctime", "taskName"}
+_RESERVED: frozenset[str] = frozenset(vars(logging.LogRecord("", 0, "", 0, "", None, None))) | {
+    "message",
+    "asctime",
+    "taskName",
+}
 
 _local = threading.local()
 
@@ -129,9 +131,7 @@ class DolshoeHandler(logging.Handler):
         # with `%(exc_text)s` would fold the whole traceback into the message
         # and duplicate what the error report already carries.
         message = record.getMessage()
-        attributes = {
-            key: value for key, value in vars(record).items() if key not in _RESERVED
-        }
+        attributes = {key: value for key, value in vars(record).items() if key not in _RESERVED}
         trace = _trace_of(attributes)
         level = _level_of(record.levelno)
         category = _category_of(record.name)

@@ -103,9 +103,7 @@ def _library_prefixes() -> tuple[str, ...]:
         candidates.extend(site.getsitepackages())
     with contextlib.suppress(AttributeError):
         candidates.append(site.getusersitepackages())
-    return tuple(
-        os.path.normcase(os.path.realpath(path)) for path in candidates if path
-    )
+    return tuple(os.path.normcase(os.path.realpath(path)) for path in candidates if path)
 
 
 _LIBRARY_PREFIXES = _library_prefixes()
@@ -269,9 +267,7 @@ def normalize_exception(
     seen[identity] = value
 
     try:
-        normalized: NormalizedException = {
-            "type": truncate(type(value).__name__, MAX_TYPE_LENGTH)
-        }
+        normalized: NormalizedException = {"type": truncate(type(value).__name__, MAX_TYPE_LENGTH)}
 
         try:
             message = str(value)

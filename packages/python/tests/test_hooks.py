@@ -34,9 +34,7 @@ def hooked(collected: Collected) -> Iterator[tuple[Collected, list[str]]]:
     sys.unraisablehook = lambda *args: chained.append("unraisable")
 
     def report(exception: BaseException, *, mechanism_type: str) -> None:
-        dolshoe.capture_exception(
-            exception, mechanism={"type": mechanism_type, "handled": False}
-        )
+        dolshoe.capture_exception(exception, mechanism={"type": mechanism_type, "handled": False})
 
     dolshoe.set_current_client(collected.client)
     installed = install(report, collected.client.flush)

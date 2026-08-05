@@ -206,9 +206,7 @@ def test_a_broken_str_does_not_stop_the_report() -> None:
         ("hello world", 8, "hello w…"),
     ],
 )
-def test_truncate_marks_that_something_was_removed(
-    value: str, maximum: int, expected: str
-) -> None:
+def test_truncate_marks_that_something_was_removed(value: str, maximum: int, expected: str) -> None:
     assert truncate(value, maximum) == expected
 
 

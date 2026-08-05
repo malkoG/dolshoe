@@ -20,8 +20,12 @@ SPAN: FinishedSpan = {
     "endTimeUnixNano": "2",
     "status": {"code": "unset"},
 }
-RECORD: LogRecord = {"eventId": "e", "occurredAt": "2026-08-05T00:00:00.000Z",
-                     "level": "info", "message": "hello"}
+RECORD: LogRecord = {
+    "eventId": "e",
+    "occurredAt": "2026-08-05T00:00:00.000Z",
+    "level": "info",
+    "message": "hello",
+}
 
 
 def _capturing() -> tuple[list[dict[str, Any]], Any]:

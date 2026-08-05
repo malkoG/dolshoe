@@ -52,9 +52,7 @@ def test_booleans_stay_booleans() -> None:
 def test_non_finite_floats_are_named_the_way_javascript_names_them() -> None:
     """Python's `str(float('nan'))` is `'nan'`; the JavaScript reporter sends
     `'NaN'`. Storing both would mean two spellings of the same value."""
-    result = sanitize_attributes(
-        {"a": float("nan"), "b": float("inf"), "c": float("-inf")}
-    )
+    result = sanitize_attributes({"a": float("nan"), "b": float("inf"), "c": float("-inf")})
     assert result == {"a": "NaN", "b": "Infinity", "c": "-Infinity"}
 
 
@@ -72,9 +70,7 @@ def test_a_cycle_does_not_recurse_forever() -> None:
     node: dict[str, object] = {"name": "root"}
     node["self"] = node
 
-    assert sanitize_attributes({"node": node}) == {
-        "node": {"name": "root", "self": "[Circular]"}
-    }
+    assert sanitize_attributes({"node": node}) == {"node": {"name": "root", "self": "[Circular]"}}
 
 
 def test_containers_are_capped_and_coerced() -> None:

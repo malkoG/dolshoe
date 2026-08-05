@@ -18,9 +18,7 @@ from typing import Any, Protocol
 
 
 class _Reporter(Protocol):
-    def __call__(
-        self, exception: BaseException, *, mechanism_type: str
-    ) -> None: ...
+    def __call__(self, exception: BaseException, *, mechanism_type: str) -> None: ...
 
 
 class InstalledHooks:
@@ -118,9 +116,7 @@ def _install_unraisablehook(installed: InstalledHooks, report: _Reporter) -> Non
         previous(args)
 
     sys.unraisablehook = hook
-    installed.add(
-        lambda: _restore(lambda: sys.unraisablehook, _set_unraisablehook, hook, previous)
-    )
+    installed.add(lambda: _restore(lambda: sys.unraisablehook, _set_unraisablehook, hook, previous))
 
 
 def _set_unraisablehook(value: Any) -> None:

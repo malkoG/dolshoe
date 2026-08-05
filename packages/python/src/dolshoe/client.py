@@ -96,9 +96,7 @@ class Client:
         merged_headers.update(headers or {})
 
         if transport is None and error_endpoint is None:
-            raise DolshoeConfigurationError(
-                "Dolshoe requires either dsn, endpoint, or transport."
-            )
+            raise DolshoeConfigurationError("Dolshoe requires either dsn, endpoint, or transport.")
 
         self._service = service
         self._runtime = runtime
@@ -320,6 +318,7 @@ class Client:
         This does not make the span active — `with_span` does that. A span that
         is started and never ended is never sent.
         """
+
         def report(exception: object, context: TraceContext) -> None:
             self.capture_exception(
                 exception, trace=context, mechanism={"type": "span", "handled": True}
