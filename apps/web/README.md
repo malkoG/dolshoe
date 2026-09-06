@@ -25,3 +25,8 @@ Build the production app with:
 ```bash
 pnpm build
 ```
+
+UI that paints pixels is reviewed from named-state factories and a silhouette
+PNG, not by booting this app. Construction tests: `pnpm test:unit`. Silhouettes:
+`pnpm test:ui` (Chromium once via `pnpm test:ui:install`). See
+[Reviewing UI from a silhouette](../../docs/ui-review.md).

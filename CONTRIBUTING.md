@@ -90,6 +90,67 @@ Two consequences worth knowing:
   call site. After running `shadcn add`, rewrite them to relative paths and run
   `pnpm format`.
 
+### UI that paints pixels
+
+A reviewer approves a UI PR from the diff plus a silhouette PNG — they do not
+run the app. Screenshots are a review contract, not a demo. This file is the
+repo gate. Commands, attach flags, and the harness live in
+[Reviewing UI from a silhouette](docs/ui-review.md).
+
+Appearance still belongs to `@dolshoe/ui`. This section is about how a
+feature that paints those tokens is structured and reviewed. It does not
+replace [Style belongs to the design system](#style-belongs-to-the-design-system).
+
+A feature that paints pixels splits the values on screen from the commands
+that change them. The public view receives props. The route (or its loader)
+is the only composition root that knows session cookies, `fetch`, or the live
+API. A component test is another composition root: it injects a named state.
+Do not add a BaseScreen framework, a generic view-model, or a second router
+for tests.
+
+UI PRs ship:
+
+- Named-state factories next to the feature — idle, empty, populated, error,
+  and one distinctive in-progress, or whichever of those the surface can
+  actually show. Do not invent a state the UI cannot reach.
+- A test that constructs the public view with that state. It does not boot
+  Vite, TanStack Start, or the API.
+- A silhouette PNG that is `f(named state)`, attached to the pull request
+  body. A gitignored file on the author's disk is not the review contract —
+  reviewers never open the worktree.
+
+Prefer one `--attach` per named-state PNG, with the state in the fragment:
+
+```sh
+gh pr create --attach './apps/web/.silhouettes/exception-tree.empty.png#empty'
+```
+
+GitHub CLI 2.99 and later rewrites a Markdown image only when the path in
+the body matches the `--attach` path character for character, including
+`./`. `![empty](exception-tree.empty.png)` will not rewrite against
+`--attach './exception-tree.empty.png'`.
+
+Label-only differences are text assertions, not extra goldens.
+
+Do:
+
+- Keep live `fetch`, session cookies, and the API client out of the
+  presentational view.
+- Feed the construction test and the PNG from the same factory.
+- Attach stills. An MP4 is welcome only when the slice's point is motion,
+  and never instead of stills.
+
+Don't:
+
+- Fetch inside the presentational view "because the test can mock it".
+- Snapshot every theme × tab × empty × error combination. Name the states
+  that change the silhouette.
+- Commit golden PNGs. They rot, they bloat the clone, and they are not what
+  a reviewer sees.
+- Treat "I ran it locally" as evidence. The reviewer did not.
+- Add Storybook, a visual-regression service, or a screenshot comparison
+  gate for this. The PNG is attached to the PR; it is not a CI oracle.
+
 ## Development workflow
 
 1. Run `mise install`. This pins Python and uv alongside Node, so the Python
@@ -108,6 +169,9 @@ Before submitting a change:
 pnpm check
 pnpm test:e2e
 ```
+
+A PR that paints pixels also runs `pnpm test:ui` and attaches the named-state
+PNGs — see [UI that paints pixels](#ui-that-paints-pixels).
 
 ## Code style
 
@@ -144,3 +208,6 @@ Use the commit body when the reason or trade-off is not obvious from the diff.
 Keep pull requests narrow enough to review carefully. Explain what changed,
 why the chosen approach fits Dolshoe, how it was tested, and any migration or
 operational impact.
+
+A PR that paints pixels is reviewed from the diff plus attached silhouettes.
+See [UI that paints pixels](#ui-that-paints-pixels).
