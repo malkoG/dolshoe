@@ -1,14 +1,49 @@
 /*
  * The Dolshoe design system's single source of appearance.
  *
- * Every colour, radius and font the interface uses is named here and nowhere
- * else. A component that needs a new shade adds a token to this file rather
- * than a hex literal to itself — that is the rule that keeps the system from
- * drifting back into the per-page stylesheet it replaced.
+ * Every colour, radius, space and type size the interface uses is named here
+ * and nowhere else. A component that needs a new shade adds a token to this
+ * file rather than a hex literal to itself — that is the rule that keeps the
+ * system from drifting back into the per-page stylesheet it replaced.
  *
- * The palette is not new. It is the one the hand-written stylesheet grew, read
- * back out and given the names shadcn/ui's primitives expect, so the app keeps
- * its own face while the components underneath become standard.
+ * Tokens v2 on the Figma board "01 — Tokens" / node 10:41
+ * (https://www.figma.com/design/06xQGZtyWmTTt7cJwVEP4v/Dolshoe) is the locked
+ * source of truth. Coral (#FF4D59) is the only brand carryover from the
+ * previous palette. The board is light-first; `.dark` is derived from that
+ * light set so every token still has a partner, not a leftover hex.
+ *
+ * Figma name              CSS custom property
+ * ----------------------  ------------------------------------------
+ * surface/paper           --background, --surface-paper
+ * surface/raised          --card, --popover, --surface-raised
+ * surface/inset           --surface-inset, --grid-line (light)
+ * ink                     --foreground (+ card / popover / accent fg)
+ * ink/faint               --faint
+ * border                  --border, --input
+ * muted                   --muted, --secondary, --accent
+ * muted/fg                --muted-foreground, --secondary-foreground
+ * brand                   --brand, --destructive, --ring
+ * brand/soft              --brand-soft
+ * brand/inv               --brand-foreground, --destructive-foreground
+ * primary                 --primary
+ * primary/inv             --primary-foreground
+ * ring                    --ring
+ * identity                --identity
+ * identity/ace            --identity-foreground
+ * success [/soft]         --success, --success-soft
+ * warning [/soft]         --warning, --warning-soft
+ * info [/soft]            --info, --info-soft
+ * violet [/soft]          --violet, --violet-soft
+ * sidebar                 --sidebar
+ * sidebar/fg              --sidebar-foreground
+ * sidebar/muted           --sidebar-muted-foreground
+ * sidebar/accent          --sidebar-accent
+ * sidebar/border          --sidebar-border
+ * sidebar/brand           --sidebar-primary, --sidebar-ring
+ * radius/xs…full          --radius-xs … --radius-full
+ * space/1…8               --space-1 … --space-8
+ * Display / Title / Body  --text-display / --text-title / --text-body
+ * Meta / Mono             --text-meta / --text-mono
  */
 
 @import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap");
@@ -27,31 +62,79 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.5rem;
+  /*
+   * Radius. --radius is the default control radius (Figma radius/md) so
+   * existing rounded-* utilities keep a named scale instead of a single
+   * 0.5rem with arithmetic offsets.
+   */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 999px;
+  --radius: var(--radius-md);
 
-  /* Paper and ink: the warm off-white page, the near-black text on it. */
-  --background: #f5f5f2;
-  --foreground: #171719;
+  /*
+   * Spacing scale (Figma space/1…8). Named so it does not overwrite
+   * Tailwind's numeric scale, which diverges from space/5 onward (24px
+   * here, 20px there).
+   */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
 
-  /* Raised surfaces sit white against the paper, which is what separates them. */
-  --card: #ffffff;
-  --card-foreground: #171719;
-  --popover: #ffffff;
-  --popover-foreground: #171719;
+  /* Type ramp. Size / line-height / weight; faces stay Manrope and DM Mono. */
+  --text-display: 2rem;
+  --text-display--line-height: 2.5rem;
+  --text-display--font-weight: 700;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.625rem;
+  --text-title--font-weight: 600;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.375rem;
+  --text-body--font-weight: 400;
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1.125rem;
+  --text-meta--font-weight: 500;
+  --text-mono: 0.75rem;
+  --text-mono--line-height: 1.125rem;
+  --text-mono--font-weight: 400;
 
-  /* The filled button. Slightly lifted off pure ink so it reads as a control. */
-  --primary: #242427;
+  /*
+   * Surface three-tier, then the shadcn names the primitives already read.
+   * paper is the page, raised is a card lifting off it, inset is a well
+   * sitting in it.
+   */
+  --surface-paper: #f6f5f0;
+  --surface-raised: #fffef9;
+  --surface-inset: #e9e8e2;
+
+  --background: var(--surface-paper);
+  --foreground: #1a1a1a;
+
+  --card: var(--surface-raised);
+  --card-foreground: #1a1a1a;
+  --popover: var(--surface-raised);
+  --popover-foreground: #1a1a1a;
+
+  --primary: #1c1c1f;
   --primary-foreground: #ffffff;
 
-  --secondary: #f0f0ec;
-  --secondary-foreground: #4e4e53;
+  --secondary: #f0efe9;
+  --secondary-foreground: #5c5c57;
 
-  --muted: #fafaf8;
-  --muted-foreground: #6f6f73;
+  --muted: #f0efe9;
+  --muted-foreground: #5c5c57;
 
   /* shadcn's "accent" is the hover wash under menu items, not the brand colour. */
-  --accent: #f0f0ec;
-  --accent-foreground: #171719;
+  --accent: #f0efe9;
+  --accent-foreground: #1a1a1a;
 
   /*
    * Coral is both the brand and the danger signal in this design. That is
@@ -61,8 +144,8 @@
   --destructive: #ff4d59;
   --destructive-foreground: #ffffff;
 
-  --border: #e4e4df;
-  --input: #d8d8d2;
+  --border: #d8d7d0;
+  --input: #d8d7d0;
   --ring: #ff4d59;
 
   /*
@@ -71,40 +154,48 @@
    * Each pairs a legible foreground with the wash it sits on.
    */
   --brand: #ff4d59;
-  --brand-soft: #fff0f1;
-  --success: #1d9b67;
-  --success-soft: #eaf8f1;
-  --warning: #c77a14;
-  --warning-soft: #fff6e8;
-  --info: #1d5f9b;
-  --info-soft: #e9f2fb;
-  --violet: #8f72d9;
-  --violet-soft: #f2edfc;
+  --brand-soft: #ffebeb;
+  --brand-foreground: #ffffff;
+  --success: #0f9e5e;
+  --success-soft: #cbf3e8;
+  --warning: #c27a0a;
+  --warning-soft: #ffe9cc;
+  --info: #1567a8;
+  --info-soft: #d6eaf8;
+  --violet: #7056cb;
+  --violet-soft: #eae6ff;
 
   /* Third-rank text: timestamps and ids that should recede below muted. */
-  --faint: #9a9a9f;
+  --faint: #989893;
 
-  /* The 32px graph-paper rule the page is drawn on. */
-  --grid-line: #e6e6e1;
+  /* The 32px graph-paper rule the page is drawn on. Inset on light paper. */
+  --grid-line: var(--surface-inset);
 
   /*
    * The navigation is a dark island on the light page — the one part of the
    * interface that does not invert with the theme, because it is chrome rather
-   * than content.
+   * than content. These values are therefore identical under `.dark`.
    */
-  --sidebar: #18181a;
-  --sidebar-foreground: #f9f9f7;
-  --sidebar-muted-foreground: #9e9ea4;
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #f6f5f0;
+  --sidebar-muted-foreground: #afafaa;
   --sidebar-primary: #ff4d59;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #2a2a2e;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #2d2d30;
+  --sidebar-accent-foreground: #f6f5f0;
+  --sidebar-border: #2d2c31;
   --sidebar-ring: #ff4d59;
 
   /* The signed-in account's square. Amber so it is never mistaken for a status. */
-  --identity: #f3cd58;
-  --identity-foreground: #4c3b00;
+  --identity: #ffcc5c;
+  --identity-foreground: #3d2f00;
+
+  /*
+   * One long, soft drop shadow, used only to lift a panel off the paper. It is
+   * a token rather than an arbitrary utility so the whole app casts the same
+   * shadow, and so the dark theme can soften it without hunting call sites.
+   */
+  --shadow-panel: 0 18px 55px rgb(26 26 26 / 6%);
 }
 
 /*
@@ -112,61 +203,64 @@
  * dark values written down is what keeps the light ones honest — a token that
  * cannot state its dark counterpart is usually a hardcoded decision wearing a
  * variable's name.
+ *
+ * Surfaces keep the paper / raised / inset stack and shift it down the
+ * lightness axis, staying warm to match Tokens v2 rather than the previous
+ * cool charcoal. Brand coral is not lifted. Status foregrounds are one step
+ * lighter so they still read on the darker paper; their soft washes invert
+ * to the same hue.
  */
 .dark {
-  --background: #101012;
-  --foreground: #f4f4f0;
+  --surface-paper: #14130f;
+  --surface-raised: #1e1d18;
+  --surface-inset: #0c0b09;
 
-  --card: #18181a;
-  --card-foreground: #f4f4f0;
-  --popover: #18181a;
-  --popover-foreground: #f4f4f0;
+  --background: var(--surface-paper);
+  --foreground: #f6f5f0;
 
-  --primary: #f4f4f0;
-  --primary-foreground: #171719;
+  --card: var(--surface-raised);
+  --card-foreground: #f6f5f0;
+  --popover: var(--surface-raised);
+  --popover-foreground: #f6f5f0;
 
-  --secondary: #232326;
-  --secondary-foreground: #d4d4d0;
+  --primary: #f6f5f0;
+  --primary-foreground: #1c1c1f;
 
-  --muted: #1c1c1f;
-  --muted-foreground: #9a9aa0;
+  --secondary: #1a1914;
+  --secondary-foreground: #b8b8b2;
 
-  --accent: #232326;
-  --accent-foreground: #f4f4f0;
+  --muted: #1a1914;
+  --muted-foreground: #b8b8b2;
 
-  --destructive: #ff5c67;
+  --accent: #1a1914;
+  --accent-foreground: #f6f5f0;
+
+  --destructive: #ff4d59;
   --destructive-foreground: #ffffff;
 
-  --border: #2d2d30;
-  --input: #37373b;
-  --ring: #ff5c67;
+  --border: #3c3b35;
+  --input: #3c3b35;
+  --ring: #ff4d59;
 
-  --brand: #ff5c67;
-  --brand-soft: #331f21;
-  --success: #35b981;
-  --success-soft: #10261d;
-  --warning: #e0a44a;
-  --warning-soft: #2b2113;
-  --info: #5aa3e0;
-  --info-soft: #12212e;
-  --violet: #a68df0;
-  --violet-soft: #221d33;
+  --brand: #ff4d59;
+  --brand-soft: #321616;
+  --brand-foreground: #ffffff;
+  --success: #1bb36c;
+  --success-soft: #123028;
+  --warning: #e09a28;
+  --warning-soft: #2e200f;
+  --info: #2e8ad4;
+  --info-soft: #122636;
+  --violet: #8b75d6;
+  --violet-soft: #1e1a2e;
 
-  --faint: #6f6f76;
-  --grid-line: #1a1a1d;
+  --faint: #989893;
+  --grid-line: #1f1e19;
 
-  --sidebar: #161618;
-  --sidebar-foreground: #f4f4f0;
-  --sidebar-muted-foreground: #9a9aa0;
-  --sidebar-primary: #ff5c67;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #262629;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #2d2d30;
-  --sidebar-ring: #ff5c67;
+  --identity: #ffcc5c;
+  --identity-foreground: #3d2f00;
 
-  --identity: #f3cd58;
-  --identity-foreground: #4c3b00;
+  --shadow-panel: 0 18px 55px rgb(0 0 0 / 40%);
 }
 
 @theme inline {
@@ -190,8 +284,13 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  --color-surface-paper: var(--surface-paper);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-inset: var(--surface-inset);
+
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
+  --color-brand-foreground: var(--brand-foreground);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
@@ -219,17 +318,39 @@
   --font-sans: Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-full: var(--radius-full);
 
-  /*
-   * One long, soft drop shadow, used only to lift a panel off the paper. It is
-   * a token rather than an arbitrary utility so the whole app casts the same
-   * shadow, and so the dark theme can soften it without hunting call sites.
-   */
-  --shadow-panel: 0 18px 55px rgb(24 24 26 / 6%);
+  --spacing-space-1: var(--space-1);
+  --spacing-space-2: var(--space-2);
+  --spacing-space-3: var(--space-3);
+  --spacing-space-4: var(--space-4);
+  --spacing-space-5: var(--space-5);
+  --spacing-space-6: var(--space-6);
+  --spacing-space-7: var(--space-7);
+  --spacing-space-8: var(--space-8);
+
+  --text-display: var(--text-display);
+  --text-display--line-height: var(--text-display--line-height);
+  --text-display--font-weight: var(--text-display--font-weight);
+  --text-title: var(--text-title);
+  --text-title--line-height: var(--text-title--line-height);
+  --text-title--font-weight: var(--text-title--font-weight);
+  --text-body: var(--text-body);
+  --text-body--line-height: var(--text-body--line-height);
+  --text-body--font-weight: var(--text-body--font-weight);
+  --text-meta: var(--text-meta);
+  --text-meta--line-height: var(--text-meta--line-height);
+  --text-meta--font-weight: var(--text-meta--font-weight);
+  --text-mono: var(--text-mono);
+  --text-mono--line-height: var(--text-mono--line-height);
+  --text-mono--font-weight: var(--text-mono--font-weight);
+
+  --shadow-panel: var(--shadow-panel);
 }
 
 @layer base {
