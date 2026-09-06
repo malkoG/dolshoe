@@ -828,6 +828,7 @@ use migrations.
 
 ```sh
 pnpm test:unit       # Fast and database-free
+pnpm test:ui         # Named-state silhouettes for web UI review (no database)
 pnpm test:e2e        # Reuses the dedicated PostgreSQL test container
 pnpm test            # Unit and e2e tests
 pnpm test:e2e:cold   # Stops the test DB first, then measures a cold run
@@ -836,6 +837,10 @@ pnpm sdk:test:runtimes # Compare Node, Deno, and Bun V1 report payloads
 pnpm sdk:python:test   # The Python reporter
 pnpm sdk:python:test:frameworks # The Django and FastAPI examples
 ```
+
+`pnpm test:ui` writes gitignored PNGs under `apps/web/.silhouettes/`. It needs
+Chromium once per machine (`pnpm test:ui:install`) and is not part of
+`pnpm check` — see [Reviewing UI from a silhouette](docs/ui-review.md).
 
 The test database uses an in-memory Docker `tmpfs` and is kept running between
 local e2e runs. A test run starts it if necessary, waits for readiness, applies
