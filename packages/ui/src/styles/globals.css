@@ -17,19 +17,19 @@
  * surface/paper           --background, --surface-paper
  * surface/raised          --card, --popover, --surface-raised
  * surface/inset           --surface-inset, --grid-line (light)
- * ink                     --foreground (+ card / popover / accent fg)
- * ink/faint               --faint
+ * ink                     --ink, --foreground (+ card / popover / accent fg)
+ * ink/faint               --ink-faint, --faint
  * border                  --border, --input
  * muted                   --muted, --secondary, --accent
  * muted/fg                --muted-foreground, --secondary-foreground
  * brand                   --brand, --destructive, --ring
  * brand/soft              --brand-soft
- * brand/inv               --brand-foreground, --destructive-foreground
+ * brand/on                --brand-foreground, --destructive-foreground, --brand-on
  * primary                 --primary
- * primary/inv             --primary-foreground
+ * primary/on              --primary-foreground, --primary-on
  * ring                    --ring
  * identity                --identity
- * identity/ace            --identity-foreground
+ * identity/on             --identity-foreground, --identity-on
  * success [/soft]         --success, --success-soft
  * warning [/soft]         --warning, --warning-soft
  * info [/soft]            --info, --info-soft
@@ -44,6 +44,10 @@
  * space/1…8               --space-1 … --space-8
  * Display / Title / Body  --text-display / --text-title / --text-body
  * Meta / Mono             --text-meta / --text-mono
+ *
+ * Figma "on" tokens are the colour that sits on a fill. The consumed
+ * shadcn names stay --*-foreground so existing call sites do not break;
+ * --brand-on / --primary-on / --identity-on are aliases of those values.
  */
 
 @import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap");
@@ -115,26 +119,31 @@
   --surface-raised: #fffef9;
   --surface-inset: #e9e8e2;
 
+  /* Figma ink / ink/faint. Shared so page text and chrome cannot drift. */
+  --ink: #141416;
+  --ink-faint: #8b8b90;
+
   --background: var(--surface-paper);
-  --foreground: #1a1a1a;
+  --foreground: var(--ink);
 
   --card: var(--surface-raised);
-  --card-foreground: #1a1a1a;
+  --card-foreground: var(--ink);
   --popover: var(--surface-raised);
-  --popover-foreground: #1a1a1a;
+  --popover-foreground: var(--ink);
 
   --primary: #1c1c1f;
   --primary-foreground: #ffffff;
+  --primary-on: var(--primary-foreground);
 
   --secondary: #f0efe9;
-  --secondary-foreground: #5c5c57;
+  --secondary-foreground: #5c5c61;
 
   --muted: #f0efe9;
-  --muted-foreground: #5c5c57;
+  --muted-foreground: #5c5c61;
 
   /* shadcn's "accent" is the hover wash under menu items, not the brand colour. */
   --accent: #f0efe9;
-  --accent-foreground: #1a1a1a;
+  --accent-foreground: var(--ink);
 
   /*
    * Coral is both the brand and the danger signal in this design. That is
@@ -154,19 +163,20 @@
    * Each pairs a legible foreground with the wash it sits on.
    */
   --brand: #ff4d59;
-  --brand-soft: #ffebeb;
+  --brand-soft: #ffe5e8;
   --brand-foreground: #ffffff;
-  --success: #0f9e5e;
-  --success-soft: #cbf3e8;
-  --warning: #c27a0a;
-  --warning-soft: #ffe9cc;
-  --info: #1567a8;
-  --info-soft: #d6eaf8;
-  --violet: #7056cb;
-  --violet-soft: #eae6ff;
+  --brand-on: var(--brand-foreground);
+  --success: #0f9f6e;
+  --success-soft: #d8f3e8;
+  --warning: #c47a0a;
+  --warning-soft: #ffe9c8;
+  --info: #1b6fa8;
+  --info-soft: #d9eaf6;
+  --violet: #7c64c9;
+  --violet-soft: #e8e0f8;
 
   /* Third-rank text: timestamps and ids that should recede below muted. */
-  --faint: #989893;
+  --faint: var(--ink-faint);
 
   /* The 32px graph-paper rule the page is drawn on. Inset on light paper. */
   --grid-line: var(--surface-inset);
@@ -175,27 +185,30 @@
    * The navigation is a dark island on the light page — the one part of the
    * interface that does not invert with the theme, because it is chrome rather
    * than content. These values are therefore identical under `.dark`.
+   * Hex is written, not aliased to --ink, so a dark-mode ink flip cannot
+   * invert the sidebar with it.
    */
-  --sidebar: #1a1a1a;
+  --sidebar: #141416;
   --sidebar-foreground: #f6f5f0;
-  --sidebar-muted-foreground: #afafaa;
+  --sidebar-muted-foreground: #9a9aa0;
   --sidebar-primary: #ff4d59;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #2a2a2e;
   --sidebar-accent-foreground: #f6f5f0;
-  --sidebar-border: #2d2c31;
+  --sidebar-border: #2d2d30;
   --sidebar-ring: #ff4d59;
 
   /* The signed-in account's square. Amber so it is never mistaken for a status. */
-  --identity: #ffcc5c;
+  --identity: #f3cd58;
   --identity-foreground: #3d2f00;
+  --identity-on: var(--identity-foreground);
 
   /*
    * One long, soft drop shadow, used only to lift a panel off the paper. It is
    * a token rather than an arbitrary utility so the whole app casts the same
    * shadow, and so the dark theme can soften it without hunting call sites.
    */
-  --shadow-panel: 0 18px 55px rgb(26 26 26 / 6%);
+  --shadow-panel: 0 18px 55px rgb(20 20 22 / 6%);
 }
 
 /*
@@ -206,34 +219,39 @@
  *
  * Surfaces keep the paper / raised / inset stack and shift it down the
  * lightness axis, staying warm to match Tokens v2 rather than the previous
- * cool charcoal. Brand coral is not lifted. Status foregrounds are one step
- * lighter so they still read on the darker paper; their soft washes invert
- * to the same hue.
+ * cool charcoal. Brand coral is not lifted. Status and muted partners keep
+ * the same hue/lightness delta from the corrected light set that #33 used
+ * against the approximations. Soft washes stay in-hue; violet-soft's dark
+ * partner is held at a purple wash rather than collapsing to grey.
+ * Sidebar chrome is not restated here — it is non-inverting ink (#141416).
  */
 .dark {
   --surface-paper: #14130f;
   --surface-raised: #1e1d18;
   --surface-inset: #0c0b09;
 
+  --ink: #f6f5f0;
+  --ink-faint: #8b8b90;
+
   --background: var(--surface-paper);
-  --foreground: #f6f5f0;
+  --foreground: var(--ink);
 
   --card: var(--surface-raised);
-  --card-foreground: #f6f5f0;
+  --card-foreground: var(--ink);
   --popover: var(--surface-raised);
-  --popover-foreground: #f6f5f0;
+  --popover-foreground: var(--ink);
 
   --primary: #f6f5f0;
   --primary-foreground: #1c1c1f;
 
   --secondary: #1a1914;
-  --secondary-foreground: #b8b8b2;
+  --secondary-foreground: #b7b7bd;
 
   --muted: #1a1914;
-  --muted-foreground: #b8b8b2;
+  --muted-foreground: #b7b7bd;
 
   --accent: #1a1914;
-  --accent-foreground: #f6f5f0;
+  --accent-foreground: var(--ink);
 
   --destructive: #ff4d59;
   --destructive-foreground: #ffffff;
@@ -243,21 +261,21 @@
   --ring: #ff4d59;
 
   --brand: #ff4d59;
-  --brand-soft: #321616;
+  --brand-soft: #2e1417;
   --brand-foreground: #ffffff;
-  --success: #1bb36c;
-  --success-soft: #123028;
-  --warning: #e09a28;
-  --warning-soft: #2e200f;
-  --info: #2e8ad4;
-  --info-soft: #122636;
-  --violet: #8b75d6;
-  --violet-soft: #1e1a2e;
+  --success: #1bb47d;
+  --success-soft: #19362a;
+  --warning: #e09a2a;
+  --warning-soft: #2b1f0e;
+  --info: #3a92ce;
+  --info-soft: #162633;
+  --violet: #9682d5;
+  --violet-soft: #1d182c;
 
-  --faint: #989893;
+  --faint: var(--ink-faint);
   --grid-line: #1f1e19;
 
-  --identity: #ffcc5c;
+  --identity: #f3cd58;
   --identity-foreground: #3d2f00;
 
   --shadow-panel: 0 18px 55px rgb(0 0 0 / 40%);
@@ -272,6 +290,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-on: var(--primary-on);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -288,9 +307,13 @@
   --color-surface-raised: var(--surface-raised);
   --color-surface-inset: var(--surface-inset);
 
+  --color-ink: var(--ink);
+  --color-ink-faint: var(--ink-faint);
+
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-on: var(--brand-on);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
@@ -314,6 +337,7 @@
 
   --color-identity: var(--identity);
   --color-identity-foreground: var(--identity-foreground);
+  --color-identity-on: var(--identity-on);
 
   --font-sans: Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
