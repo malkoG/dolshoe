@@ -29,6 +29,7 @@ import {
   ChevronsUpDown,
   CircleAlert,
   KeyRound,
+  LayoutDashboard,
   LogOut,
   ScrollText,
   Users,
@@ -153,6 +154,24 @@ export function PageShell({
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        {/*
+                          `exact`, unlike its siblings below: this link's own
+                          path is a prefix of every one of theirs, so without
+                          it Overview would read as active on every section.
+                        */}
+                        <Link
+                          activeOptions={{ exact: true }}
+                          activeProps={ACTIVE_LINK_PROPS}
+                          params={{ orgSlug, projectId: activeProjectId }}
+                          to="/orgs/$orgSlug/projects/$projectId"
+                        >
+                          <LayoutDashboard />
+                          <span>Overview</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <Link

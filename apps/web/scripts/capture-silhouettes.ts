@@ -5,6 +5,7 @@ import { chromium } from "playwright";
 import { createServer } from "vite";
 
 import { exceptionTreeStateNames } from "../src/components/exception-tree.states.ts";
+import { projectDashboardOverviewStateNames } from "../src/components/project-dashboard-overview.states.ts";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const outputDir = fileURLToPath(new URL("../.silhouettes", import.meta.url));
@@ -14,8 +15,18 @@ function say(message: string): void {
   process.stdout.write(`${message}\n`);
 }
 
+interface Surface {
+  name: string;
+  states: readonly string[];
+}
+
+const SURFACES: Surface[] = [
+  { name: "exception-tree", states: exceptionTreeStateNames },
+  { name: "project-dashboard-overview", states: projectDashboardOverviewStateNames },
+];
+
 /**
- * Photograph each named state of the exception tree.
+ * Photograph each named state of every registered surface.
  *
  * @remarks
  * This is a generator, not a pixel oracle. It writes gitignored PNGs for a
@@ -49,15 +60,17 @@ async function main(): Promise<void> {
       deviceScaleFactor: 1,
     });
 
-    for (const name of exceptionTreeStateNames) {
-      await page.goto(new URL(`/?state=${name}`, address).href, {
-        waitUntil: "networkidle",
-      });
-      const root = page.locator("[data-review-root]");
-      await root.waitFor({ state: "visible" });
-      const dest = `${outputDir}/exception-tree.${name}.png`;
-      await root.screenshot({ path: dest, animations: "disabled" });
-      say(`Wrote ${dest.slice(webRoot.length)}`);
+    for (const surface of SURFACES) {
+      for (const name of surface.states) {
+        await page.goto(new URL(`/?surface=${surface.name}&state=${name}`, address).href, {
+          waitUntil: "networkidle",
+        });
+        const root = page.locator("[data-review-root]");
+        await root.waitFor({ state: "visible" });
+        const dest = `${outputDir}/${surface.name}.${name}.png`;
+        await root.screenshot({ path: dest, animations: "disabled" });
+        say(`Wrote ${dest.slice(webRoot.length)}`);
+      }
     }
   } finally {
     await browser.close();
