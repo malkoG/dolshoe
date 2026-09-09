@@ -210,6 +210,7 @@ model LogRecord {
   @@index([traceId])
   @@index([receivedAt(sort: Desc)])
   @@index([projectId])
+  @@index([projectId, receivedAt(sort: Desc)])
 }
 
 /// One operation inside a distributed trace, ingested as OTLP/HTTP JSON.

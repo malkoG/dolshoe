@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { AuthModule } from "./auth/auth.module";
+import { DashboardModule } from "./dashboard/dashboard.module";
 import { DatabaseModule } from "./database/database.module";
 import { ErrorReportModule } from "./error-reporting/error-report.module";
 import { HealthModule } from "./health/health.module";
@@ -23,6 +24,7 @@ import { TraceModule } from "./tracing/trace.module";
     TraceModule,
     HealthModule,
     MessageQueueModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}
