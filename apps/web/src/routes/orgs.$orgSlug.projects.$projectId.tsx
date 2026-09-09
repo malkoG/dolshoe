@@ -6,9 +6,20 @@ import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
 
 import { PageShell } from "../components/page-shell";
 import { fetchProjects } from "../lib/projects";
-import { useResource } from "../lib/use-resource";
+import type { Project } from "../lib/projects";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId")({
+  loader: async ({ params }): Promise<{ projects: Project[] }> => {
+    try {
+      return { projects: await fetchProjects(params.orgSlug) };
+    } catch {
+      // Read the same way a "no such project" would: the sidebar and heading
+      // have nothing to show either way, and `router.invalidate()` (called
+      // after a project is created or renamed elsewhere) needs this loader to
+      // actually re-run rather than a `useResource` hook it cannot see.
+      return { projects: [] };
+    }
+  },
   component: ProjectLayout,
 });
 
@@ -20,12 +31,10 @@ export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId")({
 function ProjectLayout() {
   const { orgSlug, projectId } = Route.useParams();
   const { session } = Route.useRouteContext();
+  const { projects } = Route.useLoaderData();
 
-  const { state } = useResource(({ signal }) => fetchProjects(orgSlug, { signal }), [orgSlug]);
-
-  const projects = state.status === "ready" ? state.data : [];
   const project = projects.find((candidate) => candidate.id === projectId);
-  const missing = state.status === "ready" && project == null;
+  const missing = project == null;
 
   return (
     <PageShell

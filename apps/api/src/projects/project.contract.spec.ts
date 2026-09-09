@@ -57,6 +57,7 @@ describe("project contract", () => {
       "ProjectTokenListResponseV1",
       "ProjectTokenV1",
       "ProjectV1",
+      "UpdateProjectRequestV1",
     ]);
   });
 });

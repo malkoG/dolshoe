@@ -63,6 +63,24 @@ export function createProject(
   });
 }
 
+/**
+ * Renames a project, its slug, or both. Hand-rolls the `RequestInit` because
+ * this is a PATCH, unlike `jsonBody`'s POST-shaped default.
+ */
+export function updateProject(
+  orgSlug: string,
+  projectId: string,
+  input: { name?: string; slug?: string },
+  init?: { signal?: AbortSignal },
+): Promise<Project> {
+  return requestJson("rename the project", `${projectsUrl(orgSlug)}/${projectId}`, projectSchema, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+    ...init,
+  });
+}
+
 export async function fetchProjectTokens(
   orgSlug: string,
   projectId: string,

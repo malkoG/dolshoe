@@ -63,6 +63,17 @@ export const createOrganizationRequestSchema = z
     description: "Creates an organization. The creator becomes its owner.",
   });
 
+export const updateOrganizationRequestSchema = z
+  .object({
+    name: nonEmptyText(200).meta({ description: "Human-readable organization name." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "UpdateOrganizationRequestV1",
+    description:
+      "Renames an organization. The slug is immutable: it appears in every URL under this organization, so changing it would break bookmarks and shared links.",
+  });
+
 /**
  * GitHub caps a login at 39 characters and allows alphanumerics and hyphens,
  * with no hyphen at either end. Lowercased because GitHub treats "Octocat" and
@@ -203,6 +214,7 @@ export type MembershipRoleName = z.infer<typeof membershipRoleSchema>;
 export type Organization = z.infer<typeof organizationSchema>;
 export type OrganizationListResponse = z.infer<typeof organizationListResponseSchema>;
 export type CreateOrganizationRequest = z.infer<typeof createOrganizationRequestSchema>;
+export type UpdateOrganizationRequest = z.infer<typeof updateOrganizationRequestSchema>;
 export type Member = z.infer<typeof memberSchema>;
 export type MemberListResponse = z.infer<typeof memberListResponseSchema>;
 export type UpdateMemberRequest = z.infer<typeof updateMemberRequestSchema>;

@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from "@nestjs/common";
@@ -34,11 +35,17 @@ import {
   ProjectListResponse,
   ProjectToken,
   ProjectTokenListResponse,
+  UpdateProjectRequest,
   createProjectRequestSchema,
   issueProjectTokenRequestSchema,
   projectIdParamSchema,
+  updateProjectRequestSchema,
 } from "./project.contract";
-import { createProjectExample, issueProjectTokenExample } from "./project.examples";
+import {
+  createProjectExample,
+  issueProjectTokenExample,
+  updateProjectExample,
+} from "./project.examples";
 import { ProjectService } from "./project.service";
 
 const projectIdPipe = new ZodValidationPipe(projectIdParamSchema, "The project id is not a UUID.");
@@ -106,6 +113,42 @@ export class ProjectController {
     request: CreateProjectRequest,
   ): Promise<Project> {
     return this.projectService.create(organization.id, request);
+  }
+
+  /**
+   * Rename a project, its slug, or both.
+   *
+   * @remarks
+   * The slug is cosmetic here: nothing in this application routes on it —
+   * every project-scoped path uses `:projectId` — so changing it cannot break
+   * a link.
+   */
+  @Patch(":projectId")
+  @RequireOrgRole(OWNER_OR_ADMIN)
+  @ApiBody({
+    schema: { $ref: "#/components/schemas/UpdateProjectRequestV1" },
+    examples: { rename: { summary: "Rename", value: updateProjectExample } },
+  })
+  @ApiOkResponse({
+    description: "The project was updated.",
+    schema: { $ref: "#/components/schemas/ProjectV1" },
+  })
+  @ApiBadRequestResponse({ description: "The body does not satisfy the project contract." })
+  @ApiConflictResponse({ description: "Another project already uses that slug." })
+  @ApiForbiddenResponse({ description: "Renaming a project requires the owner or admin role." })
+  @ApiNotFoundResponse({ description: "No such project." })
+  update(
+    @CurrentOrganization() organization: OrganizationContext,
+    @Param("projectId", projectIdPipe) projectId: string,
+    @Body(
+      new ZodValidationPipe(
+        updateProjectRequestSchema,
+        "Request body does not match the project contract.",
+      ),
+    )
+    request: UpdateProjectRequest,
+  ): Promise<Project> {
+    return this.projectService.update(organization.id, projectId, request);
   }
 
   /**

@@ -17,6 +17,7 @@ import {
   ProjectListResponse,
   ProjectToken,
   ProjectTokenListResponse,
+  UpdateProjectRequest,
 } from "./project.contract";
 
 const UNIQUE_CONSTRAINT_VIOLATION = "P2002";
@@ -89,6 +90,37 @@ export class ProjectService {
       if (isPrismaError(error, UNIQUE_CONSTRAINT_VIOLATION)) {
         throw new ConflictException(
           `A project with the slug "${slug}" already exists in this organization.`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Renames a project, its slug, or both. The slug is cosmetic: nothing in
+   * this application routes on it, so changing it cannot break a link.
+   */
+  async update(
+    organizationId: string,
+    projectId: string,
+    request: UpdateProjectRequest,
+  ): Promise<Project> {
+    await this.requireProject(organizationId, projectId);
+
+    try {
+      const updated = await this.database.project.update({
+        where: { id: projectId },
+        data: {
+          ...(request.name !== undefined && { name: request.name }),
+          ...(request.slug !== undefined && { slug: request.slug }),
+        },
+        select: { id: true, slug: true, name: true, createdAt: true },
+      });
+      return toProject(updated);
+    } catch (error) {
+      if (isPrismaError(error, UNIQUE_CONSTRAINT_VIOLATION)) {
+        throw new ConflictException(
+          `A project with the slug "${request.slug}" already exists in this organization.`,
         );
       }
       throw error;
