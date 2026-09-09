@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 
 import { PrismaService } from "../database/prisma.service";
 import { Prisma } from "../generated/prisma/client";
@@ -8,12 +8,39 @@ import {
   ErrorReportListResponse,
   ErrorReportReceipt,
   ErrorReportRequest,
+  ErrorReportSummary,
+  UserContext,
 } from "./error-report.contract";
 import { readStoredException } from "./read-stored-exception";
 import { summarizeException } from "./summarize-exception";
 
 function asPrismaJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
+}
+
+interface UserColumns {
+  userIdentifier: string | null;
+  userEmail: string | null;
+  userName: string | null;
+}
+
+/** `undefined` — not present at all — when the reporter never identified anyone. */
+function toUserContext(row: UserColumns): UserContext | undefined {
+  if (row.userIdentifier == null && row.userEmail == null && row.userName == null) {
+    return undefined;
+  }
+
+  return {
+    id: row.userIdentifier ?? undefined,
+    email: row.userEmail ?? undefined,
+    username: row.userName ?? undefined,
+  };
+}
+
+export interface ErrorReportListFilter {
+  tagKey?: string;
+  tagValue?: string;
+  userId?: string;
 }
 
 @Injectable()
@@ -45,6 +72,11 @@ export class ErrorReportService {
         traceId: report.trace?.traceId,
         spanId: report.trace?.spanId,
         exception: asPrismaJson(report.exception),
+        userIdentifier: report.user?.id,
+        userEmail: report.user?.email,
+        userName: report.user?.username,
+        tags: report.tags ? asPrismaJson(report.tags) : undefined,
+        breadcrumbs: report.breadcrumbs ? asPrismaJson(report.breadcrumbs) : undefined,
         attributes: report.attributes ? asPrismaJson(report.attributes) : undefined,
       },
       select: {
