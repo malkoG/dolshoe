@@ -128,6 +128,7 @@ model Project {
   errorReports ErrorReport[]
   logRecords   LogRecord[]
   spans        Span[]
+  alertRules   AlertRule[]
 
   /// A slug only has to be unique inside the organization that owns it: two
   /// tenants both wanting "checkout-api" is the normal case, not a conflict.
@@ -173,26 +174,73 @@ model ErrorReport {
   /// this server. Promoted out of the `user` bag, like `serviceName` and its
   /// neighbors, because filtering by it is a real query and JSON has no index
   /// worth using for that.
-  userIdentifier String? @db.VarChar(200)
-  userEmail      String? @db.VarChar(200)
-  userName       String? @db.VarChar(200)
+  userIdentifier  String?  @db.VarChar(200)
+  userEmail       String?  @db.VarChar(200)
+  userName        String?  @db.VarChar(200)
   /// Low-cardinality string labels. A plain `Json?` for now — bounded to 20
   /// entries at the contract layer — rather than a GIN-indexed column;
   /// filtering by one already works with a sequential scan over a
   /// project-scoped, time-bounded result set, and indexing it can follow if a
   /// project's volume ever makes that scan worth avoiding.
-  tags        Json?
-  breadcrumbs Json?
-  attributes  Json?
+  tags            Json?
+  breadcrumbs     Json?
+  attributes      Json?
+  /// A cheap approximation of "have we seen this before," not a Sentry-style
+  /// Issue: a hash of the exception type plus its first frame's location, or
+  /// type plus message when no frame exists at all. Good enough to drive a
+  /// "new error" alert condition without the grouping machinery (a persistent
+  /// issue, merge/unmerge, lifecycle state) that a real one would need.
+  fingerprint     String?  @db.VarChar(64)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
 
   @@unique([projectId, eventId])
   @@index([serviceName, occurredAt(sort: Desc)])
   @@index([projectId, userIdentifier])
+  @@index([projectId, fingerprint])
   @@index([traceId])
   @@index([receivedAt(sort: Desc)])
   @@index([projectId, receivedAt(sort: Desc)])
+}
+
+/// A rule an owner or admin configures to watch a project's incoming error
+/// reports and notify a channel when one matches. Deliberately config-only —
+/// unlike an ErrorReport, LogRecord, or Span, there is no historical record
+/// worth protecting, so it cascades with its project rather than restricting
+/// deletion.
+model AlertRule {
+  id                     String    @id @default(uuid()) @db.Uuid
+  projectId              String    @db.Uuid
+  name                   String    @db.VarChar(200)
+  enabled                Boolean   @default(true)
+  /// "new_fingerprint" | "volume_threshold" | "filter_match".
+  conditionType          String    @db.VarChar(50)
+  /// Every condition type is narrowed by whichever of these are set, applied
+  /// as an AND — a rule with no filters at all matches every report in the
+  /// project.
+  environment            String?   @db.VarChar(100)
+  tagKey                 String?   @db.VarChar(200)
+  tagValue               String?   @db.VarChar(200)
+  serviceName            String?   @db.VarChar(200)
+  /// Only meaningful for "volume_threshold".
+  thresholdCount         Int?
+  thresholdWindowMinutes Int?
+  /// A rule that just fired stays quiet for this long even if it would
+  /// otherwise fire again, so one burst sends one notification, not one per
+  /// event.
+  cooldownMinutes        Int       @default(30)
+  lastFiredAt            DateTime? @db.Timestamptz(3)
+  /// An array of `{type, ...config}` channel configs — see
+  /// `NotificationAdapter` in the application layer. Not a separate
+  /// reusable-integration table: a rule owns its own channel configuration
+  /// directly, since nothing today needs one Slack webhook shared across
+  /// multiple rules.
+  channels               Json
+  createdAt              DateTime  @default(now()) @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, enabled])
 }
 
 model LogRecord {

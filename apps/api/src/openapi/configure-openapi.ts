@@ -1,6 +1,7 @@
 import { INestApplication } from "@nestjs/common";
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from "@nestjs/swagger";
 
+import { alertOpenApiSchemas } from "../alerts/alert.contract";
 import { authOpenApiSchemas } from "../auth/auth.contract";
 import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
 import { dashboardOpenApiSchemas } from "../dashboard/dashboard-summary.contract";
@@ -58,6 +59,7 @@ function createOpenApiDocument(app: INestApplication): OpenAPIObject {
     ...(dashboardOpenApiSchemas as NonNullable<
       NonNullable<OpenAPIObject["components"]>["schemas"]
     >),
+    ...(alertOpenApiSchemas as NonNullable<NonNullable<OpenAPIObject["components"]>["schemas"]>),
   };
 
   return document;

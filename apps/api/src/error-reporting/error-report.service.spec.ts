@@ -1,4 +1,6 @@
+import { AlertEvaluationService } from "../alerts/alert-evaluation.service";
 import { PrismaService } from "../database/prisma.service";
+import { Prisma } from "../generated/prisma/client";
 import { ERROR_REPORT_LIST_LIMIT } from "./error-report.contract";
 import { nodeErrorReportExample } from "./error-report.examples";
 import { ErrorReportService } from "./error-report.service";
@@ -6,40 +8,83 @@ import { ErrorReportService } from "./error-report.service";
 const ORGANIZATION_ID = "9d8c7b6a-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 const PROJECT_ID = "3f1d0a4c-6b2e-4f7a-9c5d-8e1b2a3c4d5e";
 
-describe("ErrorReportService", () => {
-  it("maps the normalized contract to one idempotent persistence operation", async () => {
-    const upsert = jest.fn().mockResolvedValue({
-      id: "07cf25d3-35aa-4b30-b4e2-bc3649858147",
-      receivedAt: new Date("2026-07-24T09:00:00.000Z"),
-    });
-    const database = {
-      errorReport: {
-        upsert,
-      },
-    } as unknown as PrismaService;
-    const service = new ErrorReportService(database);
+function uniqueConstraintViolation(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("Unique constraint failed.", {
+    code: "P2002",
+    clientVersion: "test",
+  });
+}
 
-    await expect(service.receive(nodeErrorReportExample, PROJECT_ID)).resolves.toEqual({
-      id: "07cf25d3-35aa-4b30-b4e2-bc3649858147",
-      receivedAt: "2026-07-24T09:00:00.000Z",
-    });
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          projectId_eventId: {
+function noopAlertEvaluationService(): AlertEvaluationService {
+  return {
+    evaluateForReport: jest.fn().mockResolvedValue(undefined),
+  } as unknown as AlertEvaluationService;
+}
+
+describe("ErrorReportService", () => {
+  describe("receive", () => {
+    it("stores a genuinely new report, fingerprint included, and evaluates alert rules", async () => {
+      const create = jest.fn().mockResolvedValue({
+        id: "07cf25d3-35aa-4b30-b4e2-bc3649858147",
+        receivedAt: new Date("2026-07-24T09:00:00.000Z"),
+      });
+      const database = { errorReport: { create } } as unknown as PrismaService;
+      const alertEvaluationService = noopAlertEvaluationService();
+      const service = new ErrorReportService(database, alertEvaluationService);
+
+      await expect(service.receive(nodeErrorReportExample, PROJECT_ID)).resolves.toEqual({
+        id: "07cf25d3-35aa-4b30-b4e2-bc3649858147",
+        receivedAt: "2026-07-24T09:00:00.000Z",
+      });
+
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
             projectId: PROJECT_ID,
-            eventId: nodeErrorReportExample.eventId,
-          },
-        },
-        update: {},
-        create: expect.objectContaining({
-          projectId: PROJECT_ID,
-          serviceName: "checkout-api",
-          runtimeName: "node",
-          exception: nodeErrorReportExample.exception,
+            serviceName: "checkout-api",
+            runtimeName: "node",
+            exception: nodeErrorReportExample.exception,
+            fingerprint: expect.any(String),
+          }),
         }),
-      }),
-    );
+      );
+      expect(alertEvaluationService.evaluateForReport).toHaveBeenCalledWith(
+        PROJECT_ID,
+        expect.objectContaining({
+          id: "07cf25d3-35aa-4b30-b4e2-bc3649858147",
+          fingerprint: expect.any(String),
+          environment: "production",
+          serviceName: "checkout-api",
+        }),
+      );
+    });
+
+    it("returns the existing receipt for a replayed eventId, without evaluating alert rules again", async () => {
+      const create = jest.fn().mockRejectedValue(uniqueConstraintViolation());
+      const findUniqueOrThrow = jest.fn().mockResolvedValue({
+        id: "07cf25d3-35aa-4b30-b4e2-bc3649858147",
+        receivedAt: new Date("2026-07-24T09:00:00.000Z"),
+      });
+      const database = {
+        errorReport: { create, findUniqueOrThrow },
+      } as unknown as PrismaService;
+      const alertEvaluationService = noopAlertEvaluationService();
+      const service = new ErrorReportService(database, alertEvaluationService);
+
+      await expect(service.receive(nodeErrorReportExample, PROJECT_ID)).resolves.toEqual({
+        id: "07cf25d3-35aa-4b30-b4e2-bc3649858147",
+        receivedAt: "2026-07-24T09:00:00.000Z",
+      });
+
+      expect(findUniqueOrThrow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            projectId_eventId: { projectId: PROJECT_ID, eventId: nodeErrorReportExample.eventId },
+          },
+        }),
+      );
+      expect(alertEvaluationService.evaluateForReport).not.toHaveBeenCalled();
+    });
   });
 
   it("lists persisted reports newest-first, bounded to the documented limit", async () => {
@@ -55,6 +100,10 @@ describe("ErrorReportService", () => {
         runtimeName: "node",
         runtimeVersion: "24.4.1",
         exception: nodeErrorReportExample.exception,
+        userIdentifier: null,
+        userEmail: null,
+        userName: null,
+        tags: null,
         project: { id: PROJECT_ID, slug: "checkout-api", name: "Checkout API" },
       },
     ]);
@@ -63,7 +112,7 @@ describe("ErrorReportService", () => {
         findMany,
       },
     } as unknown as PrismaService;
-    const service = new ErrorReportService(database);
+    const service = new ErrorReportService(database, noopAlertEvaluationService());
 
     await expect(service.list(ORGANIZATION_ID, PROJECT_ID)).resolves.toEqual({
       reports: [
@@ -92,6 +141,8 @@ describe("ErrorReportService", () => {
               functionName: "submitOrder",
             },
           },
+          user: undefined,
+          tags: undefined,
         },
       ],
     });
@@ -108,7 +159,7 @@ describe("ErrorReportService", () => {
   it("scopes the listing to the project and the organization that owns it", async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     const database = { errorReport: { findMany } } as unknown as PrismaService;
-    const service = new ErrorReportService(database);
+    const service = new ErrorReportService(database, noopAlertEvaluationService());
 
     await service.list(ORGANIZATION_ID, PROJECT_ID);
 
@@ -116,7 +167,10 @@ describe("ErrorReportService", () => {
     // rather than relying on a check further up having happened.
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { projectId: PROJECT_ID, project: { organizationId: ORGANIZATION_ID } },
+        where: expect.objectContaining({
+          projectId: PROJECT_ID,
+          project: { organizationId: ORGANIZATION_ID },
+        }),
       }),
     );
   });
@@ -128,7 +182,7 @@ describe("ErrorReportService", () => {
         findMany,
       },
     } as unknown as PrismaService;
-    const service = new ErrorReportService(database);
+    const service = new ErrorReportService(database, noopAlertEvaluationService());
 
     await expect(service.list(ORGANIZATION_ID, PROJECT_ID)).resolves.toEqual({ reports: [] });
   });

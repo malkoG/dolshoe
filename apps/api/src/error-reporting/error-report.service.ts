@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 
+import { AlertEvaluationService } from "../alerts/alert-evaluation.service";
 import { PrismaService } from "../database/prisma.service";
 import { Prisma } from "../generated/prisma/client";
+import { computeFingerprint } from "./compute-fingerprint";
 import {
   ERROR_REPORT_LIST_LIMIT,
   ErrorReportDetail,
@@ -14,8 +16,14 @@ import {
 import { readStoredException } from "./read-stored-exception";
 import { summarizeException } from "./summarize-exception";
 
+const UNIQUE_CONSTRAINT_VIOLATION = "P2002";
+
 function asPrismaJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
+}
+
+function isPrismaError(error: unknown, code: string): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
 }
 
 interface UserColumns {
@@ -45,50 +53,84 @@ export interface ErrorReportListFilter {
 
 @Injectable()
 export class ErrorReportService {
-  constructor(private readonly database: PrismaService) {}
+  constructor(
+    private readonly database: PrismaService,
+    private readonly alertEvaluationService: AlertEvaluationService,
+  ) {}
 
+  /**
+   * A `create`, not the `upsert` this used to be — telling a genuinely new
+   * report apart from an idempotent replay of one already stored is required
+   * now, not just informative: only a new report gets evaluated against this
+   * project's alert rules. A replay firing "new_fingerprint" or
+   * "volume_threshold" again every time a client retries the same event
+   * would be a real bug, not a cosmetic one.
+   */
   async receive(report: ErrorReportRequest, projectId: string): Promise<ErrorReportReceipt> {
-    const stored = await this.database.errorReport.upsert({
-      // An eventId is only an idempotency key within its own project, so a
-      // replay keeps the identity it was first stored under.
-      where: {
-        projectId_eventId: { projectId, eventId: report.eventId },
-      },
-      update: {},
-      create: {
-        projectId,
-        eventId: report.eventId,
-        schemaVersion: report.schemaVersion,
-        occurredAt: new Date(report.occurredAt),
-        serviceName: report.service.name,
-        environment: report.service.environment,
-        release: report.service.release,
-        runtimeName: report.runtime.name,
-        runtimeVersion: report.runtime.version,
-        reporterName: report.reporter.name,
-        reporterVersion: report.reporter.version,
-        mechanismType: report.mechanism?.type,
-        handled: report.mechanism?.handled,
-        traceId: report.trace?.traceId,
-        spanId: report.trace?.spanId,
-        exception: asPrismaJson(report.exception),
-        userIdentifier: report.user?.id,
-        userEmail: report.user?.email,
-        userName: report.user?.username,
-        tags: report.tags ? asPrismaJson(report.tags) : undefined,
-        breadcrumbs: report.breadcrumbs ? asPrismaJson(report.breadcrumbs) : undefined,
-        attributes: report.attributes ? asPrismaJson(report.attributes) : undefined,
-      },
-      select: {
-        id: true,
-        receivedAt: true,
-      },
-    });
+    const fingerprint = computeFingerprint(report.exception);
 
-    return {
-      id: stored.id,
-      receivedAt: stored.receivedAt.toISOString(),
-    };
+    try {
+      const stored = await this.database.errorReport.create({
+        data: {
+          projectId,
+          eventId: report.eventId,
+          schemaVersion: report.schemaVersion,
+          occurredAt: new Date(report.occurredAt),
+          serviceName: report.service.name,
+          environment: report.service.environment,
+          release: report.service.release,
+          runtimeName: report.runtime.name,
+          runtimeVersion: report.runtime.version,
+          reporterName: report.reporter.name,
+          reporterVersion: report.reporter.version,
+          mechanismType: report.mechanism?.type,
+          handled: report.mechanism?.handled,
+          traceId: report.trace?.traceId,
+          spanId: report.trace?.spanId,
+          exception: asPrismaJson(report.exception),
+          userIdentifier: report.user?.id,
+          userEmail: report.user?.email,
+          userName: report.user?.username,
+          tags: report.tags ? asPrismaJson(report.tags) : undefined,
+          breadcrumbs: report.breadcrumbs ? asPrismaJson(report.breadcrumbs) : undefined,
+          attributes: report.attributes ? asPrismaJson(report.attributes) : undefined,
+          fingerprint,
+        },
+        select: {
+          id: true,
+          receivedAt: true,
+        },
+      });
+
+      const exceptionSummary = summarizeException(report.exception);
+      await this.alertEvaluationService.evaluateForReport(projectId, {
+        id: stored.id,
+        fingerprint,
+        environment: report.service.environment ?? null,
+        serviceName: report.service.name,
+        tags: report.tags,
+        occurredAt: new Date(report.occurredAt),
+        exceptionType: exceptionSummary.type,
+        exceptionMessage: exceptionSummary.message,
+      });
+
+      return {
+        id: stored.id,
+        receivedAt: stored.receivedAt.toISOString(),
+      };
+    } catch (error) {
+      if (isPrismaError(error, UNIQUE_CONSTRAINT_VIOLATION)) {
+        // An eventId is only an idempotency key within its own project, so a
+        // replay returns the receipt it was first stored under rather than
+        // evaluating alert rules a second time.
+        const existing = await this.database.errorReport.findUniqueOrThrow({
+          where: { projectId_eventId: { projectId, eventId: report.eventId } },
+          select: { id: true, receivedAt: true },
+        });
+        return { id: existing.id, receivedAt: existing.receivedAt.toISOString() };
+      }
+      throw error;
+    }
   }
 
   /**
