@@ -275,6 +275,19 @@ export function PageShell({
                     <Link
                       activeOptions={{ exact: true }}
                       activeProps={ACTIVE_LINK_PROPS}
+                      params={{ orgSlug }}
+                      to="/orgs/$orgSlug/settings"
+                    >
+                      <Settings />
+                      <span>Settings</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link
+                      activeOptions={{ exact: true }}
+                      activeProps={ACTIVE_LINK_PROPS}
                       to="/orgs"
                     >
                       <Building2 />
