@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 
 import { PrismaService } from "../database/prisma.service";
 import { Prisma } from "../generated/prisma/client";
@@ -95,11 +95,29 @@ export class ErrorReportService {
    * Both halves of the scope are required. Naming the organization as well as
    * the project means a project id guessed from another tenant matches nothing,
    * rather than relying on a check somewhere further up to have happened.
+   *
+   * `filter.tagKey`/`filter.tagValue` must arrive together or not at all — the
+   * controller's request-schema `.refine()` already enforces that, so this
+   * method trusts the pairing rather than re-checking it.
    */
-  async list(organizationId: string, projectId: string): Promise<ErrorReportListResponse> {
+  async list(
+    organizationId: string,
+    projectId: string,
+    filter: ErrorReportListFilter = {},
+  ): Promise<ErrorReportListResponse> {
     const rows = await this.database.errorReport.findMany({
-      // Served by [projectId, receivedAt DESC].
-      where: { projectId, project: { organizationId } },
+      // Served by [projectId, receivedAt DESC]; a tag or user filter narrows
+      // that same project-scoped result with a plain scan rather than an
+      // index of its own — see the schema's own note on why that is fine for
+      // now.
+      where: {
+        projectId,
+        project: { organizationId },
+        ...(filter.userId == null ? {} : { userIdentifier: filter.userId }),
+        ...(filter.tagKey == null
+          ? {}
+          : { tags: { path: [filter.tagKey], equals: filter.tagValue } }),
+      },
       orderBy: { receivedAt: "desc" },
       take: ERROR_REPORT_LIST_LIMIT,
       select: {
@@ -113,28 +131,36 @@ export class ErrorReportService {
         runtimeName: true,
         runtimeVersion: true,
         exception: true,
+        userIdentifier: true,
+        userEmail: true,
+        userName: true,
+        tags: true,
         project: { select: { id: true, slug: true, name: true } },
       },
     });
 
     return {
-      reports: rows.map((row) => ({
-        id: row.id,
-        eventId: row.eventId,
-        occurredAt: row.occurredAt.toISOString(),
-        receivedAt: row.receivedAt.toISOString(),
-        project: row.project,
-        service: {
-          name: row.serviceName,
-          environment: row.environment ?? undefined,
-          release: row.release ?? undefined,
-        },
-        runtime: {
-          name: row.runtimeName,
-          version: row.runtimeVersion ?? undefined,
-        },
-        exception: summarizeException(row.exception),
-      })),
+      reports: rows.map(
+        (row): ErrorReportSummary => ({
+          id: row.id,
+          eventId: row.eventId,
+          occurredAt: row.occurredAt.toISOString(),
+          receivedAt: row.receivedAt.toISOString(),
+          project: row.project,
+          service: {
+            name: row.serviceName,
+            environment: row.environment ?? undefined,
+            release: row.release ?? undefined,
+          },
+          runtime: {
+            name: row.runtimeName,
+            version: row.runtimeVersion ?? undefined,
+          },
+          exception: summarizeException(row.exception),
+          user: toUserContext(row),
+          tags: (row.tags ?? undefined) as ErrorReportSummary["tags"],
+        }),
+      ),
     };
   }
 
@@ -171,6 +197,11 @@ export class ErrorReportService {
         traceId: true,
         spanId: true,
         exception: true,
+        userIdentifier: true,
+        userEmail: true,
+        userName: true,
+        tags: true,
+        breadcrumbs: true,
         attributes: true,
         project: { select: { id: true, slug: true, name: true } },
       },
@@ -206,6 +237,9 @@ export class ErrorReportService {
       trace:
         row.traceId == null ? undefined : { traceId: row.traceId, spanId: row.spanId ?? undefined },
       exception: readStoredException(row.exception),
+      user: toUserContext(row),
+      tags: (row.tags ?? undefined) as ErrorReportDetail["tags"],
+      breadcrumbs: (row.breadcrumbs ?? undefined) as ErrorReportDetail["breadcrumbs"],
       attributes: (row.attributes ?? undefined) as ErrorReportDetail["attributes"],
     };
   }

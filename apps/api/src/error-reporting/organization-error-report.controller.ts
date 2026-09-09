@@ -1,9 +1,10 @@
-import { Controller, Get, Param, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
   ApiCookieAuth,
   ApiNotFoundResponse,
   ApiOkResponse,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -14,8 +15,10 @@ import { OrgMembershipGuard } from "../organizations/org-membership.guard";
 import { projectIdParamSchema } from "../projects/project.contract";
 import {
   ErrorReportDetail,
+  ErrorReportListQuery,
   ErrorReportListResponse,
   errorReportIdParamSchema,
+  errorReportListQuerySchema,
 } from "./error-report.contract";
 import { ErrorReportService } from "./error-report.service";
 import { ZodValidationPipe } from "./zod-validation.pipe";
@@ -24,6 +27,10 @@ const projectIdPipe = new ZodValidationPipe(projectIdParamSchema, "The project i
 const reportIdPipe = new ZodValidationPipe(
   errorReportIdParamSchema,
   "The error report id is not a UUID.",
+);
+const listQueryPipe = new ZodValidationPipe(
+  errorReportListQuerySchema,
+  "Provide both tagKey and tagValue, or neither.",
 );
 
 /**
@@ -46,18 +53,29 @@ export class OrganizationErrorReportController {
 
   /**
    * List the project's most recently received error reports.
+   *
+   * @remarks
+   * `tagKey`/`tagValue` and `userId` narrow the same project-scoped,
+   * time-ordered result server-side — the list is bounded, so filtering it in
+   * the browser would only ever narrow whatever page happened to load.
    */
   @Get()
+  @ApiQuery({ name: "tagKey", required: false })
+  @ApiQuery({ name: "tagValue", required: false })
+  @ApiQuery({ name: "userId", required: false })
   @ApiOkResponse({
     description: "Newest-first error report summaries, bounded to the documented limit.",
     schema: { $ref: "#/components/schemas/ErrorReportListResponseV1" },
   })
-  @ApiBadRequestResponse({ description: "The project id is not a UUID." })
+  @ApiBadRequestResponse({
+    description: "The project id is not a UUID, or tagKey/tagValue was given without the other.",
+  })
   list(
     @CurrentOrganization() organization: OrganizationContext,
     @Param("projectId", projectIdPipe) projectId: string,
+    @Query(listQueryPipe) query: ErrorReportListQuery,
   ): Promise<ErrorReportListResponse> {
-    return this.errorReportService.list(organization.id, projectId);
+    return this.errorReportService.list(organization.id, projectId, query);
   }
 
   /**
