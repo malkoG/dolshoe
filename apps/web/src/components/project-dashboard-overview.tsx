@@ -127,16 +127,16 @@ function BreakdownPanel({ summary }: Readonly<{ summary: ProjectDashboardSummary
 
 function HealthRow({
   label,
-  lastOccurredAt,
-}: Readonly<{ label: string; lastOccurredAt: string | null }>) {
+  lastReceivedAt,
+}: Readonly<{ label: string; lastReceivedAt: string | null }>) {
   return (
     <div className="flex items-center justify-between px-5 py-2.5 text-[13px]">
       <span>{label}</span>
-      {lastOccurredAt == null ? (
+      {lastReceivedAt == null ? (
         <span className="font-mono text-[11px] text-faint">Never</span>
       ) : (
-        <time className="font-mono text-[11px] text-muted-foreground" dateTime={lastOccurredAt}>
-          {formatRelativeTime(lastOccurredAt)}
+        <time className="font-mono text-[11px] text-muted-foreground" dateTime={lastReceivedAt}>
+          {formatRelativeTime(lastReceivedAt)}
         </time>
       )}
     </div>
@@ -150,9 +150,9 @@ function HealthPanel({ summary }: Readonly<{ summary: ProjectDashboardSummary }>
         <PanelSummary>Last event received</PanelSummary>
       </PanelBar>
       <div className="divide-y divide-border">
-        <HealthRow label="Error report" lastOccurredAt={summary.errorReports.lastOccurredAt} />
-        <HealthRow label="Log record" lastOccurredAt={summary.logRecords.lastOccurredAt} />
-        <HealthRow label="Trace" lastOccurredAt={summary.traces.lastOccurredAt} />
+        <HealthRow label="Error report" lastReceivedAt={summary.errorReports.lastReceivedAt} />
+        <HealthRow label="Log record" lastReceivedAt={summary.logRecords.lastReceivedAt} />
+        <HealthRow label="Trace" lastReceivedAt={summary.traces.lastReceivedAt} />
       </div>
     </Panel>
   );
