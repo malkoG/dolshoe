@@ -14,16 +14,19 @@ describe("ProjectDashboardOverview named states", () => {
     ]);
   });
 
-  test("empty shows zero totals and no breakdowns", () => {
+  test("empty shows zero totals, no breakdowns, and a flat volume chart", () => {
     render(<ProjectDashboardOverview {...projectDashboardOverviewStates.empty()} />);
 
-    expect(screen.getByText("Error reports")).toBeTruthy();
+    expect(screen.getAllByText("Error reports").length).toBeGreaterThan(0);
     expect(screen.getAllByText("0").length).toBeGreaterThan(0);
     expect(screen.getAllByText("No reports yet.").length).toBe(2);
     expect(screen.getAllByText("Never").length).toBe(3);
+    expect(
+      screen.getByRole("img", { name: /0 error reports and 0 log records in total/ }),
+    ).toBeTruthy();
   });
 
-  test("populated shows totals, trend, breakdowns, and last-event times", () => {
+  test("populated shows totals, trend, breakdowns, last-event times, and a volume chart", () => {
     render(<ProjectDashboardOverview {...projectDashboardOverviewStates.populated()} />);
 
     expect(screen.getByText("84")).toBeTruthy();
@@ -31,5 +34,8 @@ describe("ProjectDashboardOverview named states", () => {
     expect(screen.getByText("production")).toBeTruthy();
     expect(screen.getByText("cpython")).toBeTruthy();
     expect(screen.queryByText("Never")).toBeNull();
+    expect(
+      screen.getByRole("img", { name: /84 error reports and 512 log records in total/ }),
+    ).toBeTruthy();
   });
 });
