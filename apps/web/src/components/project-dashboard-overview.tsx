@@ -1,10 +1,13 @@
 import { Panel, PanelBar, PanelSummary } from "@dolshoe/ui/components/panel";
+import { StatusDot } from "@dolshoe/ui/components/status-badge";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@dolshoe/ui/components/ui/tooltip";
+import { cn } from "@dolshoe/ui/lib/utils";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 import type { ProjectDashboardSummary } from "../lib/dashboard-summary";
 import { dateFormatter, formatRelativeTime, pluralize } from "../lib/format";
@@ -32,11 +35,38 @@ function formatWindowRange(summary: ProjectDashboardSummary): string {
   return `${since} – ${until}`;
 }
 
+type TrendTone = "success" | "danger" | "neutral";
+type TrendDirection = "up" | "down" | "flat";
+
+interface StatTrend {
+  text: string;
+  tone: TrendTone;
+  direction: TrendDirection;
+}
+
+const TREND_TONE_CLASSES: Record<TrendTone, string> = {
+  success: "text-success",
+  danger: "text-brand",
+  neutral: "text-muted-foreground",
+};
+
+function TrendIndicator({ trend }: Readonly<{ trend: StatTrend }>) {
+  const Icon =
+    trend.direction === "up" ? ChevronUp : trend.direction === "down" ? ChevronDown : null;
+
+  return (
+    <p className={cn("mt-1 flex items-center gap-0.5 text-[11px]", TREND_TONE_CLASSES[trend.tone])}>
+      {Icon != null && <Icon aria-hidden="true" className="size-3" />}
+      {trend.text}
+    </p>
+  );
+}
+
 function StatCard({
   label,
   total,
   trend,
-}: Readonly<{ label: string; total: number; trend?: string }>) {
+}: Readonly<{ label: string; total: number; trend?: StatTrend }>) {
   return (
     <Panel>
       <PanelBar>
@@ -44,7 +74,7 @@ function StatCard({
       </PanelBar>
       <div className="px-5 py-6">
         <p className="text-2xl font-bold">{total.toLocaleString()}</p>
-        {trend != null && <p className="mt-1 text-[11px] text-muted-foreground">{trend}</p>}
+        {trend != null && <TrendIndicator trend={trend} />}
       </div>
     </Panel>
   );
@@ -60,6 +90,27 @@ function describeTrend(total: number, previousPeriodTotal: number): string {
   return `${change > 0 ? "Up" : "Down"} ${Math.abs(change)}% from the prior period`;
 }
 
+function trendDirection(total: number, previousPeriodTotal: number): TrendDirection {
+  if (previousPeriodTotal === 0) return total === 0 ? "flat" : "up";
+  if (total === previousPeriodTotal) return "flat";
+  return total > previousPeriodTotal ? "up" : "down";
+}
+
+/**
+ * For error reports, more is worse: an increase is colored as a bad signal
+ * and a decrease as a good one — the opposite of a naive "up is green". Log
+ * and trace totals carry no trend today; the contract has no
+ * `previousPeriodTotal` for them.
+ */
+function errorReportTrend(total: number, previousPeriodTotal: number): StatTrend {
+  const direction = trendDirection(total, previousPeriodTotal);
+  return {
+    text: describeTrend(total, previousPeriodTotal),
+    tone: direction === "up" ? "danger" : direction === "down" ? "success" : "neutral",
+    direction,
+  };
+}
+
 function BreakdownList({
   counts,
   emptyLabel,
@@ -70,12 +121,23 @@ function BreakdownList({
     return <p className="px-5 py-4 text-[13px] text-muted-foreground">{emptyLabel}</p>;
   }
 
+  // A magnitude encoding, not an identity one — one hue, scaled by each row's
+  // share of the largest count in its own list, rather than a color per row.
+  const max = Math.max(...entries.map(([, count]) => count), 1);
+
   return (
     <ul className="divide-y divide-border">
       {entries.map(([key, count]) => (
-        <li className="flex items-center justify-between px-5 py-2.5 text-[13px]" key={key}>
-          <span>{key}</span>
-          <span className="font-mono text-[11px] text-muted-foreground">{count}</span>
+        <li className="relative px-5 py-2.5 text-[13px]" key={key}>
+          <div
+            aria-hidden="true"
+            className="absolute inset-y-0 left-0 bg-muted"
+            style={{ width: `${(count / max) * 100}%` }}
+          />
+          <div className="relative flex items-center justify-between">
+            <span>{key}</span>
+            <span className="font-mono text-[11px] text-muted-foreground">{count}</span>
+          </div>
         </li>
       ))}
     </ul>
@@ -259,13 +321,38 @@ function BreakdownPanel({ summary }: Readonly<{ summary: ProjectDashboardSummary
   );
 }
 
+const HEALTH_RECENT_MS = 60 * 60 * 1000;
+const HEALTH_STALE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * How fresh a signal's last-received timestamp is, as a status tone: recent
+ * enough to look healthy, old enough to look stale, or old enough (or absent
+ * entirely) that freshness has nothing left to say. A negative age — a
+ * timestamp at or after `now` — falls into "recent" the same way a real one
+ * would; there's no clock-skew case worth a branch of its own.
+ */
+export function healthTone(
+  lastReceivedAt: string | null,
+  now: Date = new Date(),
+): "success" | "warning" | "neutral" {
+  if (lastReceivedAt == null) return "neutral";
+
+  const age = now.getTime() - new Date(lastReceivedAt).getTime();
+  if (age <= HEALTH_RECENT_MS) return "success";
+  if (age <= HEALTH_STALE_MS) return "warning";
+  return "neutral";
+}
+
 function HealthRow({
   label,
   lastReceivedAt,
 }: Readonly<{ label: string; lastReceivedAt: string | null }>) {
   return (
     <div className="flex items-center justify-between px-5 py-2.5 text-[13px]">
-      <span>{label}</span>
+      <span className="flex items-center gap-2">
+        <StatusDot tone={healthTone(lastReceivedAt)} />
+        {label}
+      </span>
       {lastReceivedAt == null ? (
         <span className="font-mono text-[11px] text-faint">Never</span>
       ) : (
@@ -301,7 +388,7 @@ export function ProjectDashboardOverview({ summary }: ProjectDashboardOverviewPr
         <StatCard
           label="Error reports"
           total={summary.errorReports.total}
-          trend={describeTrend(
+          trend={errorReportTrend(
             summary.errorReports.total,
             summary.errorReports.previousPeriodTotal,
           )}
