@@ -10,6 +10,7 @@ import {
   type RuntimeInitOptions,
 } from "@dolshoe/core";
 
+import { createAsyncScope } from "./scope.js";
 import { createSourceReader } from "./source-reader.js";
 import { createAsyncSpanScope } from "./span-scope.js";
 
@@ -78,6 +79,7 @@ export function init(options: RuntimeInitOptions): Client {
     // spanScope straight over this default. An application may still bring its
     // own, which the ?? preserves.
     spanScope: clientOptions.spanScope ?? createAsyncSpanScope(),
+    scope: clientOptions.scope ?? createAsyncScope(),
     runtime: {
       name: "deno",
       ...(version == null ? {} : { version }),
@@ -104,7 +106,9 @@ export async function close(timeoutMilliseconds?: number): Promise<boolean> {
 
 export {
   DEFAULT_STACK_FRAME_LIMIT,
+  activeScope,
   activeSpan,
+  addBreadcrumb,
   applyStackFrameLimit,
   captureException,
   captureLog,
@@ -113,10 +117,15 @@ export {
   getClient,
   normalizeException,
   parseJavaScriptStack,
+  setTag,
+  setTags,
+  setUser,
   startSpan,
+  withScope,
   withSpan,
 } from "@dolshoe/core";
 export type {
+  Breadcrumb,
   CaptureLogOptions,
   CaptureOptions,
   ErrorReport,
@@ -126,6 +135,8 @@ export type {
   LogRecordBatch,
   LogTransport,
   RuntimeInitOptions,
+  Scope,
+  ScopeData,
   Span,
   SpanContext,
   SpanKind,
@@ -133,5 +144,7 @@ export type {
   SpanScope,
   SpanStatusCode,
   SpanTransport,
+  Tags,
   Transport,
+  UserContext,
 } from "@dolshoe/core";

@@ -6,9 +6,31 @@ import {
   DEFAULT_STACK_FRAME_LIMIT,
   applyStackFrameLimit,
   attachSourceContext,
+  createSynchronousScope,
   normalizeException,
   parseJavaScriptStack,
+  sanitizeBreadcrumbs,
+  sanitizeTags,
+  sanitizeUser,
 } from "../dist/index.mjs";
+
+function testClient(overrides = {}) {
+  const reports = [];
+  const client = new Client({
+    service: { name: "checkout-api", environment: "test" },
+    runtime: { name: "node", version: "24.0.0" },
+    reporter: { name: "dolshoe-node", version: "0.1.0" },
+    transport: {
+      async send(report) {
+        reports.push(report);
+      },
+    },
+    generateEventId: () => "bf695c6d-8a75-4b1d-8434-9ddb1ce54ee7",
+    now: () => new Date("2026-07-24T08:30:00.000Z"),
+    ...overrides,
+  });
+  return { client, reports };
+}
 
 test("normalizes Error cause and AggregateError children", () => {
   const cause = new Error("cart missing");
@@ -383,4 +405,162 @@ test("requires an explicit log transport boundary", () => {
     () => client.captureLog("info", "cannot be delivered"),
     /requires logEndpoint or logTransport/,
   );
+});
+
+test("sanitizeUser trims fields, bounds their length, and drops an empty user", () => {
+  assert.deepEqual(sanitizeUser({ id: "  u_42  ", email: "a@example.com" }), {
+    id: "u_42",
+    email: "a@example.com",
+  });
+  assert.equal(sanitizeUser({}), undefined);
+  assert.equal(sanitizeUser(undefined), undefined);
+  assert.equal(sanitizeUser({ id: "x".repeat(500) }).id.length, 200);
+});
+
+test("sanitizeTags bounds entry count, key/value length, and drops non-string values", () => {
+  const many = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`k${i}`, `v${i}`]));
+  assert.equal(Object.keys(sanitizeTags(many)).length, 20);
+
+  assert.deepEqual(sanitizeTags({ tier: "enterprise", empty: "", bad: 42 }), {
+    tier: "enterprise",
+  });
+  assert.equal(sanitizeTags(undefined), undefined);
+});
+
+test("sanitizeBreadcrumbs keeps only the newest 100 and bounds each entry", () => {
+  const many = Array.from({ length: 150 }, (_, i) => ({
+    timestamp: "2026-07-24T08:00:00.000Z",
+    message: `event ${i}`,
+  }));
+  const sanitized = sanitizeBreadcrumbs(many);
+  assert.equal(sanitized.length, 100);
+  assert.equal(sanitized[0].message, "event 50");
+  assert.equal(sanitized[99].message, "event 149");
+
+  assert.deepEqual(
+    sanitizeBreadcrumbs([
+      {
+        timestamp: "2026-07-24T08:00:00.000Z",
+        message: "clicked",
+        category: "ui",
+        level: "info",
+        data: { button: "checkout" },
+      },
+    ]),
+    [
+      {
+        timestamp: "2026-07-24T08:00:00.000Z",
+        message: "clicked",
+        category: "ui",
+        level: "info",
+        data: { button: "checkout" },
+      },
+    ],
+  );
+
+  assert.equal(sanitizeBreadcrumbs(undefined), undefined);
+  assert.equal(sanitizeBreadcrumbs([]), undefined);
+});
+
+test("sanitizeBreadcrumbs drops a data bag too large to send", () => {
+  // Each value alone survives the 4096-char per-value truncation `sanitizeJsonValue`
+  // already applies; only the whole bag's serialized size (> 8192 bytes) is over
+  // the breadcrumb-specific cap, which is what this test is actually exercising.
+  const large = Object.fromEntries(
+    Array.from({ length: 5 }, (_, i) => [`field${i}`, "x".repeat(4_000)]),
+  );
+  const [breadcrumb] = sanitizeBreadcrumbs([
+    { timestamp: "2026-07-24T08:00:00.000Z", data: large },
+  ]);
+  assert.equal(breadcrumb.data, undefined);
+});
+
+test("createSynchronousScope mutates in place without run(), and run() isolates and restores", () => {
+  const scope = createSynchronousScope();
+  scope.active().tags.tier = "enterprise";
+  assert.deepEqual(scope.active().tags, { tier: "enterprise" });
+
+  scope.run({ tags: {}, breadcrumbs: [] }, () => {
+    assert.deepEqual(scope.active().tags, {});
+    scope.active().tags.tier = "trial";
+    assert.deepEqual(scope.active().tags, { tier: "trial" });
+  });
+
+  assert.deepEqual(scope.active().tags, { tier: "enterprise" });
+});
+
+test("attaches the ambient scope's user, tags, and breadcrumbs to a captured report", async () => {
+  const { client, reports } = testClient();
+
+  client.setUser({ id: "u_1", email: "a@example.com" });
+  client.setTag("tier", "enterprise");
+  client.addBreadcrumb({ message: "opened checkout", category: "navigation" });
+  client.captureException(new Error("failed"));
+
+  await client.flush();
+  assert.equal(reports.length, 1);
+  assert.deepEqual(reports[0].user, { id: "u_1", email: "a@example.com" });
+  assert.deepEqual(reports[0].tags, { tier: "enterprise" });
+  assert.equal(reports[0].breadcrumbs.length, 1);
+  assert.equal(reports[0].breadcrumbs[0].message, "opened checkout");
+});
+
+test("a per-call user replaces the ambient one, and per-call tags win on collision", async () => {
+  const { client, reports } = testClient();
+
+  client.setUser({ id: "ambient-user" });
+  client.setTag("tier", "trial");
+  client.setTag("region", "apac");
+  client.captureException(new Error("failed"), {
+    user: { id: "explicit-user" },
+    tags: { tier: "enterprise" },
+  });
+
+  await client.flush();
+  assert.deepEqual(reports[0].user, { id: "explicit-user" });
+  assert.deepEqual(reports[0].tags, { tier: "enterprise", region: "apac" });
+});
+
+test("addBreadcrumb caps the ring buffer at 100 as breadcrumbs accumulate", async () => {
+  const { client, reports } = testClient();
+
+  for (let i = 0; i < 150; i++) {
+    client.addBreadcrumb({ message: `event ${i}` });
+  }
+  client.captureException(new Error("failed"));
+
+  await client.flush();
+  assert.equal(reports[0].breadcrumbs.length, 100);
+  assert.equal(reports[0].breadcrumbs[0].message, "event 50");
+  assert.equal(reports[0].breadcrumbs[99].message, "event 149");
+});
+
+test("withScope isolates user, tags, and breadcrumbs set during it", async () => {
+  const { client, reports } = testClient();
+
+  client.setTag("outer", "yes");
+  client.withScope(() => {
+    client.setTag("inner", "yes");
+    client.setUser({ id: "scoped-user" });
+    client.captureException(new Error("inside scope"));
+  });
+  client.captureException(new Error("outside scope"));
+
+  await client.flush();
+  assert.equal(reports.length, 2);
+  assert.deepEqual(reports[0].tags, { inner: "yes" });
+  assert.deepEqual(reports[0].user, { id: "scoped-user" });
+  assert.deepEqual(reports[1].tags, { outer: "yes" });
+  assert.equal(reports[1].user, undefined);
+});
+
+test("clearing the user with null removes it from later reports", async () => {
+  const { client, reports } = testClient();
+
+  client.setUser({ id: "u_1" });
+  client.setUser(null);
+  client.captureException(new Error("failed"));
+
+  await client.flush();
+  assert.equal(reports[0].user, undefined);
 });
