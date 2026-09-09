@@ -8,12 +8,39 @@ import {
   ErrorReportListResponse,
   ErrorReportReceipt,
   ErrorReportRequest,
+  ErrorReportSummary,
+  UserContext,
 } from "./error-report.contract";
 import { readStoredException } from "./read-stored-exception";
 import { summarizeException } from "./summarize-exception";
 
 function asPrismaJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
+}
+
+interface UserColumns {
+  userIdentifier: string | null;
+  userEmail: string | null;
+  userName: string | null;
+}
+
+/** `undefined` — not present at all — when the reporter never identified anyone. */
+function toUserContext(row: UserColumns): UserContext | undefined {
+  if (row.userIdentifier == null && row.userEmail == null && row.userName == null) {
+    return undefined;
+  }
+
+  return {
+    id: row.userIdentifier ?? undefined,
+    email: row.userEmail ?? undefined,
+    username: row.userName ?? undefined,
+  };
+}
+
+export interface ErrorReportListFilter {
+  tagKey?: string;
+  tagValue?: string;
+  userId?: string;
 }
 
 @Injectable()
@@ -45,6 +72,11 @@ export class ErrorReportService {
         traceId: report.trace?.traceId,
         spanId: report.trace?.spanId,
         exception: asPrismaJson(report.exception),
+        userIdentifier: report.user?.id,
+        userEmail: report.user?.email,
+        userName: report.user?.username,
+        tags: report.tags ? asPrismaJson(report.tags) : undefined,
+        breadcrumbs: report.breadcrumbs ? asPrismaJson(report.breadcrumbs) : undefined,
         attributes: report.attributes ? asPrismaJson(report.attributes) : undefined,
       },
       select: {
@@ -63,11 +95,29 @@ export class ErrorReportService {
    * Both halves of the scope are required. Naming the organization as well as
    * the project means a project id guessed from another tenant matches nothing,
    * rather than relying on a check somewhere further up to have happened.
+   *
+   * `filter.tagKey`/`filter.tagValue` must arrive together or not at all — the
+   * controller's request-schema `.refine()` already enforces that, so this
+   * method trusts the pairing rather than re-checking it.
    */
-  async list(organizationId: string, projectId: string): Promise<ErrorReportListResponse> {
+  async list(
+    organizationId: string,
+    projectId: string,
+    filter: ErrorReportListFilter = {},
+  ): Promise<ErrorReportListResponse> {
     const rows = await this.database.errorReport.findMany({
-      // Served by [projectId, receivedAt DESC].
-      where: { projectId, project: { organizationId } },
+      // Served by [projectId, receivedAt DESC]; a tag or user filter narrows
+      // that same project-scoped result with a plain scan rather than an
+      // index of its own — see the schema's own note on why that is fine for
+      // now.
+      where: {
+        projectId,
+        project: { organizationId },
+        ...(filter.userId == null ? {} : { userIdentifier: filter.userId }),
+        ...(filter.tagKey == null
+          ? {}
+          : { tags: { path: [filter.tagKey], equals: filter.tagValue } }),
+      },
       orderBy: { receivedAt: "desc" },
       take: ERROR_REPORT_LIST_LIMIT,
       select: {
@@ -81,28 +131,36 @@ export class ErrorReportService {
         runtimeName: true,
         runtimeVersion: true,
         exception: true,
+        userIdentifier: true,
+        userEmail: true,
+        userName: true,
+        tags: true,
         project: { select: { id: true, slug: true, name: true } },
       },
     });
 
     return {
-      reports: rows.map((row) => ({
-        id: row.id,
-        eventId: row.eventId,
-        occurredAt: row.occurredAt.toISOString(),
-        receivedAt: row.receivedAt.toISOString(),
-        project: row.project,
-        service: {
-          name: row.serviceName,
-          environment: row.environment ?? undefined,
-          release: row.release ?? undefined,
-        },
-        runtime: {
-          name: row.runtimeName,
-          version: row.runtimeVersion ?? undefined,
-        },
-        exception: summarizeException(row.exception),
-      })),
+      reports: rows.map(
+        (row): ErrorReportSummary => ({
+          id: row.id,
+          eventId: row.eventId,
+          occurredAt: row.occurredAt.toISOString(),
+          receivedAt: row.receivedAt.toISOString(),
+          project: row.project,
+          service: {
+            name: row.serviceName,
+            environment: row.environment ?? undefined,
+            release: row.release ?? undefined,
+          },
+          runtime: {
+            name: row.runtimeName,
+            version: row.runtimeVersion ?? undefined,
+          },
+          exception: summarizeException(row.exception),
+          user: toUserContext(row),
+          tags: (row.tags ?? undefined) as ErrorReportSummary["tags"],
+        }),
+      ),
     };
   }
 
@@ -139,6 +197,11 @@ export class ErrorReportService {
         traceId: true,
         spanId: true,
         exception: true,
+        userIdentifier: true,
+        userEmail: true,
+        userName: true,
+        tags: true,
+        breadcrumbs: true,
         attributes: true,
         project: { select: { id: true, slug: true, name: true } },
       },
@@ -174,6 +237,9 @@ export class ErrorReportService {
       trace:
         row.traceId == null ? undefined : { traceId: row.traceId, spanId: row.spanId ?? undefined },
       exception: readStoredException(row.exception),
+      user: toUserContext(row),
+      tags: (row.tags ?? undefined) as ErrorReportDetail["tags"],
+      breadcrumbs: (row.breadcrumbs ?? undefined) as ErrorReportDetail["breadcrumbs"],
       attributes: (row.attributes ?? undefined) as ErrorReportDetail["attributes"],
     };
   }

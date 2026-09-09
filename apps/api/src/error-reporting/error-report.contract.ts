@@ -309,11 +309,9 @@ function addBreadcrumbDataIssues(
 
 export const userContextSchema = z
   .object({
-    id: nonEmptyText(200)
-      .optional()
-      .meta({
-        description: "Stable identifier for the affected user, from the reporter's own system.",
-      }),
+    id: nonEmptyText(200).optional().meta({
+      description: "Stable identifier for the affected user, from the reporter's own system.",
+    }),
     email: nonEmptyText(200)
       .optional()
       .meta({ description: "Email address of the affected user." }),
@@ -469,6 +467,23 @@ export const ERROR_REPORT_LIST_LIMIT = 50;
 
 export const errorReportIdParamSchema = z.uuid("An error report id is a UUID.");
 
+/**
+ * A tag filter needs both halves or neither: a bare key with no value to
+ * compare against, or a value with no key to read it from, can't narrow
+ * anything.
+ */
+export const errorReportListQuerySchema = z
+  .object({
+    tagKey: nonEmptyText(MAX_TAG_KEY_LENGTH).optional(),
+    tagValue: nonEmptyText(MAX_TAG_VALUE_LENGTH).optional(),
+    userId: nonEmptyText(200).optional(),
+  })
+  .strict()
+  .refine((query) => (query.tagKey == null) === (query.tagValue == null), {
+    message: "Provide both tagKey and tagValue, or neither.",
+    path: ["tagValue"],
+  });
+
 export const errorReportExceptionSummarySchema = z
   .object({
     type: nonEmptyText(512)
@@ -596,6 +611,7 @@ export type ErrorReportExceptionSummary = z.infer<typeof errorReportExceptionSum
 export type ErrorReportSummary = z.infer<typeof errorReportSummarySchema>;
 export type ErrorReportDetail = z.infer<typeof errorReportDetailSchema>;
 export type ErrorReportListResponse = z.infer<typeof errorReportListResponseSchema>;
+export type ErrorReportListQuery = z.infer<typeof errorReportListQuerySchema>;
 export type StackFrame = z.infer<typeof stackFrameSchema>;
 
 function adaptJsonSchemaToOpenApi(value: unknown): unknown {

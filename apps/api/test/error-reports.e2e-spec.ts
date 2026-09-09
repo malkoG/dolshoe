@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
@@ -268,6 +270,118 @@ describe("Error report ingestion", () => {
           path: "runtime.name",
         }),
       ]),
+    });
+  });
+
+  describe("event context", () => {
+    const eventContextEventIds: string[] = [];
+
+    afterEach(async () => {
+      await database.errorReport.deleteMany({ where: { eventId: { in: eventContextEventIds } } });
+      eventContextEventIds.length = 0;
+    });
+
+    function withEventId<T extends { eventId: string }>(example: T): T {
+      const eventId = randomUUID();
+      eventContextEventIds.push(eventId);
+      return { ...example, eventId };
+    }
+
+    it("round-trips user, tags, and breadcrumbs through the list and detail endpoints", async () => {
+      const report = {
+        ...withEventId(nodeErrorReportExample),
+        user: { id: "user-42", email: "person@example.com", username: "person" },
+        tags: { tier: "enterprise", region: "us" },
+        breadcrumbs: [
+          { timestamp: "2026-07-24T08:29:00.000Z", message: "clicked checkout", category: "ui" },
+          { timestamp: "2026-07-24T08:29:59.000Z", message: "POST /charge", level: "info" },
+        ],
+      };
+
+      const receipt = await request(app.getHttpServer())
+        .post("/api/v1/error-reports")
+        .send(report)
+        .expect(201);
+
+      const listed = await request(app.getHttpServer())
+        .get(REPORTS_URL)
+        .set("cookie", viewer)
+        .expect(200);
+      const summary = listed.body.reports.find(
+        (candidate: { eventId: string }) => candidate.eventId === report.eventId,
+      );
+      expect(summary.user).toEqual(report.user);
+      expect(summary.tags).toEqual(report.tags);
+      expect(summary.breadcrumbs).toBeUndefined();
+
+      const detail = await request(app.getHttpServer())
+        .get(`${REPORTS_URL}/${receipt.body.id}`)
+        .set("cookie", viewer)
+        .expect(200);
+      expect(detail.body.user).toEqual(report.user);
+      expect(detail.body.tags).toEqual(report.tags);
+      expect(detail.body.breadcrumbs).toEqual(report.breadcrumbs);
+    });
+
+    it("ingests and reads back fine when none of the three is present", async () => {
+      const report = withEventId(nodeErrorReportExample);
+
+      const receipt = await request(app.getHttpServer())
+        .post("/api/v1/error-reports")
+        .send(report)
+        .expect(201);
+
+      const detail = await request(app.getHttpServer())
+        .get(`${REPORTS_URL}/${receipt.body.id}`)
+        .set("cookie", viewer)
+        .expect(200);
+      expect(detail.body.user).toBeUndefined();
+      expect(detail.body.tags).toBeUndefined();
+      expect(detail.body.breadcrumbs).toBeUndefined();
+    });
+
+    it("filters the list by userId", async () => {
+      const alice = { ...withEventId(nodeErrorReportExample), user: { id: "alice" } };
+      const bob = { ...withEventId(pythonErrorReportExample), user: { id: "bob" } };
+      await request(app.getHttpServer()).post("/api/v1/error-reports").send(alice).expect(201);
+      await request(app.getHttpServer()).post("/api/v1/error-reports").send(bob).expect(201);
+
+      const filtered = await request(app.getHttpServer())
+        .get(`${REPORTS_URL}?userId=alice`)
+        .set("cookie", viewer)
+        .expect(200);
+
+      expect(filtered.body.reports.map((r: { eventId: string }) => r.eventId)).toEqual([
+        alice.eventId,
+      ]);
+    });
+
+    it("filters the list by tagKey and tagValue", async () => {
+      const enterprise = {
+        ...withEventId(nodeErrorReportExample),
+        tags: { tier: "enterprise" },
+      };
+      const free = { ...withEventId(pythonErrorReportExample), tags: { tier: "free" } };
+      const untagged = withEventId(nodeErrorReportExample);
+      await request(app.getHttpServer()).post("/api/v1/error-reports").send(enterprise).expect(201);
+      await request(app.getHttpServer()).post("/api/v1/error-reports").send(free).expect(201);
+      await request(app.getHttpServer()).post("/api/v1/error-reports").send(untagged).expect(201);
+
+      const filtered = await request(app.getHttpServer())
+        .get(`${REPORTS_URL}?tagKey=tier&tagValue=enterprise`)
+        .set("cookie", viewer)
+        .expect(200);
+
+      expect(filtered.body.reports.map((r: { eventId: string }) => r.eventId)).toEqual([
+        enterprise.eventId,
+      ]);
+    });
+
+    it("rejects a tagKey given without a tagValue", async () => {
+      await request(app.getHttpServer())
+        .get(`${REPORTS_URL}?tagKey=tier`)
+        .set("cookie", viewer)
+        .expect(400);
     });
   });
 
