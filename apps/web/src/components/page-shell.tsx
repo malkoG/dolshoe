@@ -24,6 +24,7 @@ import {
 } from "@dolshoe/ui/components/ui/sidebar";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
+  Bell,
   Boxes,
   Building2,
   ChevronsUpDown,
@@ -218,6 +219,18 @@ export function PageShell({
                         >
                           <KeyRound />
                           <span>Tokens</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          activeProps={ACTIVE_LINK_PROPS}
+                          params={{ orgSlug, projectId: activeProjectId }}
+                          to="/orgs/$orgSlug/projects/$projectId/alerts"
+                        >
+                          <Bell />
+                          <span>Alerts</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

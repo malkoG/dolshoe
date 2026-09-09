@@ -15,9 +15,11 @@ import { Route as InvitationsTokenRouteImport } from './routes/invitations.$toke
 import { Route as OrgsIndexRouteImport } from './routes/orgs.index'
 import { Route as OrgsOrgSlugRouteImport } from './routes/orgs.$orgSlug'
 import { Route as OrgsOrgSlugMembersRouteImport } from './routes/orgs.$orgSlug.members'
+import { Route as OrgsOrgSlugSettingsRouteImport } from './routes/orgs.$orgSlug.settings'
 import { Route as OrgsOrgSlugProjectsIndexRouteImport } from './routes/orgs.$orgSlug.projects.index'
 import { Route as OrgsOrgSlugProjectsProjectIdRouteImport } from './routes/orgs.$orgSlug.projects.$projectId'
 import { Route as OrgsOrgSlugProjectsProjectIdIndexRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.index'
+import { Route as OrgsOrgSlugProjectsProjectIdAlertsRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.alerts'
 import { Route as OrgsOrgSlugProjectsProjectIdLogsRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.logs'
 import { Route as OrgsOrgSlugProjectsProjectIdSettingsRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.settings'
 import { Route as OrgsOrgSlugProjectsProjectIdTokensRouteImport } from './routes/orgs.$orgSlug.projects.$projectId.tokens'
@@ -56,6 +58,11 @@ const OrgsOrgSlugMembersRoute = OrgsOrgSlugMembersRouteImport.update({
   path: '/members',
   getParentRoute: () => OrgsOrgSlugRoute,
 } as any)
+const OrgsOrgSlugSettingsRoute = OrgsOrgSlugSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => OrgsOrgSlugRoute,
+} as any)
 const OrgsOrgSlugProjectsIndexRoute =
   OrgsOrgSlugProjectsIndexRouteImport.update({
     id: '/projects/',
@@ -72,6 +79,12 @@ const OrgsOrgSlugProjectsProjectIdIndexRoute =
   OrgsOrgSlugProjectsProjectIdIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => OrgsOrgSlugProjectsProjectIdRoute,
+  } as any)
+const OrgsOrgSlugProjectsProjectIdAlertsRoute =
+  OrgsOrgSlugProjectsProjectIdAlertsRouteImport.update({
+    id: '/alerts',
+    path: '/alerts',
     getParentRoute: () => OrgsOrgSlugProjectsProjectIdRoute,
   } as any)
 const OrgsOrgSlugProjectsProjectIdLogsRoute =
@@ -124,8 +137,10 @@ export interface FileRoutesByFullPath {
   '/orgs/$orgSlug': typeof OrgsOrgSlugRouteWithChildren
   '/orgs/': typeof OrgsIndexRoute
   '/orgs/$orgSlug/members': typeof OrgsOrgSlugMembersRoute
+  '/orgs/$orgSlug/settings': typeof OrgsOrgSlugSettingsRoute
   '/orgs/$orgSlug/projects/$projectId': typeof OrgsOrgSlugProjectsProjectIdRouteWithChildren
   '/orgs/$orgSlug/projects/': typeof OrgsOrgSlugProjectsIndexRoute
+  '/orgs/$orgSlug/projects/$projectId/alerts': typeof OrgsOrgSlugProjectsProjectIdAlertsRoute
   '/orgs/$orgSlug/projects/$projectId/logs': typeof OrgsOrgSlugProjectsProjectIdLogsRoute
   '/orgs/$orgSlug/projects/$projectId/settings': typeof OrgsOrgSlugProjectsProjectIdSettingsRoute
   '/orgs/$orgSlug/projects/$projectId/tokens': typeof OrgsOrgSlugProjectsProjectIdTokensRoute
@@ -142,7 +157,9 @@ export interface FileRoutesByTo {
   '/orgs/$orgSlug': typeof OrgsOrgSlugRouteWithChildren
   '/orgs': typeof OrgsIndexRoute
   '/orgs/$orgSlug/members': typeof OrgsOrgSlugMembersRoute
+  '/orgs/$orgSlug/settings': typeof OrgsOrgSlugSettingsRoute
   '/orgs/$orgSlug/projects': typeof OrgsOrgSlugProjectsIndexRoute
+  '/orgs/$orgSlug/projects/$projectId/alerts': typeof OrgsOrgSlugProjectsProjectIdAlertsRoute
   '/orgs/$orgSlug/projects/$projectId/logs': typeof OrgsOrgSlugProjectsProjectIdLogsRoute
   '/orgs/$orgSlug/projects/$projectId/settings': typeof OrgsOrgSlugProjectsProjectIdSettingsRoute
   '/orgs/$orgSlug/projects/$projectId/tokens': typeof OrgsOrgSlugProjectsProjectIdTokensRoute
@@ -160,8 +177,10 @@ export interface FileRoutesById {
   '/orgs/$orgSlug': typeof OrgsOrgSlugRouteWithChildren
   '/orgs/': typeof OrgsIndexRoute
   '/orgs/$orgSlug/members': typeof OrgsOrgSlugMembersRoute
+  '/orgs/$orgSlug/settings': typeof OrgsOrgSlugSettingsRoute
   '/orgs/$orgSlug/projects/$projectId': typeof OrgsOrgSlugProjectsProjectIdRouteWithChildren
   '/orgs/$orgSlug/projects/': typeof OrgsOrgSlugProjectsIndexRoute
+  '/orgs/$orgSlug/projects/$projectId/alerts': typeof OrgsOrgSlugProjectsProjectIdAlertsRoute
   '/orgs/$orgSlug/projects/$projectId/logs': typeof OrgsOrgSlugProjectsProjectIdLogsRoute
   '/orgs/$orgSlug/projects/$projectId/settings': typeof OrgsOrgSlugProjectsProjectIdSettingsRoute
   '/orgs/$orgSlug/projects/$projectId/tokens': typeof OrgsOrgSlugProjectsProjectIdTokensRoute
@@ -180,8 +199,10 @@ export interface FileRouteTypes {
     | '/orgs/$orgSlug'
     | '/orgs/'
     | '/orgs/$orgSlug/members'
+    | '/orgs/$orgSlug/settings'
     | '/orgs/$orgSlug/projects/$projectId'
     | '/orgs/$orgSlug/projects/'
+    | '/orgs/$orgSlug/projects/$projectId/alerts'
     | '/orgs/$orgSlug/projects/$projectId/logs'
     | '/orgs/$orgSlug/projects/$projectId/settings'
     | '/orgs/$orgSlug/projects/$projectId/tokens'
@@ -198,7 +219,9 @@ export interface FileRouteTypes {
     | '/orgs/$orgSlug'
     | '/orgs'
     | '/orgs/$orgSlug/members'
+    | '/orgs/$orgSlug/settings'
     | '/orgs/$orgSlug/projects'
+    | '/orgs/$orgSlug/projects/$projectId/alerts'
     | '/orgs/$orgSlug/projects/$projectId/logs'
     | '/orgs/$orgSlug/projects/$projectId/settings'
     | '/orgs/$orgSlug/projects/$projectId/tokens'
@@ -215,8 +238,10 @@ export interface FileRouteTypes {
     | '/orgs/$orgSlug'
     | '/orgs/'
     | '/orgs/$orgSlug/members'
+    | '/orgs/$orgSlug/settings'
     | '/orgs/$orgSlug/projects/$projectId'
     | '/orgs/$orgSlug/projects/'
+    | '/orgs/$orgSlug/projects/$projectId/alerts'
     | '/orgs/$orgSlug/projects/$projectId/logs'
     | '/orgs/$orgSlug/projects/$projectId/settings'
     | '/orgs/$orgSlug/projects/$projectId/tokens'
@@ -279,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrgsOrgSlugMembersRouteImport
       parentRoute: typeof OrgsOrgSlugRoute
     }
+    '/orgs/$orgSlug/settings': {
+      id: '/orgs/$orgSlug/settings'
+      path: '/settings'
+      fullPath: '/orgs/$orgSlug/settings'
+      preLoaderRoute: typeof OrgsOrgSlugSettingsRouteImport
+      parentRoute: typeof OrgsOrgSlugRoute
+    }
     '/orgs/$orgSlug/projects/': {
       id: '/orgs/$orgSlug/projects/'
       path: '/projects'
@@ -298,6 +330,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/orgs/$orgSlug/projects/$projectId/'
       preLoaderRoute: typeof OrgsOrgSlugProjectsProjectIdIndexRouteImport
+      parentRoute: typeof OrgsOrgSlugProjectsProjectIdRoute
+    }
+    '/orgs/$orgSlug/projects/$projectId/alerts': {
+      id: '/orgs/$orgSlug/projects/$projectId/alerts'
+      path: '/alerts'
+      fullPath: '/orgs/$orgSlug/projects/$projectId/alerts'
+      preLoaderRoute: typeof OrgsOrgSlugProjectsProjectIdAlertsRouteImport
       parentRoute: typeof OrgsOrgSlugProjectsProjectIdRoute
     }
     '/orgs/$orgSlug/projects/$projectId/logs': {
@@ -353,6 +392,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface OrgsOrgSlugProjectsProjectIdRouteChildren {
+  OrgsOrgSlugProjectsProjectIdAlertsRoute: typeof OrgsOrgSlugProjectsProjectIdAlertsRoute
   OrgsOrgSlugProjectsProjectIdLogsRoute: typeof OrgsOrgSlugProjectsProjectIdLogsRoute
   OrgsOrgSlugProjectsProjectIdSettingsRoute: typeof OrgsOrgSlugProjectsProjectIdSettingsRoute
   OrgsOrgSlugProjectsProjectIdTokensRoute: typeof OrgsOrgSlugProjectsProjectIdTokensRoute
@@ -365,6 +405,8 @@ interface OrgsOrgSlugProjectsProjectIdRouteChildren {
 
 const OrgsOrgSlugProjectsProjectIdRouteChildren: OrgsOrgSlugProjectsProjectIdRouteChildren =
   {
+    OrgsOrgSlugProjectsProjectIdAlertsRoute:
+      OrgsOrgSlugProjectsProjectIdAlertsRoute,
     OrgsOrgSlugProjectsProjectIdLogsRoute:
       OrgsOrgSlugProjectsProjectIdLogsRoute,
     OrgsOrgSlugProjectsProjectIdSettingsRoute:
@@ -390,12 +432,14 @@ const OrgsOrgSlugProjectsProjectIdRouteWithChildren =
 
 interface OrgsOrgSlugRouteChildren {
   OrgsOrgSlugMembersRoute: typeof OrgsOrgSlugMembersRoute
+  OrgsOrgSlugSettingsRoute: typeof OrgsOrgSlugSettingsRoute
   OrgsOrgSlugProjectsProjectIdRoute: typeof OrgsOrgSlugProjectsProjectIdRouteWithChildren
   OrgsOrgSlugProjectsIndexRoute: typeof OrgsOrgSlugProjectsIndexRoute
 }
 
 const OrgsOrgSlugRouteChildren: OrgsOrgSlugRouteChildren = {
   OrgsOrgSlugMembersRoute: OrgsOrgSlugMembersRoute,
+  OrgsOrgSlugSettingsRoute: OrgsOrgSlugSettingsRoute,
   OrgsOrgSlugProjectsProjectIdRoute:
     OrgsOrgSlugProjectsProjectIdRouteWithChildren,
   OrgsOrgSlugProjectsIndexRoute: OrgsOrgSlugProjectsIndexRoute,
