@@ -4,10 +4,15 @@ import {
   IssuedProjectToken,
   Project,
   ProjectToken,
+  UpdateProjectRequest,
 } from "./project.contract";
 
 export const createProjectExample: CreateProjectRequest = {
   name: "Checkout API",
+};
+
+export const updateProjectExample: UpdateProjectRequest = {
+  name: "Checkout API (renamed)",
 };
 
 export const projectExample: Project = {

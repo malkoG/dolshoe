@@ -32,6 +32,7 @@ import {
   LayoutDashboard,
   LogOut,
   ScrollText,
+  Settings,
   Users,
   Waypoints,
 } from "lucide-react";
@@ -217,6 +218,18 @@ export function PageShell({
                         >
                           <KeyRound />
                           <span>Tokens</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          activeProps={ACTIVE_LINK_PROPS}
+                          params={{ orgSlug, projectId: activeProjectId }}
+                          to="/orgs/$orgSlug/projects/$projectId/settings"
+                        >
+                          <Settings />
+                          <span>Settings</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

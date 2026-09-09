@@ -190,6 +190,80 @@ describe("Projects", () => {
     expect(second.id).not.toBe(first.id);
   });
 
+  describe("renaming", () => {
+    it("renames a project's name only", async () => {
+      const project = await createProject(uniqueName("Checkout API"));
+      const newName = uniqueName("Checkout Service");
+
+      const response = await request(app.getHttpServer())
+        .patch(`${PROJECTS_URL}/${project.id}`)
+        .set("cookie", ownerCookie)
+        .send({ name: newName })
+        .expect(200);
+
+      expect(response.body).toMatchObject({ name: newName, slug: project.slug });
+    });
+
+    it("renames a project's slug only", async () => {
+      const name = uniqueName("Checkout API");
+      const project = await createProject(name);
+      const newSlug = `checkout-${randomUUID().slice(0, 8)}`;
+
+      const response = await request(app.getHttpServer())
+        .patch(`${PROJECTS_URL}/${project.id}`)
+        .set("cookie", ownerCookie)
+        .send({ slug: newSlug })
+        .expect(200);
+
+      expect(response.body).toMatchObject({ name, slug: newSlug });
+    });
+
+    it("refuses an empty rename", async () => {
+      const project = await createProject(uniqueName("Checkout API"));
+
+      await request(app.getHttpServer())
+        .patch(`${PROJECTS_URL}/${project.id}`)
+        .set("cookie", ownerCookie)
+        .send({})
+        .expect(400);
+    });
+
+    it("refuses a slug another project in the same organization already uses", async () => {
+      const existing = await createProject(uniqueName("Checkout API"));
+      const project = await createProject(uniqueName("Billing Worker"));
+
+      await request(app.getHttpServer())
+        .patch(`${PROJECTS_URL}/${project.id}`)
+        .set("cookie", ownerCookie)
+        .send({ slug: existing.slug })
+        .expect(409);
+    });
+
+    it("refuses a member", async () => {
+      const project = await createProject(uniqueName("Checkout API"));
+      const member = await signInAs(MembershipRole.MEMBER);
+
+      await request(app.getHttpServer())
+        .patch(`${PROJECTS_URL}/${project.id}`)
+        .set("cookie", member)
+        .send({ name: uniqueName("Renamed") })
+        .expect(403);
+    });
+
+    it("does not reach a project through an organization that does not own it", async () => {
+      const other = await createOrganization(uniqueName("Acme"));
+      const project = await createProject(uniqueName("Checkout API"), {
+        url: `/api/v1/orgs/${other.slug}/projects`,
+      });
+
+      await request(app.getHttpServer())
+        .patch(`${PROJECTS_URL}/${project.id}`)
+        .set("cookie", ownerCookie)
+        .send({ name: uniqueName("Renamed") })
+        .expect(404);
+    });
+  });
+
   it("returns an issued token once and stores only its digest", async () => {
     const project = await createProject(uniqueName("Checkout API"));
     const issued = await issueToken(project.id);
