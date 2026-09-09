@@ -36,13 +36,19 @@ import {
   Organization,
   OrganizationListResponse,
   UpdateMemberRequest,
+  UpdateOrganizationRequest,
   createOrganizationRequestSchema,
   updateMemberRequestSchema,
+  updateOrganizationRequestSchema,
   userIdParamSchema,
 } from "./organization.contract";
-import { createOrganizationExample, updateMemberExample } from "./organization.examples";
+import {
+  createOrganizationExample,
+  updateMemberExample,
+  updateOrganizationExample,
+} from "./organization.examples";
 import { OrganizationService } from "./organization.service";
-import { OWNER_OR_ADMIN, RequireOrgRole } from "./require-org-role";
+import { OWNER_OR_ADMIN, OWNER_ONLY, RequireOrgRole } from "./require-org-role";
 
 const userIdPipe = new ZodValidationPipe(userIdParamSchema, "The user id is not a UUID.");
 
@@ -142,6 +148,62 @@ export class OrganizationMemberController {
       role: organization.role,
       createdAt: organization.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Rename the organization.
+   *
+   * @remarks
+   * The slug is immutable and not accepted here: it is embedded in every URL
+   * under this organization, so changing it would break bookmarks and links
+   * already shared. Renaming a tenant's own identity is scoped to owners
+   * only, one notch tighter than the owner-or-admin bar used elsewhere in
+   * this controller, because this changes what the organization is called
+   * everywhere it appears, not a setting inside it.
+   */
+  @Patch()
+  @RequireOrgRole(OWNER_ONLY)
+  @ApiBody({
+    schema: { $ref: "#/components/schemas/UpdateOrganizationRequestV1" },
+    examples: { rename: { summary: "Rename", value: updateOrganizationExample } },
+  })
+  @ApiOkResponse({
+    description: "The organization was renamed.",
+    schema: { $ref: "#/components/schemas/OrganizationV1" },
+  })
+  @ApiBadRequestResponse({ description: "The body does not satisfy the organization contract." })
+  @ApiForbiddenResponse({ description: "Renaming an organization requires the owner role." })
+  update(
+    @CurrentOrganization() organization: OrganizationContext,
+    @Body(
+      new ZodValidationPipe(
+        updateOrganizationRequestSchema,
+        "Request body does not match the organization contract.",
+      ),
+    )
+    request: UpdateOrganizationRequest,
+  ): Promise<Organization> {
+    return this.organizationService.update(organization.id, organization.role, request);
+  }
+
+  /**
+   * Leave the organization.
+   *
+   * @remarks
+   * Self-service: any member may act on their own membership, so this carries
+   * no `@RequireOrgRole`. It refuses exactly like removing a member does when
+   * the caller is the organization's last owner — the rule protects the
+   * organization, not the caller.
+   */
+  @Delete("membership")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({ description: "The caller no longer belongs to the organization." })
+  @ApiConflictResponse({ description: "The caller is this organization's last owner." })
+  leave(
+    @CurrentOrganization() organization: OrganizationContext,
+    @CurrentViewer() viewer: Viewer,
+  ): Promise<void> {
+    return this.organizationService.leave(organization.id, viewer.id);
   }
 
   /**

@@ -314,6 +314,120 @@ describe("Organizations", () => {
     });
   });
 
+  describe("renaming", () => {
+    it("lets an owner rename the organization", async () => {
+      const organization = await createOrganization();
+      const newName = uniqueName("Acme Holdings");
+
+      const renamed = await request(app.getHttpServer())
+        .patch(`/api/v1/orgs/${organization.slug}`)
+        .set("cookie", ownerCookie)
+        .send({ name: newName })
+        .expect(200);
+
+      expect(renamed.body).toMatchObject({ id: organization.id, name: newName });
+    });
+
+    it("refuses to let an admin rename the organization", async () => {
+      const organization = await createOrganization();
+      const admin = await signInAs(MembershipRole.ADMIN, organization.id);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/orgs/${organization.slug}`)
+        .set("cookie", admin)
+        .send({ name: uniqueName("Acme Holdings") })
+        .expect(403);
+    });
+
+    it("refuses to let a member rename the organization", async () => {
+      const organization = await createOrganization();
+      const member = await signInAs(MembershipRole.MEMBER, organization.id);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/orgs/${organization.slug}`)
+        .set("cookie", member)
+        .send({ name: uniqueName("Acme Holdings") })
+        .expect(403);
+    });
+
+    it("does not reach an organization the caller is not in", async () => {
+      const mine = await createOrganization();
+      const stranger = await signInAs(MembershipRole.OWNER);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/orgs/${mine.slug}`)
+        .set("cookie", stranger)
+        .send({ name: uniqueName("Acme Holdings") })
+        .expect(404);
+    });
+
+    it("refuses a slug, which is immutable", async () => {
+      const organization = await createOrganization();
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/orgs/${organization.slug}`)
+        .set("cookie", ownerCookie)
+        .send({ name: uniqueName("Acme Holdings"), slug: "something-else" })
+        .expect(400);
+    });
+  });
+
+  describe("leaving", () => {
+    it("lets a member leave on their own", async () => {
+      const organization = await createOrganization();
+      const member = await signInAs(MembershipRole.MEMBER, organization.id);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/orgs/${organization.slug}/membership`)
+        .set("cookie", member)
+        .expect(204);
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/orgs/${organization.slug}`)
+        .set("cookie", member)
+        .expect(404);
+    });
+
+    it("refuses to let the last owner leave", async () => {
+      const organization = await createOrganization();
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/orgs/${organization.slug}/membership`)
+        .set("cookie", ownerCookie)
+        .expect(409);
+    });
+
+    it("lets an owner leave once another owner exists", async () => {
+      const organization = await createOrganization();
+      const secondOwnerCookie = await signInAs(MembershipRole.MEMBER, organization.id);
+
+      const members = await request(app.getHttpServer())
+        .get(`/api/v1/orgs/${organization.slug}/members`)
+        .set("cookie", ownerCookie)
+        .expect(200);
+      const secondMember = members.body.members.find(
+        (candidate: { role: string }) => candidate.role === "MEMBER",
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/orgs/${organization.slug}/members/${secondMember.userId}`)
+        .set("cookie", ownerCookie)
+        .send({ role: "OWNER" })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/orgs/${organization.slug}/membership`)
+        .set("cookie", ownerCookie)
+        .expect(204);
+
+      // The organization still has an owner, so its remaining owner reads it fine.
+      await request(app.getHttpServer())
+        .get(`/api/v1/orgs/${organization.slug}`)
+        .set("cookie", secondOwnerCookie)
+        .expect(200);
+    });
+  });
+
   /**
    * Guards are opt-in, so a controller added without one is unprotected and
    * nothing else would notice. This is the compensating control: a new route

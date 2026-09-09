@@ -81,6 +81,50 @@ export function createOrganization(
   });
 }
 
+/**
+ * Renames the organization. The slug cannot change here — it is embedded in
+ * every URL under this organization, so the API has no field to send one.
+ */
+export function updateOrganization(
+  orgSlug: string,
+  input: { name: string },
+  init?: { signal?: AbortSignal },
+): Promise<Organization> {
+  return requestJson(
+    "rename the organization",
+    `${ORGANIZATIONS_URL}/${orgSlug}`,
+    organizationSchema,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+      ...init,
+    },
+  );
+}
+
+/** Answers 204 with no body, so there is nothing for `requestJson` to validate. */
+export async function leaveOrganization(
+  orgSlug: string,
+  init?: { signal?: AbortSignal },
+): Promise<void> {
+  const response = await fetch(`${ORGANIZATIONS_URL}/${orgSlug}/membership`, {
+    method: "DELETE",
+    ...init,
+  });
+
+  if (!response.ok) {
+    throw new ApiError(
+      `Could not leave the organization: the API responded with ${response.status}.`,
+      {
+        operation: "leave the organization",
+        url: `${ORGANIZATIONS_URL}/${orgSlug}/membership`,
+        status: response.status,
+      },
+    );
+  }
+}
+
 export async function fetchMembers(
   orgSlug: string,
   init?: { signal?: AbortSignal },

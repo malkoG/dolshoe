@@ -15,6 +15,7 @@ import {
   MemberListResponse,
   Organization,
   OrganizationListResponse,
+  UpdateOrganizationRequest,
 } from "./organization.contract";
 
 const UNIQUE_CONSTRAINT_VIOLATION = "P2002";
@@ -105,6 +106,25 @@ export class OrganizationService {
     }
   }
 
+  /**
+   * Renames an organization. The slug is not accepted here and cannot change:
+   * it is embedded in every URL under this organization, so changing it would
+   * break bookmarks and links already shared.
+   */
+  async update(
+    organizationId: string,
+    role: MembershipRole,
+    request: UpdateOrganizationRequest,
+  ): Promise<Organization> {
+    const updated = await this.database.organization.update({
+      where: { id: organizationId },
+      data: { name: request.name },
+      select: { id: true, slug: true, name: true, createdAt: true },
+    });
+
+    return toOrganization(updated, role);
+  }
+
   async listMembers(organizationId: string): Promise<MemberListResponse> {
     const rows = await this.database.membership.findMany({
       where: { organizationId },
@@ -172,6 +192,27 @@ export class OrganizationService {
       await this.refuseIfLastOwner(organizationId, userId);
     }
 
+    await this.deleteMembership(organizationId, userId);
+  }
+
+  /**
+   * A member removes themself. Unlike `removeMember`, there is no role check
+   * at all: the actor and the target are the same person, so "may X act on Y"
+   * collapses to "is X a member," which the guard already established. The
+   * last-owner rule still applies — it protects the organization, not the
+   * caller.
+   */
+  async leave(organizationId: string, userId: string): Promise<void> {
+    const existing = await this.requireMembership(organizationId, userId);
+
+    if (existing.role === MembershipRole.OWNER) {
+      await this.refuseIfLastOwner(organizationId, userId);
+    }
+
+    await this.deleteMembership(organizationId, userId);
+  }
+
+  private async deleteMembership(organizationId: string, userId: string): Promise<void> {
     await this.database.membership.delete({
       where: { organizationId_userId: { organizationId, userId } },
     });
