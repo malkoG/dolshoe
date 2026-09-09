@@ -53,8 +53,8 @@ export class DashboardSummaryService {
       traceTotal,
       byEnvironment,
       byRuntime,
-      lastErrorReportOccurredAt,
-      lastLogRecordOccurredAt,
+      lastErrorReportReceivedAt,
+      lastLogRecordReceivedAt,
       lastRootSpanStartedAt,
     ] = await Promise.all([
       Promise.all(
@@ -71,8 +71,8 @@ export class DashboardSummaryService {
       this.repository.countRootSpansInRange(projectId, window.start, window.end),
       this.repository.errorReportCountsByEnvironment(projectId, window.start, window.end),
       this.repository.errorReportCountsByRuntime(projectId, window.start, window.end),
-      this.repository.lastErrorReportOccurredAt(projectId),
-      this.repository.lastLogRecordOccurredAt(projectId),
+      this.repository.lastErrorReportReceivedAt(projectId),
+      this.repository.lastLogRecordReceivedAt(projectId),
       this.repository.lastRootSpanStartedAt(projectId),
     ]);
 
@@ -83,15 +83,15 @@ export class DashboardSummaryService {
         previousPeriodTotal,
         byEnvironment: foldGroupCounts(byEnvironment),
         byRuntime: foldGroupCounts(byRuntime),
-        lastOccurredAt: toIso(lastErrorReportOccurredAt),
+        lastReceivedAt: toIso(lastErrorReportReceivedAt),
       },
       logRecords: {
         total: sum(logRecordBucketCounts),
-        lastOccurredAt: toIso(lastLogRecordOccurredAt),
+        lastReceivedAt: toIso(lastLogRecordReceivedAt),
       },
       traces: {
         total: traceTotal,
-        lastOccurredAt: toIso(lastRootSpanStartedAt),
+        lastReceivedAt: toIso(lastRootSpanStartedAt),
       },
       volumeSeries: buildVolumeSeries(buckets, errorReportBucketCounts, logRecordBucketCounts),
     };

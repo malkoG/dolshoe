@@ -70,7 +70,7 @@ describe("Project dashboard summary", () => {
     expect(response.body.errorReports.byRuntime).toMatchObject({
       [nodeErrorReportExample.runtime.name]: expect.any(Number),
     });
-    expect(response.body.errorReports.lastOccurredAt).toEqual(expect.any(String));
+    expect(response.body.errorReports.lastReceivedAt).toEqual(expect.any(String));
     expect(response.body.logRecords.total).toBeGreaterThanOrEqual(1);
     expect(response.body.traces.total).toBe(0);
     expect(response.body.volumeSeries).toHaveLength(7);

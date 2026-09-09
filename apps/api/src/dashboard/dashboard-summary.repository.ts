@@ -41,22 +41,22 @@ export class DashboardSummaryRepository {
     });
   }
 
-  async lastErrorReportOccurredAt(projectId: string): Promise<Date | null> {
+  async lastErrorReportReceivedAt(projectId: string): Promise<Date | null> {
     const row = await this.database.errorReport.findFirst({
       where: { projectId },
-      orderBy: { occurredAt: "desc" },
-      select: { occurredAt: true },
+      orderBy: { receivedAt: "desc" },
+      select: { receivedAt: true },
     });
-    return row?.occurredAt ?? null;
+    return row?.receivedAt ?? null;
   }
 
-  async lastLogRecordOccurredAt(projectId: string): Promise<Date | null> {
+  async lastLogRecordReceivedAt(projectId: string): Promise<Date | null> {
     const row = await this.database.logRecord.findFirst({
       where: { projectId },
-      orderBy: { occurredAt: "desc" },
-      select: { occurredAt: true },
+      orderBy: { receivedAt: "desc" },
+      select: { receivedAt: true },
     });
-    return row?.occurredAt ?? null;
+    return row?.receivedAt ?? null;
   }
 
   async lastRootSpanStartedAt(projectId: string): Promise<Date | null> {

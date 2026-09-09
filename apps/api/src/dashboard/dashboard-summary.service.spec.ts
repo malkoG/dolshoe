@@ -23,8 +23,8 @@ function serviceWith(overrides: {
     countRootSpansInRange: jest.fn().mockResolvedValue(0),
     errorReportCountsByEnvironment: jest.fn().mockResolvedValue([]),
     errorReportCountsByRuntime: jest.fn().mockResolvedValue([]),
-    lastErrorReportOccurredAt: jest.fn().mockResolvedValue(null),
-    lastLogRecordOccurredAt: jest.fn().mockResolvedValue(null),
+    lastErrorReportReceivedAt: jest.fn().mockResolvedValue(null),
+    lastLogRecordReceivedAt: jest.fn().mockResolvedValue(null),
     lastRootSpanStartedAt: jest.fn().mockResolvedValue(null),
     ...overrides.repository,
   } as unknown as DashboardSummaryRepository;
@@ -72,7 +72,7 @@ describe("DashboardSummaryService.summarize", () => {
           .fn()
           .mockResolvedValue([{ key: "production", count: 4 }]),
         errorReportCountsByRuntime: jest.fn().mockResolvedValue([{ key: "node", count: 4 }]),
-        lastErrorReportOccurredAt: jest
+        lastErrorReportReceivedAt: jest
           .fn()
           .mockResolvedValue(new Date("2026-09-09T10:00:00.000Z")),
       },
@@ -84,7 +84,7 @@ describe("DashboardSummaryService.summarize", () => {
     expect(summary.errorReports.previousPeriodTotal).toBe(99);
     expect(summary.errorReports.byEnvironment).toEqual({ production: 4 });
     expect(summary.errorReports.byRuntime).toEqual({ node: 4 });
-    expect(summary.errorReports.lastOccurredAt).toBe("2026-09-09T10:00:00.000Z");
+    expect(summary.errorReports.lastReceivedAt).toBe("2026-09-09T10:00:00.000Z");
     expect(summary.logRecords.total).toBe(2 * 7);
     expect(summary.traces.total).toBe(9);
     expect(summary.volumeSeries).toHaveLength(7);
