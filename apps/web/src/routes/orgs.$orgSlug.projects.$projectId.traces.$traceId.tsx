@@ -1,3 +1,4 @@
+import { AttributeList, attributeEntries } from "@dolshoe/ui/components/attribute-list";
 import { DataState } from "@dolshoe/ui/components/data-state";
 import {
   Panel,
@@ -27,14 +28,6 @@ export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/traces/
 const INDENT_PER_LEVEL = 14;
 /** A span far shorter than the trace would otherwise be an invisible bar. */
 const MINIMUM_BAR_PERCENT = 0.4;
-
-function attributeEntries(attributes: TraceSpan["attributes"]): Array<[string, string]> {
-  if (attributes == null) return [];
-  return Object.entries(attributes).map(([key, value]) => [
-    key,
-    typeof value === "string" ? value : JSON.stringify(value),
-  ]);
-}
 
 function barGeometry(span: TraceSpan, traceDuration: number) {
   // A trace whose spans all share one instant has no width to divide by; laying
@@ -139,16 +132,8 @@ function SpanRow({ span, traceDuration }: Readonly<{ span: TraceSpan; traceDurat
           {attributes.length > 0 && (
             <>
               <dt className="font-semibold text-faint">Attributes</dt>
-              <dd className="flex min-w-0 flex-wrap gap-1.5">
-                {attributes.map(([key, value]) => (
-                  <span
-                    className="inline-flex max-w-full items-center gap-1.5 truncate rounded-md border border-border bg-card px-2 py-1 font-mono text-[10px]"
-                    key={key}
-                  >
-                    <span className="text-faint">{key}</span>
-                    {value}
-                  </span>
-                ))}
+              <dd className="min-w-0">
+                <AttributeList background="card" entries={attributes} />
               </dd>
             </>
           )}

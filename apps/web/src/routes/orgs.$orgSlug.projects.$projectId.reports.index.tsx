@@ -1,3 +1,4 @@
+import { AttributeList } from "@dolshoe/ui/components/attribute-list";
 import { DataState } from "@dolshoe/ui/components/data-state";
 import {
   Panel,
@@ -10,6 +11,7 @@ import {
 import { SearchField } from "@dolshoe/ui/components/search-field";
 import { StatusDot } from "@dolshoe/ui/components/status-badge";
 import { Button } from "@dolshoe/ui/components/ui/button";
+import { Input } from "@dolshoe/ui/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -48,10 +50,19 @@ import { useUrlTextFilter } from "../lib/use-url-text-filter";
 export interface ReportFilters {
   q?: string;
   env?: string;
+  tagKey?: string;
+  tagValue?: string;
+  userId?: string;
 }
 
 export function validateReportFilters(search: Record<string, unknown>): ReportFilters {
-  return { q: textParam(search.q), env: textParam(search.env) };
+  return {
+    q: textParam(search.q),
+    env: textParam(search.env),
+    tagKey: textParam(search.tagKey),
+    tagValue: textParam(search.tagValue),
+    userId: textParam(search.userId),
+  };
 }
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/reports/")({
@@ -114,9 +125,32 @@ function Reports() {
 
   const { draft, setDraft } = useUrlTextFilter(query, (q) => setFilters({ q }));
 
+  // Server-side filters, unlike `q`/`env` above: the list is bounded, so
+  // narrowing an already-loaded page in the browser would only ever narrow
+  // whichever page happened to load — the same reasoning the logs screen's
+  // `level` filter already follows.
+  const { draft: tagKeyDraft, setDraft: setTagKeyDraft } = useUrlTextFilter(
+    search.tagKey ?? "",
+    (tagKey) => setFilters({ tagKey }),
+  );
+  const { draft: tagValueDraft, setDraft: setTagValueDraft } = useUrlTextFilter(
+    search.tagValue ?? "",
+    (tagValue) => setFilters({ tagValue }),
+  );
+  const { draft: userIdDraft, setDraft: setUserIdDraft } = useUrlTextFilter(
+    search.userId ?? "",
+    (userId) => setFilters({ userId }),
+  );
+
   const { refreshing, reload, state } = useResource(
-    ({ signal }) => fetchErrorReports(orgSlug, projectId, { signal }),
-    [orgSlug, projectId],
+    ({ signal }) =>
+      fetchErrorReports(orgSlug, projectId, {
+        tagKey: search.tagKey,
+        tagValue: search.tagValue,
+        userId: search.userId,
+        signal,
+      }),
+    [orgSlug, projectId, search.tagKey, search.tagValue, search.userId],
   );
 
   const reports = state.status === "ready" ? state.data : [];
@@ -151,14 +185,20 @@ function Reports() {
     });
   }, [reports, query, environment]);
 
-  const hasActiveFilters = query.length > 0 || environment !== "all";
+  const hasServerFilters =
+    search.tagKey != null || search.tagValue != null || search.userId != null;
+  const hasActiveFilters = query.length > 0 || environment !== "all" || hasServerFilters;
 
   /*
     A project with no reports at all is almost never a project being read — it
     is a project being set up. It gets instructions instead of an empty table,
     and they poll, so the first report to arrive puts the list back.
+
+    That read only holds when nothing has been asked to narrow the result:
+    `reports` now reflects the server-side tag/user filters too, so an empty
+    list with one of those active means "no match," not "no data yet."
   */
-  if (state.status === "ready" && reports.length === 0) {
+  if (state.status === "ready" && reports.length === 0 && !hasServerFilters) {
     return (
       <ProjectSetup
         checking={refreshing}
@@ -202,6 +242,34 @@ function Reports() {
             </SelectContent>
           </Select>
 
+          <div className="flex items-center gap-1">
+            <Input
+              aria-label="Filter by tag key"
+              className="h-8 w-[100px] font-mono text-[11px]"
+              onChange={(event) => setTagKeyDraft(event.target.value)}
+              placeholder="tag key"
+              value={tagKeyDraft}
+            />
+            <span aria-hidden="true" className="text-muted-foreground">
+              :
+            </span>
+            <Input
+              aria-label="Filter by tag value"
+              className="h-8 w-[100px] font-mono text-[11px]"
+              onChange={(event) => setTagValueDraft(event.target.value)}
+              placeholder="value"
+              value={tagValueDraft}
+            />
+          </div>
+
+          <Input
+            aria-label="Filter by user id"
+            className="h-8 w-[140px] font-mono text-[11px]"
+            onChange={(event) => setUserIdDraft(event.target.value)}
+            placeholder="user id"
+            value={userIdDraft}
+          />
+
           <RefreshButton label="Check for new reports" onRefresh={reload} refreshing={refreshing} />
         </PanelControls>
       </PanelBar>
@@ -236,7 +304,15 @@ function Reports() {
             action={
               hasActiveFilters && (
                 <Button
-                  onClick={() => setFilters({ env: undefined, q: undefined })}
+                  onClick={() =>
+                    setFilters({
+                      env: undefined,
+                      q: undefined,
+                      tagKey: undefined,
+                      tagValue: undefined,
+                      userId: undefined,
+                    })
+                  }
                   size="sm"
                   type="button"
                   variant="outline"
@@ -306,6 +382,13 @@ function Reports() {
                         >
                           {sourceLabel}
                         </span>
+                      )}
+                      {report.tags != null && Object.keys(report.tags).length > 0 && (
+                        <AttributeList
+                          background="muted"
+                          className="mt-1.5"
+                          entries={Object.entries(report.tags)}
+                        />
                       )}
 
                       {/*

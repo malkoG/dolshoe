@@ -1,3 +1,4 @@
+import { AttributeList, attributeEntries } from "@dolshoe/ui/components/attribute-list";
 import { DataState } from "@dolshoe/ui/components/data-state";
 import {
   Panel,
@@ -26,7 +27,7 @@ import { describeError } from "../lib/api-request";
 import { formatRelativeTime, pluralize } from "../lib/format";
 import { optionParam, textParam } from "../lib/list-filters";
 import { fetchLogRecords } from "../lib/log-records";
-import type { LogLevel, LogRecordSummary } from "../lib/log-records";
+import type { LogLevel } from "../lib/log-records";
 import { useResource } from "../lib/use-resource";
 import { useUrlTextFilter } from "../lib/use-url-text-filter";
 
@@ -49,14 +50,6 @@ const LEVEL_TONES: Record<LogLevel, "neutral" | "info" | "warning" | "danger"> =
   error: "danger",
   fatal: "danger",
 };
-
-function attributeEntries(attributes: LogRecordSummary["attributes"]): Array<[string, string]> {
-  if (attributes == null) return [];
-  return Object.entries(attributes).map(([key, value]) => [
-    key,
-    typeof value === "string" ? value : JSON.stringify(value),
-  ]);
-}
 
 function Logs() {
   const { orgSlug, projectId } = Route.useParams();
@@ -219,17 +212,11 @@ function Logs() {
                     )}
                   </div>
                   {attributeEntries(record.attributes).length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {attributeEntries(record.attributes).map(([key, value]) => (
-                        <span
-                          className="inline-flex max-w-full items-center gap-1.5 truncate rounded-md border border-border bg-muted px-2 py-1 font-mono text-[10px]"
-                          key={key}
-                        >
-                          <span className="text-faint">{key}</span>
-                          {value}
-                        </span>
-                      ))}
-                    </div>
+                    <AttributeList
+                      background="muted"
+                      className="mt-2"
+                      entries={attributeEntries(record.attributes)}
+                    />
                   )}
                 </div>
 
