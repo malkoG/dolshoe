@@ -63,6 +63,22 @@ export const createProjectRequestSchema = z
     description: "Creates a project.",
   });
 
+export const updateProjectRequestSchema = z
+  .object({
+    name: nonEmptyText(200).optional().meta({ description: "Human-readable project name." }),
+    slug: projectSlug
+      .optional()
+      .meta({ description: "URL-safe identifier. Not used in any route in this application." }),
+  })
+  .strict()
+  .refine((value) => value.name !== undefined || value.slug !== undefined, {
+    message: "Provide a name, a slug, or both.",
+  })
+  .register(contractRegistry, {
+    id: "UpdateProjectRequestV1",
+    description: "Renames a project, its slug, or both.",
+  });
+
 export const projectTokenSchema = z
   .object({
     id: z.uuid().meta({ description: "Server-assigned token identifier." }),
@@ -128,6 +144,7 @@ export type ProjectReference = z.infer<typeof projectReferenceSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type ProjectListResponse = z.infer<typeof projectListResponseSchema>;
 export type CreateProjectRequest = z.infer<typeof createProjectRequestSchema>;
+export type UpdateProjectRequest = z.infer<typeof updateProjectRequestSchema>;
 export type ProjectToken = z.infer<typeof projectTokenSchema>;
 export type ProjectTokenListResponse = z.infer<typeof projectTokenListResponseSchema>;
 export type IssueProjectTokenRequest = z.infer<typeof issueProjectTokenRequestSchema>;
