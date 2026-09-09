@@ -19,9 +19,12 @@ from __future__ import annotations
 
 import platform
 from collections.abc import Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .scope import ScopeData
 
 from .client import Client, Timestamp
 from .dsn import ParsedDsn, parse_dsn
@@ -32,6 +35,7 @@ from .logging_integration import DolshoeHandler, install_logging_handler
 from .normalize import normalize_exception, sanitize_attributes
 from .span import INHERIT, Span, _Inherit
 from .types import (
+    Breadcrumb,
     CaptureMechanism,
     ErrorReport,
     FinishedSpan,
@@ -44,9 +48,11 @@ from .types import (
     SpanKind,
     SpanStatusCode,
     SpanTransport,
+    Tags,
     TraceContext,
     Transport,
     UrlOpen,
+    UserContext,
 )
 
 # The identity the API's own OpenAPI example advertises for this reporter. A
@@ -111,6 +117,8 @@ def capture_exception(
     attributes: Mapping[str, object] | None = None,
     mechanism: CaptureMechanism | None = None,
     trace: TraceContext | None = None,
+    user: UserContext | Mapping[str, object] | None = None,
+    tags: Mapping[str, object] | None = None,
     occurred_at: Timestamp = None,
 ) -> str | None:
     if _current_client is None:
@@ -120,6 +128,8 @@ def capture_exception(
         attributes=attributes,
         mechanism=mechanism,
         trace=trace,
+        user=user,
+        tags=tags,
         occurred_at=occurred_at,
     )
 
@@ -130,6 +140,8 @@ def capture_message(
     attributes: Mapping[str, object] | None = None,
     mechanism: CaptureMechanism | None = None,
     trace: TraceContext | None = None,
+    user: UserContext | Mapping[str, object] | None = None,
+    tags: Mapping[str, object] | None = None,
     occurred_at: Timestamp = None,
 ) -> str | None:
     if _current_client is None:
@@ -139,8 +151,48 @@ def capture_message(
         attributes=attributes,
         mechanism=mechanism,
         trace=trace,
+        user=user,
+        tags=tags,
         occurred_at=occurred_at,
     )
+
+
+def set_user(user: UserContext | Mapping[str, object] | None) -> None:
+    """Set the user on the active scope. Applies to the current thread or
+    asyncio task only — see `with_scope` to isolate a block's own scope."""
+    if _current_client is not None:
+        _current_client.set_user(user)
+
+
+def set_tag(key: str, value: str) -> None:
+    """Set one tag on the active scope, merging with whatever is there."""
+    if _current_client is not None:
+        _current_client.set_tag(key, value)
+
+
+def set_tags(tags: Tags | Mapping[str, object]) -> None:
+    """Set several tags on the active scope, merging rather than replacing."""
+    if _current_client is not None:
+        _current_client.set_tags(tags)
+
+
+def add_breadcrumb(
+    *,
+    message: str | None = None,
+    category: str | None = None,
+    level: LogLevel | None = None,
+    data: Mapping[str, object] | None = None,
+    occurred_at: Timestamp = None,
+) -> None:
+    """Record one event on the active scope's breadcrumb trail."""
+    if _current_client is not None:
+        _current_client.add_breadcrumb(
+            message=message,
+            category=category,
+            level=level,
+            data=data,
+            occurred_at=occurred_at,
+        )
 
 
 def capture_log(
@@ -211,6 +263,33 @@ def active_span() -> Span | None:
     return _active_span()
 
 
+def active_scope() -> ScopeData:
+    """The user/tags/breadcrumbs scope enclosing the caller.
+
+    Always returns something to read, the same as `set_user`/`set_tag`/
+    `add_breadcrumb` always have something to mutate.
+    """
+    from .scope import active_scope as _active_scope
+
+    return _active_scope()
+
+
+def with_scope() -> AbstractContextManager[ScopeData]:
+    """Bind a fresh, empty user/tags/breadcrumbs scope for a block.
+
+    A request handler wraps itself in this to isolate its own `set_user`/
+    `set_tag`/`add_breadcrumb` calls from whatever else is running
+    concurrently::
+
+        with dolshoe.with_scope():
+            dolshoe.set_user({"id": current_user.id})
+            handle_request()
+    """
+    from .scope import with_scope as _with_scope
+
+    return _with_scope()
+
+
 def flush(timeout: float = 2.0) -> bool:
     """Wait for queued events. True when there was nothing left to fail."""
     if _current_client is None:
@@ -240,6 +319,7 @@ __all__ = [
     "REPORTER_NAME",
     "REPORTER_VERSION",
     "RUNTIME_NAME",
+    "Breadcrumb",
     "CaptureMechanism",
     "Client",
     "DolshoeConfigurationError",
@@ -259,10 +339,14 @@ __all__ = [
     "SpanKind",
     "SpanStatusCode",
     "SpanTransport",
+    "Tags",
     "TraceContext",
     "Transport",
     "UrlOpen",
+    "UserContext",
+    "active_scope",
     "active_span",
+    "add_breadcrumb",
     "capture_exception",
     "capture_log",
     "capture_message",
@@ -275,6 +359,10 @@ __all__ = [
     "parse_dsn",
     "sanitize_attributes",
     "set_current_client",
+    "set_tag",
+    "set_tags",
+    "set_user",
     "start_span",
+    "with_scope",
     "with_span",
 ]

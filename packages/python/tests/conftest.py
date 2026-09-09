@@ -100,6 +100,20 @@ class Collected:
         return self.client.flush(timeout)
 
 
+@pytest.fixture(autouse=True)
+def _isolated_scope() -> Iterator[None]:
+    """Gives every test its own empty user/tags/breadcrumbs scope.
+
+    The active scope is a module-global `ContextVar`, not something a `Client`
+    owns, so `set_user`/`set_tag`/`add_breadcrumb` in one test would otherwise
+    leak into whichever test happens to run next in the same thread — pytest
+    does not give each test function its own thread. `with_scope()` is exactly
+    the tool that already exists to bound this.
+    """
+    with dolshoe.with_scope():
+        yield
+
+
 @pytest.fixture
 def collected() -> Iterator[Collected]:
     harness = Collected()

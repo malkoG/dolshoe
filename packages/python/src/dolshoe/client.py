@@ -12,26 +12,32 @@ import logging
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from .dsn import parse_dsn
 from .errors import DolshoeConfigurationError
 from .ids import new_event_id, to_iso8601
 from .normalize import (
+    MAX_BREADCRUMBS,
     MAX_MESSAGE_LENGTH,
     clip,
     normalize_category,
     normalize_exception,
     sanitize_attributes,
+    sanitize_breadcrumbs,
+    sanitize_tags,
+    sanitize_user,
 )
-from .scope import activate, active_span
+from .scope import activate, active_scope, active_span
 from .span import INHERIT, Span, _Inherit, resolve_parent
 from .transport import HttpLogTransport, HttpTransport, OtlpSpanTransport
 from .types import (
     LOG_LEVELS,
+    Breadcrumb,
     CaptureMechanism,
     ErrorReport,
     FinishedSpan,
+    JsonValue,
     LogLevel,
     LogRecord,
     LogTransport,
@@ -40,9 +46,11 @@ from .types import (
     ServiceInfo,
     SpanKind,
     SpanTransport,
+    Tags,
     TraceContext,
     Transport,
     UrlOpen,
+    UserContext,
 )
 from .worker import DEFAULT_MAX_QUEUE_SIZE, DeliveryWorker
 
@@ -199,11 +207,13 @@ class Client:
         attributes: Mapping[str, object] | None = None,
         mechanism: CaptureMechanism | None = None,
         trace: TraceContext | None = None,
+        user: UserContext | Mapping[str, object] | None = None,
+        tags: Mapping[str, object] | None = None,
         occurred_at: Timestamp = None,
     ) -> str | None:
         """Report an exception. Returns its event id, or None once closed."""
         return self._capture(
-            normalize_exception(exception), attributes, mechanism, trace, occurred_at
+            normalize_exception(exception), attributes, mechanism, trace, user, tags, occurred_at
         )
 
     def capture_message(
@@ -213,11 +223,13 @@ class Client:
         attributes: Mapping[str, object] | None = None,
         mechanism: CaptureMechanism | None = None,
         trace: TraceContext | None = None,
+        user: UserContext | Mapping[str, object] | None = None,
+        tags: Mapping[str, object] | None = None,
         occurred_at: Timestamp = None,
     ) -> str | None:
         """Report something worth an entry that is not an exception."""
         exception = {"type": "Message", "message": clip(message, MAX_MESSAGE_LENGTH)}
-        return self._capture(exception, attributes, mechanism, trace, occurred_at)
+        return self._capture(exception, attributes, mechanism, trace, user, tags, occurred_at)
 
     def _capture(
         self,
@@ -225,6 +237,8 @@ class Client:
         attributes: Mapping[str, object] | None,
         mechanism: CaptureMechanism | None,
         trace: TraceContext | None,
+        user: UserContext | Mapping[str, object] | None,
+        tags: Mapping[str, object] | None,
         occurred_at: Timestamp,
     ) -> str | None:
         if self._closed:
@@ -250,8 +264,72 @@ class Client:
         if sanitized is not None:
             report["attributes"] = sanitized
 
+        # Ambient scope first, an explicit per-call value winning on top of it —
+        # the same policy `_trace_of` already applies to `trace`.
+        scope = active_scope()
+        sanitized_user = sanitize_user(user if user is not None else scope.user)
+        if sanitized_user is not None:
+            report["user"] = sanitized_user
+        merged_tags: dict[str, object] = {**scope.tags, **(tags or {})}
+        sanitized_tags = sanitize_tags(merged_tags)
+        if sanitized_tags is not None:
+            report["tags"] = sanitized_tags
+        sanitized_breadcrumbs = sanitize_breadcrumbs(scope.breadcrumbs)
+        if sanitized_breadcrumbs is not None:
+            report["breadcrumbs"] = sanitized_breadcrumbs
+
         self._worker.submit_error(report)
         return event_id
+
+    # -- scope: user, tags, breadcrumbs ------------------------------------
+
+    def set_user(self, user: UserContext | Mapping[str, object] | None) -> None:
+        """Set the user on the active scope. `None` clears it."""
+        active_scope().user = sanitize_user(user)
+
+    def set_tag(self, key: str, value: str) -> None:
+        """Set one tag on the active scope, merging with whatever is there."""
+        sanitized = sanitize_tags({key: value})
+        if sanitized is not None:
+            active_scope().tags.update(sanitized)
+
+    def set_tags(self, tags: Tags | Mapping[str, object]) -> None:
+        """Set several tags on the active scope, merging rather than replacing."""
+        sanitized = sanitize_tags(tags)
+        if sanitized is not None:
+            active_scope().tags.update(sanitized)
+
+    def add_breadcrumb(
+        self,
+        *,
+        message: str | None = None,
+        category: str | None = None,
+        level: LogLevel | None = None,
+        data: Mapping[str, object] | None = None,
+        occurred_at: Timestamp = None,
+    ) -> None:
+        """Record one event on the active scope's breadcrumb trail.
+
+        Enforced as a true ring buffer here, at the point of recording, rather
+        than only at send time — an unbounded list between captures would be a
+        real memory leak in a long-running process.
+        """
+        breadcrumb: Breadcrumb = {"timestamp": self._occurred_at(occurred_at)}
+        if message is not None:
+            breadcrumb["message"] = message
+        if category is not None:
+            breadcrumb["category"] = category
+        if level is not None:
+            breadcrumb["level"] = level
+        if data is not None:
+            # Not yet sanitized: the caller's raw values are held as-is until
+            # `sanitize_breadcrumbs` runs at send time, the same as attributes
+            # captured elsewhere in this client.
+            breadcrumb["data"] = cast("dict[str, JsonValue]", dict(data))
+
+        breadcrumbs = active_scope().breadcrumbs
+        breadcrumbs.append(breadcrumb)
+        del breadcrumbs[:-MAX_BREADCRUMBS]
 
     def capture_log(
         self,

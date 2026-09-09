@@ -121,6 +121,51 @@ def test_the_span_does_not_leak_out_of_its_block(collected: Collected) -> None:
     assert dolshoe.active_span() is None
 
 
+def test_with_scope_does_not_leak_out_of_its_block() -> None:
+    with dolshoe.with_scope() as scope:
+        scope.tags["tier"] = "enterprise"
+        assert dolshoe.active_scope().tags == {"tier": "enterprise"}
+    assert dolshoe.active_scope().tags == {}
+
+
+def test_two_threads_do_not_share_a_scope() -> None:
+    """The tag-isolation answer to the span test above: two concurrent
+    `with_scope()` blocks must not see each other's mutations."""
+    results: dict[str, dict[str, str]] = {}
+
+    def run(name: str, pause: float) -> None:
+        with dolshoe.with_scope() as scope:
+            scope.tags["who"] = name
+            time.sleep(pause)
+            results[name] = dict(scope.tags)
+
+    first = threading.Thread(target=run, args=("first", 0.02))
+    second = threading.Thread(target=run, args=("second", 0.03))
+    first.start()
+    second.start()
+    first.join()
+    second.join()
+
+    assert results == {"first": {"who": "first"}, "second": {"who": "second"}}
+
+
+def test_two_asyncio_tasks_do_not_share_a_scope() -> None:
+    results: dict[str, dict[str, str]] = {}
+
+    async def run(name: str, pause: float) -> None:
+        with dolshoe.with_scope() as scope:
+            scope.tags["who"] = name
+            await asyncio.sleep(pause)
+            results[name] = dict(scope.tags)
+
+    async def main() -> None:
+        await asyncio.gather(run("first", 0.02), run("second", 0.03))
+
+    asyncio.run(main())
+
+    assert results == {"first": {"who": "first"}, "second": {"who": "second"}}
+
+
 def test_a_thread_pool_does_not_inherit_the_active_span(collected: Collected) -> None:
     """A real limitation, asserted rather than papered over.
 
