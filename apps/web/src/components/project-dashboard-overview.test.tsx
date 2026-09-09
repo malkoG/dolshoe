@@ -1,11 +1,31 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
-import { ProjectDashboardOverview } from "./project-dashboard-overview";
+import { healthTone, ProjectDashboardOverview } from "./project-dashboard-overview";
 import {
   projectDashboardOverviewStateNames,
   projectDashboardOverviewStates,
 } from "./project-dashboard-overview.states";
+
+describe("healthTone", () => {
+  const now = new Date("2026-09-09T12:00:00.000Z");
+
+  test("recent enough reads as success", () => {
+    expect(healthTone("2026-09-09T11:50:00.000Z", now)).toBe("success");
+  });
+
+  test("older than an hour but under a day reads as warning", () => {
+    expect(healthTone("2026-09-09T06:00:00.000Z", now)).toBe("warning");
+  });
+
+  test("older than a day reads as neutral", () => {
+    expect(healthTone("2026-09-01T00:00:00.000Z", now)).toBe("neutral");
+  });
+
+  test("never received reads as neutral", () => {
+    expect(healthTone(null, now)).toBe("neutral");
+  });
+});
 
 describe("ProjectDashboardOverview named states", () => {
   test("exports the states a silhouette can photograph", () => {

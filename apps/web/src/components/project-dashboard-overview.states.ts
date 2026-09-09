@@ -49,6 +49,17 @@ function empty(): ProjectDashboardOverviewProps {
   return { summary };
 }
 
+/**
+ * Relative to whenever this factory happens to run, rather than another fixed
+ * 2026 timestamp like the rest of this file's fixture data: the three health
+ * rows are meant to land in three different freshness tones (recent, stale,
+ * quiet), and a fixed timestamp drifts across those bands as real time moves
+ * on — worse, a future-dated one never reads as "received" at all.
+ */
+function agoIso(offsetMs: number): string {
+  return new Date(Date.now() - offsetMs).toISOString();
+}
+
 function populated(): ProjectDashboardOverviewProps {
   const dates = bucketDates();
   const summary: ProjectDashboardSummary = {
@@ -58,10 +69,10 @@ function populated(): ProjectDashboardOverviewProps {
       previousPeriodTotal: 61,
       byEnvironment: { production: 57, staging: 21, unspecified: 6 },
       byRuntime: { node: 48, cpython: 22, deno: 9, bun: 5 },
-      lastReceivedAt: "2026-09-09T08:12:00.000Z",
+      lastReceivedAt: agoIso(20 * 60 * 1000), // 20 minutes ago — recent
     },
-    logRecords: { total: 512, lastReceivedAt: "2026-09-09T08:14:00.000Z" },
-    traces: { total: 133, lastReceivedAt: "2026-09-09T07:40:00.000Z" },
+    logRecords: { total: 512, lastReceivedAt: agoIso(5 * 60 * 60 * 1000) }, // 5 hours ago — stale
+    traces: { total: 133, lastReceivedAt: agoIso(3 * 24 * 60 * 60 * 1000) }, // 3 days ago — quiet
     volumeSeries: dates.map((bucketStart, index) => ({
       bucketStart,
       errorReports: [8, 6, 14, 10, 19, 11, 16][index] ?? 0,
