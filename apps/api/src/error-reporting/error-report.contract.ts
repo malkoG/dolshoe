@@ -250,6 +250,133 @@ const traceSchema = z
   })
   .strict();
 
+const MAX_TAGS = 20;
+const MAX_TAG_KEY_LENGTH = 200;
+const MAX_TAG_VALUE_LENGTH = 200;
+const MAX_BREADCRUMBS = 100;
+const MAX_BREADCRUMB_MESSAGE_LENGTH = 2_048;
+const MAX_BREADCRUMB_DATA_BYTES = 8_192;
+const MAX_BREADCRUMB_DATA_DEPTH = 4;
+const MAX_BREADCRUMB_DATA_ITEMS = 20;
+
+function serializedByteLength(value: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(value)).length;
+}
+
+/**
+ * Bounds a breadcrumb's own free-form `data` bag.
+ *
+ * @remarks
+ * A smaller, separate copy of `log-record.contract.ts`'s identical attribute
+ * walker rather than a shared import: that file already imports from this
+ * one, and a breadcrumb's data is meant to stay small (one event on a trail,
+ * not a whole report's context), so its bounds are deliberately tighter.
+ */
+function addBreadcrumbDataIssues(
+  value: unknown,
+  context: z.RefinementCtx,
+  path: PropertyKey[],
+  depth: number,
+): void {
+  if (depth > MAX_BREADCRUMB_DATA_DEPTH) {
+    context.addIssue({
+      code: "custom",
+      message: `Breadcrumb data nesting cannot exceed ${MAX_BREADCRUMB_DATA_DEPTH} levels.`,
+      path,
+    });
+    return;
+  }
+
+  if (value === null || typeof value !== "object") {
+    return;
+  }
+
+  const entries = Array.isArray(value) ? value.entries() : Object.entries(value);
+  let count = 0;
+  for (const [key, child] of entries) {
+    count += 1;
+    if (count > MAX_BREADCRUMB_DATA_ITEMS) {
+      context.addIssue({
+        code: "custom",
+        message: `A breadcrumb data container cannot contain more than ${MAX_BREADCRUMB_DATA_ITEMS} items.`,
+        path,
+      });
+      return;
+    }
+    addBreadcrumbDataIssues(child, context, [...path, key], depth + 1);
+  }
+}
+
+export const userContextSchema = z
+  .object({
+    id: nonEmptyText(200)
+      .optional()
+      .meta({
+        description: "Stable identifier for the affected user, from the reporter's own system.",
+      }),
+    email: nonEmptyText(200)
+      .optional()
+      .meta({ description: "Email address of the affected user." }),
+    username: nonEmptyText(200)
+      .optional()
+      .meta({ description: "Display name or username of the affected user." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "UserContextV1",
+    description:
+      "The user a report is about, supplied by the reporter and never verified by the server.",
+  });
+
+export const tagsSchema = z
+  .record(nonEmptyText(MAX_TAG_KEY_LENGTH), nonEmptyText(MAX_TAG_VALUE_LENGTH))
+  .refine((tags) => Object.keys(tags).length <= MAX_TAGS, {
+    message: `A report cannot carry more than ${MAX_TAGS} tags.`,
+  })
+  .register(contractRegistry, {
+    id: "TagsV1",
+    description: `Low-cardinality string labels, at most ${MAX_TAGS}, meant for filtering — see attributes for free-form JSON context instead.`,
+  });
+
+export const breadcrumbSchema = z
+  .object({
+    timestamp: z.iso.datetime().meta({ description: "UTC timestamp the breadcrumb was recorded." }),
+    message: nonEmptyText(MAX_BREADCRUMB_MESSAGE_LENGTH)
+      .optional()
+      .meta({ description: "Human-readable description of what happened." }),
+    category: nonEmptyText(200)
+      .optional()
+      .meta({
+        description: 'Grouping such as "http", "navigation", or "console".',
+        examples: ["http"],
+      }),
+    level: z
+      .enum(["trace", "debug", "info", "warning", "error", "fatal"])
+      .optional()
+      .meta({ description: "Severity, on the same scale a log record uses." }),
+    data: z.record(z.string().min(1).max(200), z.json()).optional().meta({
+      description:
+        "Small bounded structured detail. See a report's own attributes for a larger bag.",
+    }),
+  })
+  .strict()
+  .superRefine((breadcrumb, context) => {
+    if (breadcrumb.data == null) return;
+
+    if (serializedByteLength(breadcrumb.data) > MAX_BREADCRUMB_DATA_BYTES) {
+      context.addIssue({
+        code: "custom",
+        message: `Serialized breadcrumb data cannot exceed ${MAX_BREADCRUMB_DATA_BYTES} bytes.`,
+        path: ["data"],
+      });
+    }
+    addBreadcrumbDataIssues(breadcrumb.data, context, ["data"], 0);
+  })
+  .register(contractRegistry, {
+    id: "BreadcrumbV1",
+    description: "One recorded event on the trail leading up to a report, oldest first.",
+  });
+
 function addExceptionDepthIssue(
   exception: NormalizedException,
   context: z.RefinementCtx,
@@ -299,6 +426,17 @@ export const errorReportRequestSchema = z
     mechanism: mechanismSchema.optional(),
     exception: normalizedExceptionSchema,
     trace: traceSchema.optional(),
+    user: userContextSchema.optional().meta({
+      description: "The user affected by this report, when the reporter identified one.",
+    }),
+    tags: tagsSchema.optional(),
+    breadcrumbs: z
+      .array(breadcrumbSchema)
+      .max(MAX_BREADCRUMBS)
+      .optional()
+      .meta({
+        description: `Oldest-first trail of events leading up to this report, bounded to the newest ${MAX_BREADCRUMBS}.`,
+      }),
     attributes: z.record(z.string().min(1).max(200), z.json()).optional().meta({
       description:
         "Bounded application-specific JSON context. Secrets and personal data must be removed by the reporter.",
@@ -371,6 +509,12 @@ export const errorReportSummarySchema = z
     service: serviceSchema.meta({ description: "Service that reported the failure." }),
     runtime: runtimeSchema.meta({ description: "Runtime that reported the failure." }),
     exception: errorReportExceptionSummarySchema,
+    user: userContextSchema.optional().meta({
+      description: "The user affected by this report, when the reporter identified one.",
+    }),
+    tags: z.record(z.string(), z.string()).optional().meta({
+      description: "Low-cardinality labels attached to the report.",
+    }),
   })
   .strict()
   .register(contractRegistry, {
@@ -406,6 +550,15 @@ export const errorReportDetailSchema = z
       description:
         "The whole stored exception tree, frames included — not the summary the list returns.",
     }),
+    user: userContextSchema.optional().meta({
+      description: "The user affected by this report, when the reporter identified one.",
+    }),
+    tags: z.record(z.string(), z.string()).optional().meta({
+      description: "Low-cardinality labels attached to the report.",
+    }),
+    breadcrumbs: z.array(breadcrumbSchema).optional().meta({
+      description: "Oldest-first trail of events leading up to this report.",
+    }),
     attributes: z
       .record(z.string(), z.json())
       .optional()
@@ -435,6 +588,9 @@ export const errorReportListResponseSchema = z
 
 export type ErrorReportRequest = z.infer<typeof errorReportRequestSchema>;
 export type ErrorReportReceipt = z.infer<typeof errorReportReceiptSchema>;
+export type UserContext = z.infer<typeof userContextSchema>;
+export type Tags = z.infer<typeof tagsSchema>;
+export type Breadcrumb = z.infer<typeof breadcrumbSchema>;
 export type SourceLocation = z.infer<typeof sourceLocationSchema>;
 export type ErrorReportExceptionSummary = z.infer<typeof errorReportExceptionSummarySchema>;
 export type ErrorReportSummary = z.infer<typeof errorReportSummarySchema>;

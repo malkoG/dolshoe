@@ -1,5 +1,13 @@
 import { attachSourceContext } from "./source-context.js";
-import type { FrameOrigin, JsonValue, NormalizedException, StackFrame } from "./types.js";
+import type {
+  Breadcrumb,
+  FrameOrigin,
+  JsonValue,
+  NormalizedException,
+  StackFrame,
+  Tags,
+  UserContext,
+} from "./types.js";
 
 const MAX_DEPTH = 16;
 const MAX_CHILDREN = 20;
@@ -9,6 +17,15 @@ const MAX_MESSAGE_LENGTH = 16_384;
 const MAX_REPRESENTATION_LENGTH = 4_096;
 const MAX_ATTRIBUTE_DEPTH = 8;
 const MAX_ATTRIBUTE_ITEMS = 100;
+const MAX_USER_FIELD_LENGTH = 200;
+const MAX_TAGS = 20;
+const MAX_TAG_LENGTH = 200;
+const MAX_BREADCRUMBS = 100;
+const MAX_BREADCRUMB_MESSAGE_LENGTH = 2_048;
+const MAX_BREADCRUMB_CATEGORY_LENGTH = 200;
+const MAX_BREADCRUMB_DATA_BYTES = 8_192;
+const MAX_BREADCRUMB_DATA_DEPTH = 4;
+const MAX_BREADCRUMB_DATA_ITEMS = 20;
 
 const sensitiveKeyPattern =
   /(?:authorization|cookie|dsn|pass(?:word|wd)?|secret|token|api[-_]?key|access[-_]?(?:key|token))/i;
@@ -223,10 +240,22 @@ export function normalizeException(
   return normalized;
 }
 
+/**
+ * Recursively escapes, redacts, and bounds a value for a JSON bag.
+ *
+ * @remarks
+ * Takes its item/depth bounds as parameters rather than reading the
+ * attribute-sized module constants directly: breadcrumb `data` wants the same
+ * escaping and redaction rules at a much smaller size, and a second concrete
+ * caller with different numbers is exactly when that's worth parameterizing
+ * over duplicating.
+ */
 function sanitizeJsonValue(
   value: unknown,
   depth: number,
   seen: WeakSet<object>,
+  maxDepth: number,
+  maxItems: number,
 ): JsonValue | undefined {
   if (value === null || typeof value === "boolean" || typeof value === "string") {
     return typeof value === "string" ? truncate(value, MAX_REPRESENTATION_LENGTH) : value;
@@ -238,7 +267,7 @@ function sanitizeJsonValue(
     return safeRepresentation(value);
   }
   if (value === undefined) return undefined;
-  if (depth >= MAX_ATTRIBUTE_DEPTH) return "[Truncated]";
+  if (depth >= maxDepth) return "[Truncated]";
   if (isErrorLike(value)) {
     return {
       type: value.name,
@@ -251,20 +280,20 @@ function sanitizeJsonValue(
   seen.add(value);
   if (Array.isArray(value)) {
     const result = value
-      .slice(0, MAX_ATTRIBUTE_ITEMS)
-      .map((child) => sanitizeJsonValue(child, depth + 1, seen) ?? null);
+      .slice(0, maxItems)
+      .map((child) => sanitizeJsonValue(child, depth + 1, seen, maxDepth, maxItems) ?? null);
     seen.delete(value);
     return result;
   }
 
   const result: Record<string, JsonValue> = {};
-  for (const [key, child] of Object.entries(value).slice(0, MAX_ATTRIBUTE_ITEMS)) {
+  for (const [key, child] of Object.entries(value).slice(0, maxItems)) {
     if (key.length === 0 || key.length > 200) continue;
     if (sensitiveKeyPattern.test(key)) {
       result[key] = "[REDACTED]";
       continue;
     }
-    const sanitized = sanitizeJsonValue(child, depth + 1, seen);
+    const sanitized = sanitizeJsonValue(child, depth + 1, seen, maxDepth, maxItems);
     if (sanitized !== undefined) result[key] = sanitized;
   }
   seen.delete(value);
@@ -282,8 +311,95 @@ export function sanitizeAttributes(
     if (key.length === 0 || key.length > 200 || value === undefined) continue;
     result[key] = sensitiveKeyPattern.test(key)
       ? "[REDACTED]"
-      : (sanitizeJsonValue(value, 0, seen) ?? null);
+      : (sanitizeJsonValue(value, 0, seen, MAX_ATTRIBUTE_DEPTH, MAX_ATTRIBUTE_ITEMS) ?? null);
   }
 
   return Object.keys(result).length === 0 ? undefined : result;
+}
+
+function sanitizeUserField(value: string | undefined): string | undefined {
+  if (value == null) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : truncate(trimmed, MAX_USER_FIELD_LENGTH);
+}
+
+export function sanitizeUser(user: Readonly<UserContext> | undefined): UserContext | undefined {
+  if (user == null) return undefined;
+
+  const sanitized: UserContext = {};
+  const id = sanitizeUserField(user.id);
+  const email = sanitizeUserField(user.email);
+  const username = sanitizeUserField(user.username);
+  if (id != null) sanitized.id = id;
+  if (email != null) sanitized.email = email;
+  if (username != null) sanitized.username = username;
+
+  return Object.keys(sanitized).length === 0 ? undefined : sanitized;
+}
+
+export function sanitizeTags(tags: Readonly<Tags> | undefined): Tags | undefined {
+  if (tags == null) return undefined;
+
+  const result: Tags = {};
+  for (const [key, value] of Object.entries(tags).slice(0, MAX_TAGS)) {
+    if (key.length === 0 || key.length > MAX_TAG_LENGTH) continue;
+    if (typeof value !== "string" || value.length === 0) continue;
+    result[truncate(key, MAX_TAG_LENGTH)] = truncate(value, MAX_TAG_LENGTH);
+  }
+
+  return Object.keys(result).length === 0 ? undefined : result;
+}
+
+function sanitizeBreadcrumbData(
+  data: Readonly<Record<string, unknown>> | undefined,
+): Record<string, JsonValue> | undefined {
+  if (data == null) return undefined;
+
+  const result: Record<string, JsonValue> = {};
+  const seen = new WeakSet<object>();
+  for (const [key, value] of Object.entries(data).slice(0, MAX_BREADCRUMB_DATA_ITEMS)) {
+    if (key.length === 0 || key.length > 200 || value === undefined) continue;
+    result[key] = sensitiveKeyPattern.test(key)
+      ? "[REDACTED]"
+      : (sanitizeJsonValue(value, 0, seen, MAX_BREADCRUMB_DATA_DEPTH, MAX_BREADCRUMB_DATA_ITEMS) ??
+        null);
+  }
+
+  if (Object.keys(result).length === 0) return undefined;
+  // A byte cap that truncated field-by-field would need to re-walk the whole
+  // structure to shrink it correctly; dropping the bag outright is simpler
+  // and matches what a breadcrumb is for — a small marker on a trail, not a
+  // second place to carry a report's real context.
+  if (new TextEncoder().encode(JSON.stringify(result)).length > MAX_BREADCRUMB_DATA_BYTES) {
+    return undefined;
+  }
+  return result;
+}
+
+/**
+ * Bounds a breadcrumb ring buffer before it is attached to an outgoing
+ * report. `addBreadcrumb` already caps the buffer at `MAX_BREADCRUMBS` as
+ * each one is pushed, so this keeping only the newest `MAX_BREADCRUMBS` is a
+ * final clamp, not the primary defense against an unbounded array.
+ */
+export function sanitizeBreadcrumbs(
+  breadcrumbs: readonly Breadcrumb[] | undefined,
+): Breadcrumb[] | undefined {
+  if (breadcrumbs == null || breadcrumbs.length === 0) return undefined;
+
+  const sanitized = breadcrumbs.slice(-MAX_BREADCRUMBS).map((breadcrumb) => {
+    const result: Breadcrumb = { timestamp: breadcrumb.timestamp };
+    if (breadcrumb.message) {
+      result.message = truncate(breadcrumb.message, MAX_BREADCRUMB_MESSAGE_LENGTH);
+    }
+    if (breadcrumb.category) {
+      result.category = truncate(breadcrumb.category, MAX_BREADCRUMB_CATEGORY_LENGTH);
+    }
+    if (breadcrumb.level) result.level = breadcrumb.level;
+    const data = sanitizeBreadcrumbData(breadcrumb.data);
+    if (data != null) result.data = data;
+    return result;
+  });
+
+  return sanitized;
 }

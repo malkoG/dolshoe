@@ -162,6 +162,53 @@ export interface SpanScope {
   run<T>(span: Span, callback: () => T): T;
 }
 
+export interface UserContext {
+  id?: string;
+  email?: string;
+  username?: string;
+}
+
+export type Tags = Record<string, string>;
+
+export interface Breadcrumb {
+  timestamp: string;
+  message?: string;
+  category?: string;
+  level?: "trace" | "debug" | "info" | "warning" | "error" | "fatal";
+  data?: Record<string, JsonValue>;
+}
+
+/**
+ * The mutable data an ambient scope carries: who a failure is about, the
+ * labels attached to it, and the trail leading up to it.
+ *
+ * @remarks
+ * `Breadcrumb`s have no per-call override in `CaptureOptions` — they only
+ * ever come from here, accumulated over time by `addBreadcrumb`.
+ */
+export interface ScopeData {
+  user?: UserContext;
+  tags: Tags;
+  breadcrumbs: Breadcrumb[];
+}
+
+/**
+ * Where user identity, tags, and breadcrumbs live between calls.
+ *
+ * @remarks
+ * Unlike `SpanScope.active()`, this `active()` never returns `undefined`:
+ * `setUser`/`setTag`/`addBreadcrumb` have to work the moment a script calls
+ * them, with no `withScope()` wrapping required, so there is always a current
+ * object to mutate — `run()` swaps it out for the duration of a callback
+ * rather than clearing it to nothing. Core cannot reach for `node:async_hooks`
+ * itself, for the same reason `SpanScope` is a seam each runtime package
+ * fills in.
+ */
+export interface Scope {
+  active(): ScopeData;
+  run<T>(data: ScopeData, callback: () => T): T;
+}
+
 export interface ErrorReport {
   schemaVersion: 1;
   eventId: string;
@@ -172,6 +219,9 @@ export interface ErrorReport {
   mechanism?: CaptureMechanism;
   exception: NormalizedException;
   trace?: TraceContext;
+  user?: UserContext;
+  tags?: Tags;
+  breadcrumbs?: Breadcrumb[];
   attributes?: Record<string, JsonValue>;
 }
 
@@ -200,6 +250,10 @@ export interface CaptureOptions {
   attributes?: Readonly<Record<string, unknown>>;
   mechanism?: CaptureMechanism;
   trace?: TraceContext;
+  /** Overrides the active scope's user for this capture only. */
+  user?: UserContext;
+  /** Merged over the active scope's tags for this capture only, this side winning on collision. */
+  tags?: Readonly<Tags>;
   occurredAt?: Date | number | string;
 }
 
@@ -256,6 +310,13 @@ export interface ClientOptions {
    * `AsyncLocalStorage` so concurrent work cannot steal each other's parent.
    */
   spanScope?: SpanScope;
+  /**
+   * Where user identity, tags, and breadcrumbs are kept. Defaults to a
+   * synchronous store, correct for straight-line code; the runtime packages
+   * supply one backed by `AsyncLocalStorage` so concurrent work cannot bleed
+   * into each other's scope, the same arrangement `spanScope` already uses.
+   */
+  scope?: Scope;
   fetch?: typeof globalThis.fetch;
   beforeSend?: (report: ErrorReport) => ErrorReport | null | Promise<ErrorReport | null>;
   beforeSendLogRecord?: (record: LogRecord) => LogRecord | null | Promise<LogRecord | null>;
@@ -294,6 +355,12 @@ export interface ReporterNamespace {
   startSpan(name: string, options?: SpanOptions): Span | undefined;
   withSpan<T>(name: string, run: (span: Span | undefined) => T, options?: SpanOptions): T;
   activeSpan(): Span | undefined;
+  setUser(user: UserContext | null): void;
+  setTag(key: string, value: string): void;
+  setTags(tags: Readonly<Tags>): void;
+  addBreadcrumb(breadcrumb: Omit<Breadcrumb, "timestamp"> & { timestamp?: string }): void;
+  withScope<T>(run: () => T): T;
+  activeScope(): ScopeData;
   flush(timeoutMilliseconds?: number): Promise<boolean>;
   close(timeoutMilliseconds?: number): Promise<boolean>;
 }

@@ -1,9 +1,17 @@
 import { parseDsn } from "./dsn.js";
-import { normalizeException, sanitizeAttributes } from "./normalize.js";
+import {
+  normalizeException,
+  sanitizeAttributes,
+  sanitizeBreadcrumbs,
+  sanitizeTags,
+  sanitizeUser,
+} from "./normalize.js";
+import { createSynchronousScope } from "./scope.js";
 import { RecordingSpan, resolveParent } from "./span.js";
 import { createSynchronousSpanScope } from "./span-scope.js";
 import { HttpLogTransport, HttpTransport, OtlpSpanTransport } from "./transport.js";
 import type {
+  Breadcrumb,
   CaptureLogOptions,
   CaptureOptions,
   ClientOptions,
@@ -12,12 +20,16 @@ import type {
   LogLevel,
   LogRecord,
   LogTransport,
+  Scope,
+  ScopeData,
   Span,
   SpanOptions,
   SpanScope,
   SpanTransport,
+  Tags,
   TraceContext,
   Transport,
+  UserContext,
 } from "./types.js";
 
 const LOG_LEVELS = new Set<LogLevel>(["trace", "debug", "info", "warning", "error", "fatal"]);
@@ -26,6 +38,7 @@ const MAX_SPAN_BATCH_SIZE = 100;
 const MAX_LOG_MESSAGE_LENGTH = 16_384;
 const MAX_LOG_CATEGORY_SEGMENTS = 16;
 const MAX_LOG_CATEGORY_SEGMENT_LENGTH = 200;
+const MAX_BREADCRUMBS = 100;
 
 function defaultEventId(): string {
   if (globalThis.crypto?.randomUUID != null) {
@@ -73,6 +86,7 @@ export class Client {
   readonly #logTransport: LogTransport | undefined;
   readonly #spanTransport: SpanTransport | undefined;
   readonly #spanScope: SpanScope;
+  readonly #scope: Scope;
   readonly #pending = new Set<Promise<void>>();
   readonly #logQueue: LogRecord[] = [];
   readonly #spanQueue: FinishedSpan[] = [];
@@ -131,6 +145,7 @@ export class Client {
             ...(options.fetch == null ? {} : { fetch: options.fetch }),
           }));
     this.#spanScope = options.spanScope ?? createSynchronousSpanScope();
+    this.#scope = options.scope ?? createSynchronousScope();
   }
 
   captureException(exception: unknown, options: CaptureOptions = {}): string | undefined {
@@ -268,6 +283,67 @@ export class Client {
     return this.#spanScope.active();
   }
 
+  /** Sets (or, given `null`, clears) the user later captures on this scope are about. */
+  setUser(user: UserContext | null): void {
+    const data = this.#scope.active();
+    const sanitized = user == null ? undefined : sanitizeUser(user);
+    if (sanitized == null) {
+      delete data.user;
+    } else {
+      data.user = sanitized;
+    }
+  }
+
+  /** Merges `value` onto the active scope's tags, replacing `key` if it is already set. */
+  setTag(key: string, value: string): void {
+    Object.assign(this.#scope.active().tags, sanitizeTags({ [key]: value }));
+  }
+
+  /** Merges `tags` onto the active scope's tags, this call winning on key collision. */
+  setTags(tags: Readonly<Tags>): void {
+    Object.assign(this.#scope.active().tags, sanitizeTags(tags));
+  }
+
+  /**
+   * Appends one event to the active scope's breadcrumb trail, oldest first,
+   * dropping the oldest once the trail exceeds `MAX_BREADCRUMBS`.
+   *
+   * @remarks
+   * The buffer is capped here, at the point of accumulation, rather than only
+   * at send time: a long-running server that never captures anything would
+   * otherwise grow this array without bound.
+   */
+  addBreadcrumb(breadcrumb: Omit<Breadcrumb, "timestamp"> & { timestamp?: string }): void {
+    const data = this.#scope.active();
+    data.breadcrumbs.push({
+      ...breadcrumb,
+      timestamp: breadcrumb.timestamp ?? (this.#options.now ?? (() => new Date()))().toISOString(),
+    });
+    if (data.breadcrumbs.length > MAX_BREADCRUMBS) {
+      data.breadcrumbs.splice(0, data.breadcrumbs.length - MAX_BREADCRUMBS);
+    }
+  }
+
+  /**
+   * Runs `run` with a fresh, empty scope active for its whole extent.
+   *
+   * @remarks
+   * Unlike `withSpan`, there is no end-of-run action to schedule, so this
+   * needs no thenable detection of its own: an `AsyncLocalStorage`-backed
+   * `Scope.run()` already keeps its store active through whatever a
+   * promise-returning `run` awaits, which is what lets a server wrap one
+   * request's handling as `withScope(() => handleRequest())` and have
+   * `setUser`/`addBreadcrumb` calls made anywhere during that request land in
+   * the right scope.
+   */
+  withScope<T>(run: () => T): T {
+    return this.#scope.run({ tags: {}, breadcrumbs: [] }, run);
+  }
+
+  activeScope(): ScopeData {
+    return this.#scope.active();
+  }
+
   async flush(timeoutMilliseconds = 2_000): Promise<boolean> {
     const deadline = Date.now() + Math.max(0, timeoutMilliseconds);
 
@@ -310,6 +386,10 @@ export class Client {
 
     const eventId = (this.#options.generateEventId ?? defaultEventId)();
     const attributes = sanitizeAttributes(options.attributes);
+    const scope = this.#scope.active();
+    const user = sanitizeUser(options.user ?? scope.user);
+    const tags = sanitizeTags({ ...scope.tags, ...options.tags });
+    const breadcrumbs = sanitizeBreadcrumbs(scope.breadcrumbs);
     const report: ErrorReport = {
       schemaVersion: 1,
       eventId,
@@ -320,6 +400,9 @@ export class Client {
       ...(options.mechanism == null ? {} : { mechanism: options.mechanism }),
       exception,
       ...this.#traceOf(options.trace),
+      ...(user == null ? {} : { user }),
+      ...(tags == null ? {} : { tags }),
+      ...(breadcrumbs == null ? {} : { breadcrumbs }),
       ...(attributes == null ? {} : { attributes }),
     };
 
@@ -511,6 +594,42 @@ export function withSpan<T>(
 
 export function activeSpan(): Span | undefined {
   return currentClient?.activeSpan();
+}
+
+export function setUser(user: UserContext | null): void {
+  currentClient?.setUser(user);
+}
+
+export function setTag(key: string, value: string): void {
+  currentClient?.setTag(key, value);
+}
+
+export function setTags(tags: Readonly<Tags>): void {
+  currentClient?.setTags(tags);
+}
+
+export function addBreadcrumb(
+  breadcrumb: Omit<Breadcrumb, "timestamp"> & { timestamp?: string },
+): void {
+  currentClient?.addBreadcrumb(breadcrumb);
+}
+
+/**
+ * Runs `run` inside a fresh scope, when a client is configured.
+ *
+ * @remarks
+ * Without one, `run` still runs unscoped — a reporter that has not been
+ * initialised must not stop the application's own work from happening, the
+ * same reason `withSpan` and `captureLog` are equally quiet.
+ */
+export function withScope<T>(run: () => T): T {
+  const client = currentClient;
+  if (client == null) return run();
+  return client.withScope(run);
+}
+
+export function activeScope(): ScopeData {
+  return currentClient?.activeScope() ?? { tags: {}, breadcrumbs: [] };
 }
 
 export async function flush(timeoutMilliseconds?: number): Promise<boolean> {

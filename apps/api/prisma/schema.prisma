@@ -169,12 +169,27 @@ model ErrorReport {
   traceId         String?  @db.Char(32)
   spanId          String?  @db.Char(16)
   exception       Json
-  attributes      Json?
+  /// The reporter's own identifier for the affected user, never verified by
+  /// this server. Promoted out of the `user` bag, like `serviceName` and its
+  /// neighbors, because filtering by it is a real query and JSON has no index
+  /// worth using for that.
+  userIdentifier String? @db.VarChar(200)
+  userEmail      String? @db.VarChar(200)
+  userName       String? @db.VarChar(200)
+  /// Low-cardinality string labels. A plain `Json?` for now — bounded to 20
+  /// entries at the contract layer — rather than a GIN-indexed column;
+  /// filtering by one already works with a sequential scan over a
+  /// project-scoped, time-bounded result set, and indexing it can follow if a
+  /// project's volume ever makes that scan worth avoiding.
+  tags        Json?
+  breadcrumbs Json?
+  attributes  Json?
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
 
   @@unique([projectId, eventId])
   @@index([serviceName, occurredAt(sort: Desc)])
+  @@index([projectId, userIdentifier])
   @@index([traceId])
   @@index([receivedAt(sort: Desc)])
   @@index([projectId, receivedAt(sort: Desc)])

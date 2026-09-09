@@ -15,6 +15,12 @@ const errorReportExceptionSummarySchema = z.object({
   source: sourceLocationSchema.optional(),
 });
 
+const userContextSchema = z.object({
+  id: z.string().optional(),
+  email: z.string().optional(),
+  username: z.string().optional(),
+});
+
 const errorReportSummarySchema = z.object({
   id: z.string(),
   eventId: z.string(),
@@ -35,6 +41,8 @@ const errorReportSummarySchema = z.object({
     version: z.string().optional(),
   }),
   exception: errorReportExceptionSummarySchema,
+  user: userContextSchema.optional(),
+  tags: z.record(z.string(), z.string()).optional(),
 });
 
 const errorReportListResponseSchema = z.object({
@@ -89,6 +97,14 @@ const normalizedExceptionSchema: z.ZodType<NormalizedException> = z.lazy(() =>
   }),
 );
 
+const breadcrumbSchema = z.object({
+  timestamp: z.string(),
+  message: z.string().optional(),
+  category: z.string().optional(),
+  level: z.enum(["trace", "debug", "info", "warning", "error", "fatal"]).optional(),
+  data: z.record(z.string(), z.json()).optional(),
+});
+
 const errorReportDetailSchema = z.object({
   id: z.string(),
   eventId: z.string(),
@@ -115,6 +131,9 @@ const errorReportDetailSchema = z.object({
   mechanism: z.object({ type: z.string(), handled: z.boolean().optional() }).optional(),
   trace: z.object({ traceId: z.string(), spanId: z.string().optional() }).optional(),
   exception: normalizedExceptionSchema,
+  user: userContextSchema.optional(),
+  tags: z.record(z.string(), z.string()).optional(),
+  breadcrumbs: z.array(breadcrumbSchema).optional(),
   attributes: z.record(z.string(), z.json()).optional(),
 });
 
@@ -122,21 +141,35 @@ export type ErrorReportSummary = z.infer<typeof errorReportSummarySchema>;
 export type ErrorReportListResponse = z.infer<typeof errorReportListResponseSchema>;
 export type ErrorReportDetail = z.infer<typeof errorReportDetailSchema>;
 export type StackFrame = z.infer<typeof stackFrameSchema>;
+export type UserContext = z.infer<typeof userContextSchema>;
+export type Breadcrumb = z.infer<typeof breadcrumbSchema>;
 
 /**
  * Fetches the newest-first error report list from the API and validates it against the
  * web-owned mirror of the API-01 response contract before returning typed values.
+ *
+ * @remarks
+ * `tagKey`/`tagValue` and `userId` are server-side filters, not a client-side
+ * narrowing of an already-fetched page: the list is bounded, so filtering it
+ * in the browser would only ever narrow whatever page happened to load, the
+ * same reasoning `fetchLogRecords`'s `level` filter already follows.
  */
 export async function fetchErrorReports(
   orgSlug: string,
   projectId: string,
-  init?: { signal?: AbortSignal },
+  init: { tagKey?: string; tagValue?: string; userId?: string; signal?: AbortSignal } = {},
 ): Promise<ErrorReportSummary[]> {
+  const parameters = new URLSearchParams();
+  if (init.tagKey != null) parameters.set("tagKey", init.tagKey);
+  if (init.tagValue != null) parameters.set("tagValue", init.tagValue);
+  if (init.userId != null) parameters.set("userId", init.userId);
+  const query = parameters.size === 0 ? "" : `?${parameters.toString()}`;
+
   const { reports } = await requestJson(
     "list error reports",
-    `/api/v1/orgs/${orgSlug}/projects/${projectId}/error-reports`,
+    `/api/v1/orgs/${orgSlug}/projects/${projectId}/error-reports${query}`,
     errorReportListResponseSchema,
-    init,
+    { signal: init.signal },
   );
   return reports;
 }
