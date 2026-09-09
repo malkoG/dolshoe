@@ -94,6 +94,30 @@ class NormalizedException(TypedDict, total=False):
     children: list[NormalizedException]
 
 
+class UserContext(TypedDict, total=False):
+    """The user a report is about, supplied by the reporter and never
+    verified by the server."""
+
+    id: str
+    email: str
+    username: str
+
+
+Tags: TypeAlias = "dict[str, str]"
+"""Low-cardinality string labels, at most 20, meant for filtering — see
+`attributes` for free-form JSON context instead."""
+
+
+class Breadcrumb(TypedDict, total=False):
+    """One recorded event on the trail leading up to a report, oldest first."""
+
+    timestamp: str
+    message: str
+    category: str
+    level: LogLevel
+    data: dict[str, JsonValue]
+
+
 class ErrorReport(TypedDict, total=False):
     schemaVersion: int
     eventId: str
@@ -104,6 +128,9 @@ class ErrorReport(TypedDict, total=False):
     mechanism: CaptureMechanism
     exception: NormalizedException
     trace: TraceContext
+    user: UserContext
+    tags: Tags
+    breadcrumbs: list[Breadcrumb]
     attributes: dict[str, JsonValue]
 
 

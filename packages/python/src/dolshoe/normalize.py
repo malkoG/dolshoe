@@ -9,6 +9,7 @@ which the JavaScript stack parser can never fill in.
 from __future__ import annotations
 
 import contextlib
+import json
 import linecache
 import math
 import os
@@ -21,7 +22,17 @@ from functools import lru_cache
 from itertools import islice
 from typing import Any
 
-from .types import FrameOrigin, JsonValue, NormalizedException, StackFrame, ThrownValue
+from .types import (
+    LOG_LEVELS,
+    Breadcrumb,
+    FrameOrigin,
+    JsonValue,
+    NormalizedException,
+    StackFrame,
+    Tags,
+    ThrownValue,
+    UserContext,
+)
 
 MAX_DEPTH = 16
 MAX_CHILDREN = 20
@@ -35,6 +46,16 @@ MAX_ATTRIBUTE_DEPTH = 8
 MAX_ATTRIBUTE_ITEMS = 100
 MAX_ATTRIBUTE_KEY_LENGTH = 200
 MAX_CONTEXT_LINES = 5
+MAX_TAGS = 20
+MAX_TAG_KEY_LENGTH = 200
+MAX_TAG_VALUE_LENGTH = 200
+MAX_USER_FIELD_LENGTH = 200
+MAX_BREADCRUMBS = 100
+MAX_BREADCRUMB_MESSAGE_LENGTH = 2_048
+MAX_BREADCRUMB_CATEGORY_LENGTH = 200
+MAX_BREADCRUMB_DATA_BYTES = 8_192
+MAX_BREADCRUMB_DATA_DEPTH = 4
+MAX_BREADCRUMB_DATA_ITEMS = 20
 
 _SENSITIVE = re.compile(
     r"authorization|cookie|dsn|pass(?:word|wd)?|secret|token"
@@ -405,14 +426,24 @@ def _scalar(value: object) -> JsonValue | None:
 
 
 def sanitize_json_value(
-    value: object, depth: int = 0, seen: frozenset[int] = frozenset()
+    value: object,
+    depth: int = 0,
+    seen: frozenset[int] = frozenset(),
+    *,
+    max_depth: int = MAX_ATTRIBUTE_DEPTH,
+    max_items: int = MAX_ATTRIBUTE_ITEMS,
 ) -> JsonValue:
-    """Coerce an arbitrary value into something the server will store."""
+    """Coerce an arbitrary value into something the server will store.
+
+    `max_depth`/`max_items` default to the bounds a report's own `attributes`
+    use; a breadcrumb's `data` reuses this same walker with tighter ones
+    instead of a second copy of it.
+    """
     scalar = _scalar(value)
     if scalar is not None or value is None:
         return scalar
 
-    if depth >= MAX_ATTRIBUTE_DEPTH:
+    if depth >= max_depth:
         return "[Truncated]"
 
     if isinstance(value, BaseException):
@@ -427,21 +458,23 @@ def sanitize_json_value(
 
     if isinstance(value, Mapping):
         result: dict[str, JsonValue] = {}
-        for key, item in islice(value.items(), MAX_ATTRIBUTE_ITEMS):
+        for key, item in islice(value.items(), max_items):
             name = key if isinstance(key, str) else str(key)
             if not name or len(name) > MAX_ATTRIBUTE_KEY_LENGTH:
                 continue
             if _is_sensitive(name):
                 result[name] = "[REDACTED]"
             else:
-                result[name] = sanitize_json_value(item, depth + 1, nested)
+                result[name] = sanitize_json_value(
+                    item, depth + 1, nested, max_depth=max_depth, max_items=max_items
+                )
         return result
 
     if isinstance(value, (list, tuple, set, frozenset)):
         items = sorted(value, key=repr) if isinstance(value, (set, frozenset)) else value
         return [
-            sanitize_json_value(item, depth + 1, nested)
-            for item in islice(items, MAX_ATTRIBUTE_ITEMS)
+            sanitize_json_value(item, depth + 1, nested, max_depth=max_depth, max_items=max_items)
+            for item in islice(items, max_items)
         ]
 
     return _representation(value)
@@ -469,6 +502,116 @@ def sanitize_attributes(
         result[name] = sanitize_json_value(value)
 
     return result or None
+
+
+# -- user, tags, breadcrumbs ----------------------------------------------
+
+
+def sanitize_user(user: UserContext | Mapping[str, object] | None) -> UserContext | None:
+    """Bound a user's `id`/`email`/`username`, dropping anything blank.
+
+    Returns None when nothing survives, so the key is omitted from the payload
+    rather than sent as an empty object — the same convention `sanitize_attributes`
+    already uses.
+    """
+    if user is None:
+        return None
+
+    result: UserContext = {}
+    identifier = user.get("id")
+    if isinstance(identifier, str) and identifier.strip():
+        result["id"] = truncate(identifier.strip(), MAX_USER_FIELD_LENGTH)
+    email = user.get("email")
+    if isinstance(email, str) and email.strip():
+        result["email"] = truncate(email.strip(), MAX_USER_FIELD_LENGTH)
+    username = user.get("username")
+    if isinstance(username, str) and username.strip():
+        result["username"] = truncate(username.strip(), MAX_USER_FIELD_LENGTH)
+
+    return result or None
+
+
+def sanitize_tags(tags: Mapping[str, object] | None) -> Tags | None:
+    """Bound a tag map to at most 20 string-to-string entries.
+
+    Keys and values are each trimmed and length-capped; an empty key or an
+    empty value after trimming is dropped rather than kept as a blank label.
+    """
+    if tags is None:
+        return None
+
+    result: Tags = {}
+    for key, value in tags.items():
+        if len(result) >= MAX_TAGS:
+            break
+        name = (key if isinstance(key, str) else str(key)).strip()
+        if not name or len(name) > MAX_TAG_KEY_LENGTH:
+            continue
+        text = (value if isinstance(value, str) else str(value)).strip()
+        if not text:
+            continue
+        result[name] = truncate(text, MAX_TAG_VALUE_LENGTH)
+
+    return result or None
+
+
+def sanitize_breadcrumb(breadcrumb: Breadcrumb | Mapping[str, object]) -> Breadcrumb:
+    """Bound one breadcrumb's fields.
+
+    `data` reuses `sanitize_json_value` with tighter limits than a report's own
+    `attributes`: a breadcrumb is one event on a trail, not a whole report's
+    context, so it stays small on purpose.
+    """
+    result: Breadcrumb = {}
+
+    timestamp = breadcrumb.get("timestamp")
+    if isinstance(timestamp, str) and timestamp:
+        result["timestamp"] = timestamp
+
+    message = breadcrumb.get("message")
+    if isinstance(message, str) and message.strip():
+        result["message"] = truncate(message.strip(), MAX_BREADCRUMB_MESSAGE_LENGTH)
+
+    category = breadcrumb.get("category")
+    if isinstance(category, str) and category.strip():
+        result["category"] = truncate(category.strip(), MAX_BREADCRUMB_CATEGORY_LENGTH)
+
+    level = breadcrumb.get("level")
+    if isinstance(level, str) and level in LOG_LEVELS:
+        result["level"] = level  # type: ignore[typeddict-item]
+
+    data = breadcrumb.get("data")
+    if isinstance(data, Mapping) and data:
+        sanitized = sanitize_json_value(
+            data, max_depth=MAX_BREADCRUMB_DATA_DEPTH, max_items=MAX_BREADCRUMB_DATA_ITEMS
+        )
+        if isinstance(sanitized, dict):
+            # A final safety clamp against the server's byte bound. The walker
+            # above already bounds depth and item count; this catches a bag
+            # that is still too big by weight alone (many short keys, say).
+            encoded = json.dumps(sanitized, ensure_ascii=False, separators=(",", ":"))
+            if len(encoded.encode("utf-8")) <= MAX_BREADCRUMB_DATA_BYTES:
+                result["data"] = sanitized
+
+    return result
+
+
+def sanitize_breadcrumbs(
+    breadcrumbs: Sequence[Breadcrumb | Mapping[str, object]] | None,
+) -> list[Breadcrumb] | None:
+    """Bound a breadcrumb trail to the newest 100, oldest first.
+
+    A true ring buffer is enforced where breadcrumbs are recorded
+    (`Client.add_breadcrumb`); this is the final clamp applied right before a
+    report is sent, matching how `sanitize_attributes` is the last word on an
+    attribute bag regardless of how it was assembled.
+    """
+    if breadcrumbs is None:
+        return None
+
+    trimmed = list(breadcrumbs)[-MAX_BREADCRUMBS:]
+    sanitized = [sanitize_breadcrumb(breadcrumb) for breadcrumb in trimmed]
+    return sanitized or None
 
 
 def normalize_category(category: Sequence[str] | None) -> list[str] | None:
