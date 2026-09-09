@@ -57,9 +57,9 @@ export const dashboardErrorReportSummarySchema = z
     byRuntime: z.record(z.string(), z.int().nonnegative()).meta({
       description: "Counts keyed by runtime.name.",
     }),
-    lastOccurredAt: z.iso.datetime().nullable().meta({
+    lastReceivedAt: z.iso.datetime().nullable().meta({
       description:
-        "occurredAt of the project's most recent error report ever received, or null if none has.",
+        "receivedAt of the project's most recent error report ever received, or null if none has.",
     }),
   })
   .strict()
@@ -71,9 +71,9 @@ export const dashboardErrorReportSummarySchema = z
 export const dashboardLogRecordSummarySchema = z
   .object({
     total: z.int().nonnegative().meta({ description: "Log records received in the window." }),
-    lastOccurredAt: z.iso.datetime().nullable().meta({
+    lastReceivedAt: z.iso.datetime().nullable().meta({
       description:
-        "occurredAt of the project's most recent log record ever received, or null if none has.",
+        "receivedAt of the project's most recent log record ever received, or null if none has.",
     }),
   })
   .strict()
@@ -85,9 +85,9 @@ export const dashboardLogRecordSummarySchema = z
 export const dashboardTraceSummarySchema = z
   .object({
     total: z.int().nonnegative().meta({ description: "Root spans received in the window." }),
-    lastOccurredAt: z.iso.datetime().nullable().meta({
+    lastReceivedAt: z.iso.datetime().nullable().meta({
       description:
-        "startedAt of the project's most recent root span ever received, or null if none has.",
+        "startedAt of the project's most recent root span, the closest a trace has to a receivedAt for this purpose, or null if none has arrived.",
     }),
   })
   .strict()

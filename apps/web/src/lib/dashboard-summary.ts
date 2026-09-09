@@ -24,12 +24,12 @@ const dashboardErrorReportSummarySchema = z.object({
   previousPeriodTotal: z.number().int().nonnegative(),
   byEnvironment: z.record(z.string(), z.number().int().nonnegative()),
   byRuntime: z.record(z.string(), z.number().int().nonnegative()),
-  lastOccurredAt: z.string().nullable(),
+  lastReceivedAt: z.string().nullable(),
 });
 
 const dashboardSignalSummarySchema = z.object({
   total: z.number().int().nonnegative(),
-  lastOccurredAt: z.string().nullable(),
+  lastReceivedAt: z.string().nullable(),
 });
 
 const dashboardSummarySchema = z.object({
