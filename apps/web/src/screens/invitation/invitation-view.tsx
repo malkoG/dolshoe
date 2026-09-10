@@ -86,7 +86,7 @@ export function InvitationView({
       )}
 
       {signedIn ? (
-        <form onSubmit={onAccept}>
+        <form onSubmit={onAccept ?? ((event) => event.preventDefault())}>
           <Button className="w-full" disabled={submitting} size="lg" type="submit">
             {submitting && <Spinner />}
             Accept invitation

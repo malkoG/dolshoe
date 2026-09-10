@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
 import {
@@ -43,6 +43,14 @@ describe("InvitationView named states", () => {
     expect(screen.getByText(INVALID_INVITATION_MESSAGE, { exact: false })).toBeTruthy();
     expect(screen.getByText(MISMATCHED_INVITATION_MESSAGE, { exact: false })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Continue with GitHub" })).toBeNull();
+  });
+
+  test("signedIn without a handler does not navigate away", () => {
+    render(<InvitationView {...invitationStates.signedIn()} />);
+
+    fireEvent.submit(screen.getByRole("button", { name: "Accept invitation" }).closest("form")!);
+
+    expect(screen.getByRole("heading", { name: INVITATION_TITLE })).toBeTruthy();
   });
 
   test("a refused accept is an alert, not a second silhouette", () => {
