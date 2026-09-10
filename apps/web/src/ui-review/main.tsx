@@ -31,6 +31,12 @@ import {
   logsScreenStateNames,
   logsScreenStates,
 } from "../screens/logs/logs-screen.states";
+import { OrgSettingsReview } from "../screens/org-settings/org-settings-chrome";
+import {
+  isOrgSettingsStateName,
+  orgSettingsStateNames,
+  orgSettingsStates,
+} from "../screens/org-settings/org-settings.states";
 import { ProjectSettingsReview } from "../screens/project-settings/project-settings-chrome";
 import {
   isProjectSettingsStateName,
@@ -60,9 +66,9 @@ import { ReviewFrame } from "./frame";
  * that surface runs, and the matching public view is the only thing that
  * paints. `surface` defaults to `exception-tree` so the first surface's URLs
  * keep working unchanged. A further surface is another `if` branch — do not
- * grow a registry until the duplication is obvious. Investigation and
- * project settings drop the review card so the sidebar and trail sit on
- * the page edge.
+ * grow a registry until the duplication is obvious. Investigation,
+ * project settings, and org settings drop the review card so the sidebar
+ * and trail sit on the page edge.
  */
 function stateFromSearch<Name extends string>(
   names: readonly Name[],
@@ -129,12 +135,18 @@ function view() {
     return <InvitationView {...invitationStates[state]()} />;
   }
 
+  if (surface === "org-settings") {
+    const state = stateFromSearch(orgSettingsStateNames, isOrgSettingsStateName);
+    return <OrgSettingsReview {...orgSettingsStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", or "invitation".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", or "org-settings".`,
   );
 }
 
-const fullPage = surface === "investigation" || surface === "project-settings";
+const fullPage =
+  surface === "investigation" || surface === "project-settings" || surface === "org-settings";
 
 createRoot(root).render(
   <StrictMode>
