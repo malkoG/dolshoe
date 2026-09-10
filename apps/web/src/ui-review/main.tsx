@@ -33,6 +33,12 @@ import {
   logsScreenStateNames,
   logsScreenStates,
 } from "../screens/logs/logs-screen.states";
+import { OrgProjectsReview } from "../screens/org-projects/org-chrome";
+import {
+  isOrgProjectsStateName,
+  orgProjectsStateNames,
+  orgProjectsStates,
+} from "../screens/org-projects/org-projects.states";
 import { OrgSettingsReview } from "../screens/org-settings/org-settings-chrome";
 import {
   isOrgSettingsStateName,
@@ -81,9 +87,9 @@ import { ReviewFrame } from "./frame";
  * paints. `surface` defaults to `exception-tree` so the first surface's URLs
  * keep working unchanged. A further surface is another `if` branch — do not
  * grow a registry until the duplication is obvious. Investigation,
- * project settings, org settings, and report detail drop the review card so
- * the sidebar and trail sit on the page edge. Overview and Alerts keep the
- * framed card their designer passes were locked against.
+ * project settings, org settings, report detail, and org projects drop the
+ * review card so the sidebar and trail sit on the page edge. Overview and
+ * Alerts keep the framed card their designer passes were locked against.
  */
 function stateFromSearch<Name extends string>(
   names: readonly Name[],
@@ -170,8 +176,13 @@ function view() {
     return <ReportDetail {...reportDetailStates[state]()} />;
   }
 
+  if (surface === "org-projects") {
+    const state = stateFromSearch(orgProjectsStateNames, isOrgProjectsStateName);
+    return <OrgProjectsReview {...orgProjectsStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", "org-settings", "overview", "alerts", or "report-detail".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", "org-settings", "overview", "alerts", "report-detail", or "org-projects".`,
   );
 }
 
@@ -179,7 +190,8 @@ const fullPage =
   surface === "investigation" ||
   surface === "project-settings" ||
   surface === "org-settings" ||
-  surface === "report-detail";
+  surface === "report-detail" ||
+  surface === "org-projects";
 
 createRoot(root).render(
   <StrictMode>
