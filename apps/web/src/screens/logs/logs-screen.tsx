@@ -76,9 +76,9 @@ const DENSITY_OPTIONS: ReadonlyArray<{ label: string; value: LogsDensity }> = [
  *
  * @remarks
  * Values in, pixels out. The route fetches; a construction test and a
- * silhouette inject a named state. The Figma trail is a private chrome
- * stub (`LogsChrome`) — PageShell already paints it live, so this view
- * must not.
+ * silhouette inject a named state. Sidebar and TopBar live on a private
+ * chrome stub (`LogsChrome`) — PageShell already paints them live, so
+ * this view must not.
  */
 export function LogsScreen(props: LogsScreenProps) {
   const levelFilter = props.mode === "live" ? "all" : props.level;

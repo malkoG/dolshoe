@@ -11,17 +11,23 @@ import { logsScreenStateNames, logsScreenStates } from "./logs-screen.states";
  * @remarks
  * This is the composition root that is not the route: no Vite host, no
  * session, no API. Named states render through `LogsReviewView` so the
- * photographed trail stays tied to the factory. The live route mounts
- * `LogsScreen` alone under PageShell.
+ * photographed Sidebar + TopBar stay tied to the factory. The live route
+ * mounts `LogsScreen` alone under PageShell.
  */
 describe("LogsScreen named states", () => {
   test("exports the states a silhouette can photograph", () => {
     expect(Object.keys(logsScreenStates)).toEqual([...logsScreenStateNames]);
   });
 
-  test("every named state photographs the Figma trail", () => {
+  test("every named state photographs the Figma sidebar and trail", () => {
     for (const name of logsScreenStateNames) {
       const { unmount } = render(<LogsReviewView {...logsScreenStates[name]()} />);
+
+      const sidebar = screen.getByRole("navigation", { name: "Sidebar" });
+      expect(sidebar.textContent).toContain("Overview");
+      expect(screen.getByLabelText("Switch project").textContent).toContain("checkout-api");
+      const current = sidebar.querySelector('[aria-current="page"]');
+      expect(current?.textContent).toContain("Logs");
 
       const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
       expect(trail.textContent).toContain("Acme Payments");
@@ -31,9 +37,10 @@ describe("LogsScreen named states", () => {
     }
   });
 
-  test("the public view alone does not paint a trail", () => {
+  test("the public view alone does not paint chrome", () => {
     render(<LogsScreen {...logsScreenStates.populated()} />);
 
+    expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 
