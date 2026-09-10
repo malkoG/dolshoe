@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
-import { TracesScreen } from "./traces-screen";
+import { tracesChromeTrail, TracesReviewSurface } from "./traces-chrome";
 import { tracesScreenStateNames, tracesScreenStates } from "./traces-screen.states";
 
 /**
@@ -18,8 +18,11 @@ describe("TracesScreen named states", () => {
   });
 
   test("empty offers setup when nothing has been exported", () => {
-    render(<TracesScreen {...tracesScreenStates.empty()} />);
+    render(<TracesReviewSurface {...tracesScreenStates.empty()} />);
 
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
+    expect(screen.getByText(tracesChromeTrail[0])).toBeTruthy();
+    expect(screen.getByText(tracesChromeTrail[1])).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Traces" })).toBeTruthy();
     expect(screen.getByText("No traces yet")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Set up reporting" })).toBeTruthy();
@@ -27,7 +30,7 @@ describe("TracesScreen named states", () => {
   });
 
   test("populated lists every designed kind and the failing pair", () => {
-    render(<TracesScreen {...tracesScreenStates.populated()} />);
+    render(<TracesReviewSurface {...tracesScreenStates.populated()} />);
 
     expect(screen.getByText("6 traces")).toBeTruthy();
     expect(screen.getByText("GET /checkout")).toBeTruthy();
@@ -48,7 +51,7 @@ describe("TracesScreen named states", () => {
   });
 
   test("error names the failure and offers a retry", () => {
-    render(<TracesScreen {...tracesScreenStates.error()} />);
+    render(<TracesReviewSurface {...tracesScreenStates.error()} />);
 
     expect(screen.getByText("Couldn't load traces")).toBeTruthy();
     expect(screen.getByText("The API did not answer.")).toBeTruthy();
@@ -56,14 +59,14 @@ describe("TracesScreen named states", () => {
   });
 
   test("inProgress says the list is still loading", () => {
-    render(<TracesScreen {...tracesScreenStates.inProgress()} />);
+    render(<TracesReviewSurface {...tracesScreenStates.inProgress()} />);
 
     expect(screen.getByText("Loading traces…")).toBeTruthy();
     expect(screen.getByText("Fetching the newest traces from the API.")).toBeTruthy();
   });
 
   test("a filter that matches nothing is an empty list, not a missing project", () => {
-    render(<TracesScreen {...tracesScreenStates.populated()} query="zzzz" />);
+    render(<TracesReviewSurface {...tracesScreenStates.populated()} query="zzzz" />);
 
     expect(screen.getByText("No matching traces")).toBeTruthy();
     expect(screen.getByText("Try another search.")).toBeTruthy();

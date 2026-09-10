@@ -100,9 +100,10 @@ function panelSummary(
  * Screen 24 — the traces list Figma paints under the project chrome.
  *
  * @remarks
- * The heading and the panel are this screen's. Sidebar, top bar, and the
- * project layout that wraps the route stay where they are; this file does
- * not restyle them and does not import `PageShell`.
+ * The heading and the panel are this screen's. The live route mounts this
+ * body under PageShell, which already paints the breadcrumb TopBar. The
+ * silhouette uses `TracesReviewChrome` so the photograph can show that
+ * trail without nesting a second bar on the route.
  */
 export function TracesScreen({
   errorDescription,

@@ -19,7 +19,7 @@ import {
   investigationStates,
   isInvestigationStateName,
 } from "../screens/investigation/investigation.states";
-import { TracesScreen } from "../screens/traces/traces-screen";
+import { TracesReviewSurface } from "../screens/traces/traces-chrome";
 import {
   isTracesScreenStateName,
   tracesScreenStateNames,
@@ -80,7 +80,7 @@ function view() {
 
   if (surface === "traces") {
     const state = stateFromSearch(tracesScreenStateNames, isTracesScreenStateName);
-    return <TracesScreen {...tracesScreenStates[state]()} />;
+    return <TracesReviewSurface {...tracesScreenStates[state]()} />;
   }
 
   throw new Error(
@@ -92,7 +92,7 @@ createRoot(root).render(
   <StrictMode>
     <ReviewFrame
       framed={surface !== "investigation" && surface !== "traces"}
-      inset={surface !== "investigation"}
+      inset={surface !== "investigation" && surface !== "traces"}
     >
       {view()}
     </ReviewFrame>
