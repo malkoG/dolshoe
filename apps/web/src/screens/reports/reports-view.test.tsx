@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
-import { ReportsView } from "./reports-view";
+import { ReportsNamedState } from "./reports-chrome";
 import { reportsViewStateNames, reportsViewStates } from "./reports-view.states";
 
 /**
@@ -12,14 +12,29 @@ import { reportsViewStateNames, reportsViewStates } from "./reports-view.states"
  * session, no API. If a factory and the view drift apart, the silhouette
  * would photograph a state the test no longer describes.
  */
+function breadcrumbTrail(): HTMLElement {
+  const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+  expect(trail.textContent).toMatch(/Acme Payments\s*\/\s*checkout-api\s*\/\s*Reports/);
+  return trail;
+}
+
 describe("ReportsView named states", () => {
   test("exports the states a silhouette can photograph", () => {
     expect(Object.keys(reportsViewStates)).toEqual([...reportsViewStateNames]);
   });
 
-  test("empty is the setup panel, not an empty table", () => {
-    render(<ReportsView {...reportsViewStates.empty()} />);
+  test("every named state photographs the Figma breadcrumb trail", () => {
+    for (const name of reportsViewStateNames) {
+      const { unmount } = render(<ReportsNamedState {...reportsViewStates[name]()} />);
+      expect(breadcrumbTrail()).toBeTruthy();
+      unmount();
+    }
+  });
 
+  test("empty is the setup panel, not an empty table", () => {
+    render(<ReportsNamedState {...reportsViewStates.empty()} />);
+
+    expect(breadcrumbTrail()).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Reports" })).toBeTruthy();
     expect(screen.getByText("Set up reporting")).toBeTruthy();
     expect(screen.getByText("Watching for the first event")).toBeTruthy();
@@ -32,8 +47,9 @@ describe("ReportsView named states", () => {
   });
 
   test("populated lists the Figma issues, services, and footer count", () => {
-    render(<ReportsView {...reportsViewStates.populated()} />);
+    render(<ReportsNamedState {...reportsViewStates.populated()} />);
 
+    expect(breadcrumbTrail()).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Reports" })).toBeTruthy();
     expect(screen.getByText("5 reports")).toBeTruthy();
     expect(screen.getByRole("link", { name: "TypeError" })).toBeTruthy();
@@ -52,8 +68,9 @@ describe("ReportsView named states", () => {
   });
 
   test("error names the failed load and offers a retry", () => {
-    render(<ReportsView {...reportsViewStates.error()} />);
+    render(<ReportsNamedState {...reportsViewStates.error()} />);
 
+    expect(breadcrumbTrail()).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Reports" })).toBeTruthy();
     expect(screen.getByText("Couldn't load error reports")).toBeTruthy();
     expect(screen.getByText("Something went wrong while loading error reports.")).toBeTruthy();

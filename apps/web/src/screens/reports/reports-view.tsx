@@ -166,8 +166,9 @@ function ReportsFilters({
  * @remarks
  * This is the public view: it receives values and paints them. The route is
  * the composition root that fetches; a construction test and a silhouette
- * are the other one. Sidebar and top bar stay in `PageShell` — this file
- * owns the heading and the panel Figma draws in the main column.
+ * are the other one. The live TopBar stays in `PageShell`. Named states wrap
+ * this view in the private `ReportsChrome` stub so the Figma trail is in
+ * the PNG without pulling shared layout into the route.
  */
 export function ReportsView({
   environment,

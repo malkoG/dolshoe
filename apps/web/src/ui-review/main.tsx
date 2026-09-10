@@ -25,7 +25,7 @@ import {
   projectSettingsStateNames,
   projectSettingsStates,
 } from "../screens/project-settings/project-settings.states";
-import { ReportsView } from "../screens/reports/reports-view";
+import { ReportsNamedState } from "../screens/reports/reports-chrome";
 import {
   isReportsViewStateName,
   reportsViewStateNames,
@@ -104,7 +104,7 @@ function view() {
 
   if (surface === "reports") {
     const state = stateFromSearch(reportsViewStateNames, isReportsViewStateName);
-    return <ReportsView {...reportsViewStates[state]()} />;
+    return <ReportsNamedState {...reportsViewStates[state]()} />;
   }
 
   throw new Error(
