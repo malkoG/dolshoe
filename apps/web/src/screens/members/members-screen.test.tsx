@@ -2,8 +2,14 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
 import { dateFormatter } from "../../lib/format";
-import { MembersScreen } from "./members-screen";
+import { MembersReview } from "./members-review";
 import { membersScreenStateNames, membersScreenStates } from "./members-screen.states";
+
+function trailLabels(): string[] {
+  const bar = document.querySelector("[data-slot=top-bar]");
+  if (bar == null) return [];
+  return [...bar.querySelectorAll("[data-slot=breadcrumb]")].map((node) => node.textContent ?? "");
+}
 
 /**
  * Constructs the public view from each named state.
@@ -19,8 +25,9 @@ describe("MembersScreen named states", () => {
   });
 
   test("populated shows the invite form, roster, and outstanding invitations", () => {
-    render(<MembersScreen {...membersScreenStates.populated()} />);
+    render(<MembersReview {...membersScreenStates.populated()} />);
 
+    expect(trailLabels()).toEqual(["Acme Payments", "Members"]);
     expect(screen.getByRole("heading", { name: "Members" })).toBeTruthy();
     expect(
       screen.getByText("Who can read this organization's projects, and who can change them."),
@@ -46,8 +53,9 @@ describe("MembersScreen named states", () => {
   });
 
   test("invitationLink keeps the roster behind a reveal dialog that cannot be a second copy", () => {
-    render(<MembersScreen {...membersScreenStates.invitationLink()} />);
+    render(<MembersReview {...membersScreenStates.invitationLink()} />);
 
+    expect(trailLabels()).toEqual(["Acme Payments", "Members"]);
     expect(screen.getByRole("heading", { name: "Send this link to @octocat" })).toBeTruthy();
     expect(screen.getByText(/stores only a hash of this link/)).toBeTruthy();
     expect(screen.getByText("Invitation")).toBeTruthy();
@@ -61,10 +69,11 @@ describe("MembersScreen named states", () => {
 
   test("compact photographs the long name that has to truncate", () => {
     const props = membersScreenStates.compact();
-    expect(props.className).toContain("w-[696px]");
+    expect(props.chrome.className).toContain("w-[768px]");
 
-    render(<MembersScreen {...props} />);
+    render(<MembersReview {...props} />);
 
+    expect(trailLabels()).toEqual(["Acme Payments", "Members"]);
     expect(screen.getByText("5 members")).toBeTruthy();
     expect(screen.getByText("Alexandra Fitzgerald-Whitmore")).toBeTruthy();
     expect(screen.getByText("@alexandra.fitzgerald-whitmore")).toBeTruthy();
@@ -72,10 +81,13 @@ describe("MembersScreen named states", () => {
 
   test("mobile photographs the wrap width, not a second set of labels", () => {
     const props = membersScreenStates.mobile();
-    expect(props.className).toContain("w-[360px]");
+    expect(props.chrome.className).toContain("w-[400px]");
+    expect(props.chrome.variant).toBe("mobile");
 
-    render(<MembersScreen {...props} />);
+    render(<MembersReview {...props} />);
 
+    expect(trailLabels()).toEqual(["Acme Payments", "Members"]);
+    expect(document.querySelector("[data-slot=sidebar-trigger-stub]")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Members" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByText("4 members")).toBeTruthy();
