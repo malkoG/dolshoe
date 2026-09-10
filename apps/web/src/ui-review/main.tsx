@@ -37,6 +37,12 @@ import {
   orgSettingsStateNames,
   orgSettingsStates,
 } from "../screens/org-settings/org-settings.states";
+import { ProjectOverview } from "../screens/overview/project-overview";
+import {
+  isProjectOverviewStateName,
+  projectOverviewStateNames,
+  projectOverviewStates,
+} from "../screens/overview/project-overview.states";
 import { ProjectSettingsReview } from "../screens/project-settings/project-settings-chrome";
 import {
   isProjectSettingsStateName,
@@ -68,7 +74,8 @@ import { ReviewFrame } from "./frame";
  * keep working unchanged. A further surface is another `if` branch — do not
  * grow a registry until the duplication is obvious. Investigation,
  * project settings, and org settings drop the review card so the sidebar
- * and trail sit on the page edge.
+ * and trail sit on the page edge. Overview keeps the framed card its
+ * designer pass was locked against.
  */
 function stateFromSearch<Name extends string>(
   names: readonly Name[],
@@ -140,8 +147,13 @@ function view() {
     return <OrgSettingsReview {...orgSettingsStates[state]()} />;
   }
 
+  if (surface === "overview") {
+    const state = stateFromSearch(projectOverviewStateNames, isProjectOverviewStateName);
+    return <ProjectOverview {...projectOverviewStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", or "org-settings".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", "org-settings", or "overview".`,
   );
 }
 
@@ -151,7 +163,12 @@ const fullPage =
 createRoot(root).render(
   <StrictMode>
     <ReviewFrame
-      fit={surface === "traces" || surface === "reports" || surface === "logs"}
+      fit={
+        surface === "traces" ||
+        surface === "reports" ||
+        surface === "logs" ||
+        surface === "overview"
+      }
       framed={!fullPage}
       inset={!fullPage}
     >

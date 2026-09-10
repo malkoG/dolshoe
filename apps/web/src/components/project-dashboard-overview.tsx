@@ -29,9 +29,16 @@ export interface ProjectDashboardOverviewProps {
   summary: ProjectDashboardSummary;
 }
 
+/** Figma's window line ("Sep 4, 2026") — `dateStyle: "medium"` varies by ICU. */
+const windowDateFormatter = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
 function formatWindowRange(summary: ProjectDashboardSummary): string {
-  const since = dateFormatter.format(new Date(summary.window.since));
-  const until = dateFormatter.format(new Date(summary.window.until));
+  const since = windowDateFormatter.format(new Date(summary.window.since));
+  const until = windowDateFormatter.format(new Date(summary.window.until));
   return `${since} – ${until}`;
 }
 
@@ -55,7 +62,7 @@ function TrendIndicator({ trend }: Readonly<{ trend: StatTrend }>) {
     trend.direction === "up" ? ChevronUp : trend.direction === "down" ? ChevronDown : null;
 
   return (
-    <p className={cn("mt-1 flex items-center gap-0.5 text-[11px]", TREND_TONE_CLASSES[trend.tone])}>
+    <p className={cn("flex items-center gap-1 text-meta", TREND_TONE_CLASSES[trend.tone])}>
       {Icon != null && <Icon aria-hidden="true" className="size-3" />}
       {trend.text}
     </p>
@@ -69,11 +76,11 @@ function StatCard({
 }: Readonly<{ label: string; total: number; trend?: StatTrend }>) {
   return (
     <Panel>
-      <PanelBar>
-        <PanelSummary>{label}</PanelSummary>
+      <PanelBar className="h-[52px] min-h-[52px] py-0 pr-3 pl-4">
+        <PanelSummary className="text-meta-strong font-semibold">{label}</PanelSummary>
       </PanelBar>
-      <div className="px-5 py-6">
-        <p className="text-2xl font-bold">{total.toLocaleString()}</p>
+      <div className="flex flex-col gap-1 p-6">
+        <p className="text-display tracking-[-0.5px]">{total.toLocaleString()}</p>
         {trend != null && <TrendIndicator trend={trend} />}
       </div>
     </Panel>
@@ -118,7 +125,7 @@ function BreakdownList({
   const entries = Object.entries(counts);
 
   if (entries.length === 0) {
-    return <p className="px-5 py-4 text-[13px] text-muted-foreground">{emptyLabel}</p>;
+    return <p className="px-4 py-4 text-body text-muted-foreground">{emptyLabel}</p>;
   }
 
   // A magnitude encoding, not an identity one — one hue, scaled by each row's
@@ -128,15 +135,15 @@ function BreakdownList({
   return (
     <ul className="divide-y divide-border">
       {entries.map(([key, count]) => (
-        <li className="relative px-5 py-2.5 text-[13px]" key={key}>
+        <li className="relative flex h-9 items-center px-4 text-body" key={key}>
           <div
             aria-hidden="true"
             className="absolute inset-y-0 left-0 bg-muted"
             style={{ width: `${(count / max) * 100}%` }}
           />
-          <div className="relative flex items-center justify-between">
+          <div className="relative flex w-full items-center justify-between">
             <span>{key}</span>
-            <span className="font-mono text-[11px] text-muted-foreground">{count}</span>
+            <span className="font-mono text-mono text-muted-foreground">{count}</span>
           </div>
         </li>
       ))}
@@ -192,21 +199,24 @@ function VolumeSeriesPanel({ summary }: Readonly<{ summary: ProjectDashboardSumm
 
   return (
     <Panel>
-      <PanelBar>
-        <PanelSummary>Daily volume</PanelSummary>
+      <PanelBar className="h-[52px] min-h-[52px] py-0 pr-3 pl-4">
+        <PanelSummary className="text-meta-strong font-semibold">Daily volume</PanelSummary>
       </PanelBar>
 
       {buckets.length === 0 ? (
-        <p className="px-5 py-4 text-[13px] text-muted-foreground">No data for this window yet.</p>
+        <p className="px-5 py-4 text-body text-muted-foreground">No data for this window yet.</p>
       ) : (
         <div className="px-5 py-4">
-          <div className="mb-3 flex items-center gap-4 font-mono text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span aria-hidden="true" className="inline-block size-2 rounded-full bg-brand" />
+          <div className="mb-3 flex items-center gap-4 font-mono text-badge tracking-[0.06em] text-muted-foreground uppercase">
+            <span className="flex items-center gap-1">
+              <span
+                aria-hidden="true"
+                className="inline-block size-2 rounded-full bg-chart-error"
+              />
               Error reports
             </span>
-            <span className="flex items-center gap-1.5">
-              <span aria-hidden="true" className="inline-block size-2 rounded-full bg-info" />
+            <span className="flex items-center gap-1">
+              <span aria-hidden="true" className="inline-block size-2 rounded-full bg-chart-logs" />
               Log records
             </span>
           </div>
@@ -220,7 +230,7 @@ function VolumeSeriesPanel({ summary }: Readonly<{ summary: ProjectDashboardSumm
             >
               <line
                 aria-hidden="true"
-                className="stroke-border"
+                className="stroke-chart-grid"
                 strokeWidth={1}
                 x1={0}
                 x2={CHART_WIDTH}
@@ -249,7 +259,7 @@ function VolumeSeriesPanel({ summary }: Readonly<{ summary: ProjectDashboardSumm
                         {bucket.errorReports > 0 && (
                           <path
                             aria-hidden="true"
-                            className="fill-brand"
+                            className="fill-chart-error"
                             d={roundedTopBarPath(
                               pairX,
                               baseline - errorHeight,
@@ -261,7 +271,7 @@ function VolumeSeriesPanel({ summary }: Readonly<{ summary: ProjectDashboardSumm
                         {bucket.logRecords > 0 && (
                           <path
                             aria-hidden="true"
-                            className="fill-info"
+                            className="fill-chart-logs"
                             d={roundedTopBarPath(
                               pairX + BAR_WIDTH + BAR_GAP,
                               baseline - logHeight,
@@ -300,18 +310,20 @@ function VolumeSeriesPanel({ summary }: Readonly<{ summary: ProjectDashboardSumm
 function BreakdownPanel({ summary }: Readonly<{ summary: ProjectDashboardSummary }>) {
   return (
     <Panel>
-      <PanelBar>
-        <PanelSummary>Error reports by environment and runtime</PanelSummary>
+      <PanelBar className="h-[52px] min-h-[52px] py-0 pr-3 pl-4">
+        <PanelSummary className="text-meta-strong font-semibold">
+          Error reports by environment and runtime
+        </PanelSummary>
       </PanelBar>
       <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
         <div>
-          <p className="px-5 pt-4 font-mono text-[9px] tracking-[0.08em] text-faint uppercase">
+          <p className="px-4 pt-3 pb-1 font-mono text-badge tracking-[0.06em] text-faint uppercase">
             Environment
           </p>
           <BreakdownList counts={summary.errorReports.byEnvironment} emptyLabel="No reports yet." />
         </div>
         <div>
-          <p className="px-5 pt-4 font-mono text-[9px] tracking-[0.08em] text-faint uppercase">
+          <p className="px-4 pt-3 pb-1 font-mono text-badge tracking-[0.06em] text-faint uppercase">
             Runtime
           </p>
           <BreakdownList counts={summary.errorReports.byRuntime} emptyLabel="No reports yet." />
@@ -348,15 +360,15 @@ function HealthRow({
   lastReceivedAt,
 }: Readonly<{ label: string; lastReceivedAt: string | null }>) {
   return (
-    <div className="flex items-center justify-between px-5 py-2.5 text-[13px]">
+    <div className="flex items-center justify-between gap-2 px-5 py-2 text-body">
       <span className="flex items-center gap-2">
         <StatusDot tone={healthTone(lastReceivedAt)} />
         {label}
       </span>
       {lastReceivedAt == null ? (
-        <span className="font-mono text-[11px] text-faint">Never</span>
+        <span className="font-mono text-mono text-faint">Never</span>
       ) : (
-        <time className="font-mono text-[11px] text-muted-foreground" dateTime={lastReceivedAt}>
+        <time className="font-mono text-mono text-muted-foreground" dateTime={lastReceivedAt}>
           {formatRelativeTime(lastReceivedAt)}
         </time>
       )}
@@ -366,9 +378,9 @@ function HealthRow({
 
 function HealthPanel({ summary }: Readonly<{ summary: ProjectDashboardSummary }>) {
   return (
-    <Panel>
-      <PanelBar>
-        <PanelSummary>Last event received</PanelSummary>
+    <Panel className="w-full max-w-[548px]">
+      <PanelBar className="h-[52px] min-h-[52px] py-0 pr-3 pl-4">
+        <PanelSummary className="text-meta-strong font-semibold">Last event received</PanelSummary>
       </PanelBar>
       <div className="divide-y divide-border">
         <HealthRow label="Error report" lastReceivedAt={summary.errorReports.lastReceivedAt} />
@@ -382,7 +394,7 @@ function HealthPanel({ summary }: Readonly<{ summary: ProjectDashboardSummary }>
 export function ProjectDashboardOverview({ summary }: ProjectDashboardOverviewProps) {
   return (
     <div className="flex flex-col gap-4">
-      <p className="font-mono text-[11px] text-muted-foreground">{formatWindowRange(summary)}</p>
+      <p className="font-mono text-mono text-muted-foreground">{formatWindowRange(summary)}</p>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <StatCard

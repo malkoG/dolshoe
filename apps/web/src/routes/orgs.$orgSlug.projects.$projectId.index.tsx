@@ -1,10 +1,9 @@
-import { DataState } from "@dolshoe/ui/components/data-state";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ProjectDashboardOverview } from "../components/project-dashboard-overview";
 import { describeError } from "../lib/api-request";
 import { fetchProjectDashboardSummary } from "../lib/dashboard-summary";
 import { useResource } from "../lib/use-resource";
+import { ProjectOverviewBody } from "../screens/overview/project-overview";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/")({
   staticData: { breadcrumb: "Overview" },
@@ -16,9 +15,10 @@ export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/")({
  * and traces, before a reader has picked any one of those sections to read.
  *
  * @remarks
- * This route is the composition root for `ProjectDashboardOverview` — the
- * only thing here that knows about `fetch` or the API client. The view
- * itself only ever sees a resolved `ProjectDashboardSummary`.
+ * Composition root for `ProjectOverviewBody`. The full Figma page — sidebar,
+ * top bar, "Overview" heading — lives on the public view photographed by
+ * silhouettes. This route only mounts the body: the frozen project layout
+ * already paints PageShell and the slug/name heading.
  */
 function ProjectOverview() {
   const { orgSlug, projectId } = Route.useParams();
@@ -29,28 +29,23 @@ function ProjectOverview() {
   );
 
   if (state.status === "loading") {
-    return (
-      <DataState
-        description="Fetching this project's recent activity."
-        kind="loading"
-        title="Loading dashboard…"
-      />
-    );
+    return <ProjectOverviewBody body={{ status: "loading" }} />;
   }
 
   if (state.status === "error") {
     return (
-      <DataState
-        description={describeError(
-          state.error,
-          "Something went wrong while loading the dashboard.",
-        )}
-        kind="error"
-        onRetry={reload}
-        title="Couldn't load the dashboard"
+      <ProjectOverviewBody
+        body={{
+          status: "error",
+          description: describeError(
+            state.error,
+            "Something went wrong while loading the dashboard.",
+          ),
+          onRetry: reload,
+        }}
       />
     );
   }
 
-  return <ProjectDashboardOverview summary={state.data} />;
+  return <ProjectOverviewBody body={{ status: "ready", summary: state.data }} />;
 }
