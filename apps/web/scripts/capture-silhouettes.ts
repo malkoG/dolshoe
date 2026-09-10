@@ -6,6 +6,7 @@ import { createServer } from "vite";
 
 import { exceptionTreeStateNames } from "../src/components/exception-tree.states.ts";
 import { projectDashboardOverviewStateNames } from "../src/components/project-dashboard-overview.states.ts";
+import { investigationStateNames } from "../src/screens/investigation/investigation.states.ts";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const outputDir = fileURLToPath(new URL("../.silhouettes", import.meta.url));
@@ -23,6 +24,7 @@ interface Surface {
 const SURFACES: Surface[] = [
   { name: "exception-tree", states: exceptionTreeStateNames },
   { name: "project-dashboard-overview", states: projectDashboardOverviewStateNames },
+  { name: "investigation", states: investigationStateNames },
 ];
 
 /**
@@ -61,6 +63,12 @@ async function main(): Promise<void> {
     });
 
     for (const surface of SURFACES) {
+      if (surface.name === "investigation") {
+        await page.setViewportSize({ width: 1440, height: 1106 });
+      } else {
+        await page.setViewportSize({ width: 1100, height: 720 });
+      }
+
       for (const name of surface.states) {
         await page.goto(new URL(`/?surface=${surface.name}&state=${name}`, address).href, {
           waitUntil: "networkidle",
