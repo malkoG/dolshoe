@@ -28,7 +28,11 @@ const DEFAULT_VIEWPORT = { width: 1100, height: 720 };
 const SURFACES: Surface[] = [
   { name: "exception-tree", states: exceptionTreeStateNames },
   { name: "project-dashboard-overview", states: projectDashboardOverviewStateNames },
-  { name: "investigation", states: investigationStateNames, viewport: { width: 1440, height: 1106 } },
+  {
+    name: "investigation",
+    states: investigationStateNames,
+    viewport: { width: 1440, height: 1106 },
+  },
   {
     name: "traces",
     states: tracesScreenStateNames,
