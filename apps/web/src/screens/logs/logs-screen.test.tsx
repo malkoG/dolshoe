@@ -23,7 +23,7 @@ describe("LogsScreen named states", () => {
     for (const name of logsScreenStateNames) {
       const { unmount } = render(<LogsReviewView {...logsScreenStates[name]()} />);
 
-      const sidebar = screen.getByRole("navigation", { name: "Sidebar" });
+      const sidebar = screen.getByRole("navigation", { name: "This project" });
       expect(sidebar.textContent).toContain("Overview");
       expect(screen.getByLabelText("Switch project").textContent).toContain("checkout-api");
       const current = sidebar.querySelector('[aria-current="page"]');
@@ -40,7 +40,7 @@ describe("LogsScreen named states", () => {
   test("the public view alone does not paint chrome", () => {
     render(<LogsScreen {...logsScreenStates.populated()} />);
 
-    expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "This project" })).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 

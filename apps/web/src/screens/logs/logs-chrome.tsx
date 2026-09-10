@@ -1,42 +1,57 @@
 import { Breadcrumb, BreadcrumbSeparator, TopBar } from "@dolshoe/ui/components/breadcrumb";
-import { OrgSwitcher, OrgSwitcherTrigger } from "@dolshoe/ui/components/org-switcher";
 import { ProjectSwitcher, ProjectSwitcherTrigger } from "@dolshoe/ui/components/project-switcher";
 import { Avatar, AvatarFallback } from "@dolshoe/ui/components/ui/avatar";
-import {
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarSeparator,
-} from "@dolshoe/ui/components/ui/sidebar";
+import { cn } from "@dolshoe/ui/lib/utils";
 import {
   Bell,
   Boxes,
   Building2,
-  ChevronsUpDown,
+  ChevronDown,
   CircleAlert,
   KeyRound,
   LayoutDashboard,
   ScrollText,
+  Search,
   Settings,
   Users,
   Waypoints,
 } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { LogsScreen, type LogsScreenProps } from "./logs-screen";
 
 /**
- * The trail Figma framed on both Logs screens — org / project / current page.
- * Photographed here; the live route reads the same labels from PageShell.
+ * Fixture values the silhouette chrome needs — org, project, and viewer.
+ *
+ * @remarks
+ * The live route does not mount this chrome (PageShell already paints it).
+ * These labels exist so a named state can photograph Figma 94:529 / 100:761
+ * without talking to the API.
  */
+export interface LogsChromeFixture {
+  orgInitial: string;
+  orgName: string;
+  projectInitial: string;
+  projectName: string;
+  viewerHandle: string;
+  viewerInitials: string;
+  viewerName: string;
+}
+
+export const logsFigmaChrome: LogsChromeFixture = {
+  orgInitial: "A",
+  orgName: "Acme Payments",
+  projectInitial: "C",
+  projectName: "checkout-api",
+  viewerHandle: "@kodingwarrior",
+  viewerInitials: "KW",
+  viewerName: "Koding Warrior",
+};
+
 export const FIGMA_LOGS_TRAIL = [
-  { label: "Acme Payments" },
-  { label: "checkout-api" },
+  { label: logsFigmaChrome.orgName },
+  { label: logsFigmaChrome.projectName },
   { label: "Logs" },
 ] as const;
 
@@ -44,137 +59,177 @@ export type LogsTrailCrumb = {
   label: string;
 };
 
-const PROJECT_NAV = [
-  { current: false, icon: LayoutDashboard, label: "Overview" },
-  { current: false, icon: CircleAlert, label: "Reports" },
-  { current: true, icon: ScrollText, label: "Logs" },
-  { current: false, icon: Waypoints, label: "Traces" },
-  { current: false, icon: Bell, label: "Alerts" },
-  { current: false, icon: KeyRound, label: "Tokens" },
-  { current: false, icon: Settings, label: "Settings" },
-] as const;
-
-const ORG_NAV = [
-  { icon: Boxes, label: "All projects" },
-  { icon: Users, label: "Members" },
-  { icon: Settings, label: "Settings" },
-  { icon: Building2, label: "Organizations" },
-] as const;
-
-/**
- * Private app chrome for Logs silhouettes: Sidebar + TopBar + body.
- *
- * @remarks
- * PageShell already paints this live. The shadcn `Sidebar` rail is `fixed` to
- * the viewport, which would escape the review card — so this stub lays the
- * same tokens out in a relative row. The live route must not render it.
- */
-export function LogsChrome({
-  children,
-  trail,
-}: Readonly<{ children: ReactNode; trail: readonly LogsTrailCrumb[] }>) {
-  const last = trail.length - 1;
-
+function SidebarNavItem({
+  active = false,
+  icon: Icon,
+  label,
+}: Readonly<{ active?: boolean; icon: LucideIcon; label: string }>) {
   return (
-    <SidebarProvider className="min-h-[720px]">
-      <div className="flex min-h-[720px] w-full">
-        <aside className="flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
-          <div className="flex flex-col gap-4 p-4">
-            <div className="flex items-center gap-2.5 px-1">
-              <OrgSwitcher>
-                <OrgSwitcherTrigger initial="A" />
-              </OrgSwitcher>
-              <span className="truncate text-[13px] font-bold">Acme Payments</span>
-            </div>
-            <ProjectSwitcher>
-              <ProjectSwitcherTrigger initial="C" name="checkout-api" />
-            </ProjectSwitcher>
-          </div>
-
-          <SidebarContent className="px-2">
-            <nav aria-label="Sidebar">
-              <SidebarGroup className="py-0">
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {PROJECT_NAV.map((item) => (
-                      <SidebarMenuItem key={`project:${item.label}`}>
-                        <SidebarMenuButton
-                          aria-current={item.current ? "page" : undefined}
-                          isActive={item.current}
-                        >
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-
-              <SidebarSeparator className="mx-2" />
-
-              <SidebarGroup className="py-0">
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {ORG_NAV.map((item) => (
-                      <SidebarMenuItem key={`org:${item.label}`}>
-                        <SidebarMenuButton>
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </nav>
-          </SidebarContent>
-
-          <SidebarFooter className="border-t border-sidebar-border p-3">
-            <div className="flex items-center gap-2.5 rounded-md p-2">
-              <Avatar className="size-8 rounded-lg">
-                <AvatarFallback className="rounded-lg bg-identity text-[10px] font-extrabold text-identity-foreground">
-                  KW
-                </AvatarFallback>
-              </Avatar>
-              <span className="flex min-w-0 flex-1 flex-col text-left">
-                <strong className="truncate text-[13px] font-bold">Koding Warrior</strong>
-                <span className="truncate text-[11px] text-sidebar-muted-foreground">
-                  @kodingwarrior
-                </span>
-              </span>
-              <ChevronsUpDown className="size-3.5 shrink-0 text-sidebar-muted-foreground" />
-            </div>
-          </SidebarFooter>
-        </aside>
-
-        <div className="flex min-w-0 flex-1 flex-col bg-background">
-          <TopBar
-            trail={
-              <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1">
-                {trail.map((crumb, index) => (
-                  <Fragment key={`${crumb.label}:${index}`}>
-                    {index > 0 && <BreadcrumbSeparator />}
-                    <Breadcrumb current={index === last}>{crumb.label}</Breadcrumb>
-                  </Fragment>
-                ))}
-              </nav>
-            }
-          />
-          <div className="flex flex-col gap-4 px-9 py-8">{children}</div>
-        </div>
-      </div>
-    </SidebarProvider>
+    <div
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-sm px-3 py-2",
+        active
+          ? "bg-sidebar-accent text-body-strong font-semibold text-sidebar-foreground"
+          : "text-body text-sidebar-muted-foreground",
+      )}
+      data-active={active ? "true" : undefined}
+    >
+      <Icon aria-hidden="true" className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1">{label}</span>
+    </div>
   );
 }
 
 /**
- * The composition root a construction test and a silhouette share: chrome
- * around the public view. The live route renders `LogsScreen` alone.
+ * Private copy of the Figma sidebar for this screen's silhouette.
+ *
+ * @remarks
+ * PageShell is frozen. This stub composes `@dolshoe/ui` switchers and lucide
+ * glyphs so the photograph matches frames 94:529 / 100:761 without editing
+ * the shared project layout. The live `Sidebar` rail is `fixed` and would
+ * escape the review card.
+ */
+export function LogsSidebar({ chrome }: Readonly<{ chrome: LogsChromeFixture }>) {
+  return (
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <div className="flex flex-col gap-4 overflow-hidden p-4">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <span
+            aria-hidden="true"
+            className="flex size-7 shrink-0 items-center justify-center rounded-md bg-brand text-body-strong font-semibold text-brand-on"
+          >
+            {chrome.orgInitial}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-meta-strong font-semibold text-sidebar-foreground">
+            {chrome.orgName}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 overflow-hidden px-2">
+        <div className="flex flex-col gap-1">
+          <ProjectSwitcher>
+            <ProjectSwitcherTrigger initial={chrome.projectInitial} name={chrome.projectName} />
+          </ProjectSwitcher>
+          <nav aria-label="This project">
+            <SidebarNavItem icon={LayoutDashboard} label="Overview" />
+            <SidebarNavItem icon={CircleAlert} label="Reports" />
+            <SidebarNavItem active icon={ScrollText} label="Logs" />
+            <SidebarNavItem icon={Waypoints} label="Traces" />
+            <SidebarNavItem icon={Bell} label="Alerts" />
+            <SidebarNavItem icon={KeyRound} label="Tokens" />
+            <SidebarNavItem icon={Settings} label="Settings" />
+          </nav>
+        </div>
+
+        <div aria-hidden="true" className="h-px w-[100px] bg-sidebar-border" />
+
+        <nav aria-label="Organization">
+          <SidebarNavItem icon={Boxes} label="All projects" />
+          <SidebarNavItem icon={Users} label="Members" />
+          <SidebarNavItem icon={Settings} label="Settings" />
+          <SidebarNavItem icon={Building2} label="Organizations" />
+        </nav>
+      </div>
+
+      <div className="min-h-px flex-1" />
+
+      <div className="flex items-center gap-2 overflow-hidden border-t border-sidebar-border p-3">
+        <Avatar className="size-8 rounded-lg bg-identity">
+          <AvatarFallback className="rounded-lg bg-identity font-mono text-badge tracking-[0.06em] text-identity-on uppercase">
+            {chrome.viewerInitials}
+          </AvatarFallback>
+        </Avatar>
+        <span className="flex min-w-0 flex-1 flex-col overflow-hidden text-meta leading-[18px]">
+          <span className="truncate font-semibold text-sidebar-foreground">
+            {chrome.viewerName}
+          </span>
+          <span className="truncate text-sidebar-muted-foreground">{chrome.viewerHandle}</span>
+        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className="size-3.5 shrink-0 text-sidebar-muted-foreground"
+        />
+      </div>
+    </aside>
+  );
+}
+
+/**
+ * Private TopBar trail for this screen — plain Breadcrumb text, no router.
+ */
+export function LogsTopBar({
+  chrome,
+  trail,
+}: Readonly<{ chrome: LogsChromeFixture; trail: readonly LogsTrailCrumb[] }>) {
+  const last = trail.length - 1;
+
+  return (
+    <TopBar
+      actions={
+        <>
+          <div className="flex items-center gap-2 overflow-hidden rounded-md border border-border bg-muted px-2 py-1">
+            <Search aria-hidden="true" className="size-3.5 text-faint" />
+            <span className="text-meta text-faint">Search</span>
+            <kbd className="rounded-[3px] border border-border bg-card px-1 font-mono text-mono text-faint">
+              ⌘K
+            </kbd>
+          </div>
+          <Avatar className="size-7 rounded-lg bg-identity">
+            <AvatarFallback className="rounded-lg bg-identity font-mono text-badge tracking-[0.06em] text-identity-on uppercase">
+              {chrome.viewerInitials}
+            </AvatarFallback>
+          </Avatar>
+        </>
+      }
+      trail={
+        <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1">
+          {trail.map((crumb, index) => (
+            <span className="flex items-center gap-1" key={`${crumb.label}:${index}`}>
+              {index > 0 && <BreadcrumbSeparator />}
+              <Breadcrumb current={index === last}>{crumb.label}</Breadcrumb>
+            </span>
+          ))}
+        </nav>
+      }
+    />
+  );
+}
+
+/**
+ * Sidebar + TopBar + body for the named-state photograph, not the live route.
+ *
+ * @remarks
+ * The Figma frames are 1440 × 960. Wrapping the body in this chrome on the
+ * logs route would nest a second shell under PageShell.
+ */
+export function LogsChrome({
+  children,
+  chrome = logsFigmaChrome,
+  trail = FIGMA_LOGS_TRAIL,
+}: Readonly<{
+  children: ReactNode;
+  chrome?: LogsChromeFixture;
+  trail?: readonly LogsTrailCrumb[];
+}>) {
+  return (
+    <div className="flex h-[960px] w-[1440px] overflow-hidden bg-background">
+      <LogsSidebar chrome={chrome} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <LogsTopBar chrome={chrome} trail={trail} />
+        <main className="min-h-0 flex-1 overflow-auto px-9 pt-[52px] pb-[52px]">{children}</main>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The composition the construction test and the silhouette harness share.
  */
 export function LogsReviewView(props: LogsScreenProps) {
   return (
-    <LogsChrome trail={FIGMA_LOGS_TRAIL}>
+    <LogsChrome>
       <LogsScreen {...props} />
     </LogsChrome>
   );
