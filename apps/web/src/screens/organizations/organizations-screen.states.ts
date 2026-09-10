@@ -1,8 +1,18 @@
-import {
-  ORGANIZATION_SLUG_CONFLICT,
-  type OrganizationsScreenOrganization,
-  type OrganizationsScreenProps,
+import type {
+  OrganizationsScreenOrganization,
+  OrganizationsScreenProps,
 } from "./organizations-screen";
+
+/**
+ * The slug-collision copy the create form shows after a 409.
+ *
+ * @remarks
+ * Lives here (a `.ts` factory file) so the silhouette harness can load the
+ * named states without resolving the `.tsx` view. The view and the route
+ * import the same string.
+ */
+export const ORGANIZATION_SLUG_CONFLICT =
+  "An organization with that slug already exists. Try a different name.";
 
 /**
  * Named states for the organizations list.

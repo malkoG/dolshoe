@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
-import { ORGANIZATION_SLUG_CONFLICT, OrganizationsScreen } from "./organizations-screen";
+import { OrganizationsScreen } from "./organizations-screen";
 import {
+  ORGANIZATION_SLUG_CONFLICT,
   organizationsScreenStateNames,
   organizationsScreenStates,
 } from "./organizations-screen.states";

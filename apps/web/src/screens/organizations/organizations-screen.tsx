@@ -10,16 +10,6 @@ import { Spinner } from "@dolshoe/ui/components/ui/spinner";
 import { ArrowLeft, Boxes, LogOut, Plus } from "lucide-react";
 import type { FormEvent } from "react";
 
-/**
- * The slug-collision copy the create form shows after a 409.
- *
- * @remarks
- * The route maps that status onto this string; the view only paints it. Keeping
- * the words here means the named-state factory and the live form cannot drift.
- */
-export const ORGANIZATION_SLUG_CONFLICT =
-  "An organization with that slug already exists. Try a different name.";
-
 export interface OrganizationsScreenOrganization {
   createdLabel: string;
   href: string;

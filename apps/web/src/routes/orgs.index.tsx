@@ -5,10 +5,8 @@ import { ApiError, describeError } from "../lib/api-request";
 import { dateFormatter } from "../lib/format";
 import { createOrganization } from "../lib/organizations";
 import { useSignOut } from "../lib/use-sign-out";
-import {
-  ORGANIZATION_SLUG_CONFLICT,
-  OrganizationsScreen,
-} from "../screens/organizations/organizations-screen";
+import { OrganizationsScreen } from "../screens/organizations/organizations-screen";
+import { ORGANIZATION_SLUG_CONFLICT } from "../screens/organizations/organizations-screen.states";
 
 export const Route = createFileRoute("/orgs/")({
   beforeLoad: ({ context, location }) => {
