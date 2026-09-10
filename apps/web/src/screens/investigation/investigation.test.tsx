@@ -34,6 +34,7 @@ describe("Investigation named states", () => {
     expect(screen.queryByText("1 parent not received")).toBeNull();
     expect(screen.getByText("Pending span")).toBeTruthy();
     expect(screen.getByText("missing span")).toBeTruthy();
+    expect(screen.getByText("Event attached; span not received yet")).toBeTruthy();
     expect(screen.getByText("Parent span not received")).toBeTruthy();
     expect(screen.getByText("orphan.handler")).toBeTruthy();
     expect(screen.getByText("parent pending")).toBeTruthy();
@@ -55,6 +56,7 @@ describe("Investigation named states", () => {
     expect(screen.getByText("process.item[2]")).toBeTruthy();
     expect(screen.queryByText("Incomplete — parents may still arrive")).toBeNull();
     expect(screen.queryByText("Pending span")).toBeNull();
+    expect(screen.queryByText("Event attached; span not received yet")).toBeNull();
     expect(screen.queryByText("Parent span not received")).toBeNull();
   });
 
