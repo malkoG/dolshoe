@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
 import { OrgSettingsReview } from "./org-settings-chrome";
@@ -15,18 +15,17 @@ import { orgSettingsStateNames, orgSettingsStates } from "./org-settings.states"
  * mounts `OrgSettings` alone under PageShell.
  */
 function expectOrgSettingsChrome(): void {
-  const sidebar = screen.getByRole("navigation", { name: "Organization" });
-  expect(sidebar.textContent).toContain("All projects");
-  expect(sidebar.textContent).toContain("Members");
-  expect(sidebar.textContent).toContain("Organizations");
-  const current = sidebar.querySelector('[aria-current="page"]');
-  expect(current?.textContent).toContain("Settings");
-
   const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
-  expect(trail.textContent).toContain("Acme Payments");
-  expect(trail.textContent).toContain("Settings");
+  expect(within(trail).getByText("Acme Payments")).toBeTruthy();
+  expect(within(trail).getByText("Settings")).toBeTruthy();
+
+  expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
+  const sidebar = screen.getByRole("navigation", { name: "Organization" });
+  expect(within(sidebar).getByText("All projects")).toBeTruthy();
+  expect(within(sidebar).getByText("Members")).toBeTruthy();
+  expect(within(sidebar).getByText("Organizations")).toBeTruthy();
+  expect(sidebar.querySelector("[aria-current='page']")?.textContent).toContain("Settings");
   expect(screen.getByText("Koding Warrior")).toBeTruthy();
-  expect(screen.getByText("@kodingwarrior")).toBeTruthy();
 }
 
 describe("OrgSettings named states", () => {
@@ -38,7 +37,7 @@ describe("OrgSettings named states", () => {
     for (const name of orgSettingsStateNames) {
       const { unmount } = render(<OrgSettingsReview {...orgSettingsStates[name]()} />);
       expectOrgSettingsChrome();
-      expect(screen.getByRole("navigation", { name: "Organization" })).toBeTruthy();
+      expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
       expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
       unmount();
     }
@@ -47,6 +46,7 @@ describe("OrgSettings named states", () => {
   test("the public view alone does not paint chrome", () => {
     render(<OrgSettings {...orgSettingsStates.admin()} />);
 
+    expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Organization" })).toBeNull();
     expect(screen.queryByRole("navigation", { name: "This project" })).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();

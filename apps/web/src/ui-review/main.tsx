@@ -66,9 +66,9 @@ import { ReviewFrame } from "./frame";
  * that surface runs, and the matching public view is the only thing that
  * paints. `surface` defaults to `exception-tree` so the first surface's URLs
  * keep working unchanged. A further surface is another `if` branch — do not
- * grow a registry until the duplication is obvious. Investigation and
- * project settings drop the review card so the sidebar and trail sit on
- * the page edge.
+ * grow a registry until the duplication is obvious. Investigation,
+ * project settings, and org settings drop the review card so the sidebar
+ * and trail sit on the page edge.
  */
 function stateFromSearch<Name extends string>(
   names: readonly Name[],
@@ -145,17 +145,13 @@ function view() {
   );
 }
 
-const fullPage = surface === "investigation" || surface === "project-settings";
+const fullPage =
+  surface === "investigation" || surface === "project-settings" || surface === "org-settings";
 
 createRoot(root).render(
   <StrictMode>
     <ReviewFrame
-      fit={
-        surface === "traces" ||
-        surface === "reports" ||
-        surface === "logs" ||
-        surface === "org-settings"
-      }
+      fit={surface === "traces" || surface === "reports" || surface === "logs"}
       framed={!fullPage}
       inset={!fullPage}
     >
