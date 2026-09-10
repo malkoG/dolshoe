@@ -1,12 +1,14 @@
-import { Alert, AlertDescription } from "@dolshoe/ui/components/ui/alert";
-import { Button } from "@dolshoe/ui/components/ui/button";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Github } from "lucide-react";
+import { useState } from "react";
 
-import { AuthCard } from "../components/auth-card";
-import { MockSignIn } from "../components/mock-sign-in";
-import { githubSignInUrl } from "../lib/session";
+import { SignInRefused, githubSignInUrl, mockSignIn } from "../lib/session";
 import { describeRefusal } from "../lib/sign-in-refusals";
+import {
+  LOGIN_PRIVACY_NOTE,
+  LOGIN_TITLE,
+  LOGIN_UNCLAIMED_BODY,
+  LoginView,
+} from "../screens/login/login-view";
 
 /**
  * Only a path on this site is accepted, so a crafted `?redirect=` cannot bounce
@@ -36,6 +38,12 @@ export const Route = createFileRoute("/login")({
   component: Login,
 });
 
+function describeMockFailure(error: unknown): string {
+  if (error instanceof SignInRefused) return describeRefusal(error.code);
+  if (error instanceof Error) return error.message;
+  return "Something went wrong while signing in.";
+}
+
 function Login() {
   const search = Route.useSearch();
   const { instanceClaimed, githubSignInConfigured, mockLoginAvailable } =
@@ -46,57 +54,51 @@ function Login() {
   const signInHref = githubSignInUrl({ redirect: search.redirect });
   const refusal = search.error == null ? undefined : describeRefusal(search.error);
 
+  const [login, setLogin] = useState("dev");
+  const [submitting, setSubmitting] = useState(false);
+  const [mockError, setMockError] = useState<string | undefined>(undefined);
+
+  async function submitMock(): Promise<void> {
+    if (submitting) return;
+
+    setSubmitting(true);
+    setMockError(undefined);
+    try {
+      const { organizationSlug } = await mockSignIn({ login });
+
+      // A full navigation rather than a router one, for the same reason the
+      // GitHub callback lands as a navigation: the root load has to run again to
+      // pick up the session this just established.
+      window.location.assign(
+        organizationSlug == null ? (search.redirect ?? "/") : `/orgs/${organizationSlug}/projects`,
+      );
+    } catch (cause) {
+      setMockError(describeMockFailure(cause));
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <AuthCard title="Sign in to Dolshoe">
-      {!instanceClaimed && (
-        <p className="text-[13px] text-muted-foreground" role="status">
-          This instance has no accounts yet. The first GitHub account to sign in becomes the owner
-          of its default organization.
-        </p>
-      )}
-
-      {refusal != null && (
-        <Alert role="alert" variant="destructive">
-          <AlertDescription>{refusal}</AlertDescription>
-        </Alert>
-      )}
-
-      {githubSignInConfigured ? (
-        <>
-          {/*
-            A plain anchor, not a Button-wrapped router link: the flow leaves
-            this origin entirely.
-          */}
-          <Button asChild size="lg">
-            <a href={signInHref}>
-              <Github />
-              Continue with GitHub
-            </a>
-          </Button>
-          <p className="text-[11px] text-muted-foreground">
-            Dolshoe reads your GitHub profile and verified email address. It asks for no access to
-            your repositories.
-          </p>
-        </>
-      ) : (
-        !mockLoginAvailable && (
-          <Alert role="alert">
-            <AlertDescription>
-              GitHub sign-in is not configured on this instance, so there is no way in yet. An
-              operator needs to set <code className="font-mono">GITHUB_CLIENT_ID</code>,{" "}
-              <code className="font-mono">GITHUB_CLIENT_SECRET</code>, and{" "}
-              <code className="font-mono">GITHUB_CALLBACK_URL</code>.
-            </AlertDescription>
-          </Alert>
-        )
-      )}
-
-      {/*
-        Below whichever of the two branches above rendered, and shown even when
-        no OAuth app is configured — skipping that setup is the entire point of
-        running with the flag on.
-      */}
-      {mockLoginAvailable && <MockSignIn redirect={search.redirect} />}
-    </AuthCard>
+    <LoginView
+      body={instanceClaimed ? undefined : LOGIN_UNCLAIMED_BODY}
+      githubSignInHref={githubSignInConfigured ? signInHref : undefined}
+      mockSignIn={
+        mockLoginAvailable
+          ? {
+              login,
+              submitting,
+              error: mockError,
+              onLoginChange: setLogin,
+              onSubmit: () => {
+                void submitMock();
+              },
+            }
+          : undefined
+      }
+      note={githubSignInConfigured ? LOGIN_PRIVACY_NOTE : undefined}
+      refusal={refusal}
+      title={LOGIN_TITLE}
+      unconfigured={!githubSignInConfigured && !mockLoginAvailable}
+    />
   );
 }

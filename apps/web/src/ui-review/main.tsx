@@ -27,6 +27,12 @@ import {
   invitationStates,
   isInvitationStateName,
 } from "../screens/invitation/invitation-view.states";
+import { LoginView } from "../screens/login/login-view";
+import {
+  isLoginViewStateName,
+  loginViewStateNames,
+  loginViewStates,
+} from "../screens/login/login-view.states";
 import { LogsReviewView } from "../screens/logs/logs-chrome";
 import {
   isLogsScreenStateName,
@@ -96,7 +102,7 @@ import { ReviewFrame } from "./frame";
  * project settings, org settings, report detail, org projects, and tokens
  * drop the review card so the sidebar and trail sit on the page edge.
  * Overview and Alerts keep the framed card their designer passes were
- * locked against.
+ * locked against. Login stays framed and outside PageShell, like invitation.
  */
 function stateFromSearch<Name extends string>(
   names: readonly Name[],
@@ -163,6 +169,11 @@ function view() {
     return <InvitationView {...invitationStates[state]()} />;
   }
 
+  if (surface === "login") {
+    const state = stateFromSearch(loginViewStateNames, isLoginViewStateName);
+    return <LoginView {...loginViewStates[state]()} />;
+  }
+
   if (surface === "org-settings") {
     const state = stateFromSearch(orgSettingsStateNames, isOrgSettingsStateName);
     return <OrgSettingsReview {...orgSettingsStates[state]()} />;
@@ -194,7 +205,7 @@ function view() {
   }
 
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", "org-settings", "overview", "alerts", "report-detail", "org-projects", or "tokens".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", "login", "org-settings", "overview", "alerts", "report-detail", "org-projects", or "tokens".`,
   );
 }
 
