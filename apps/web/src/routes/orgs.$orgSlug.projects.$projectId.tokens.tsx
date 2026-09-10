@@ -1,4 +1,5 @@
 import { DataState } from "@dolshoe/ui/components/data-state";
+import { ListRowLink, ListRowMain, ListRowMeta } from "@dolshoe/ui/components/list-row";
 import { Panel, PanelBar, PanelControls, PanelSummary } from "@dolshoe/ui/components/panel";
 import { SecretField } from "@dolshoe/ui/components/secret-field";
 import { StatusBadge } from "@dolshoe/ui/components/status-badge";
@@ -113,58 +114,60 @@ function TokenRow({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-4 last:border-b-0">
-      <div className="min-w-0">
+    <ListRowLink className="border-b border-border last:border-b-0">
+      <ListRowMain>
         <strong className="block truncate text-[13px] font-bold">{token.name}</strong>
         <span className="font-mono text-[10px] text-muted-foreground">dsh_{token.prefix}…</span>
-      </div>
+      </ListRowMain>
 
-      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
-        <span>Created {dateTimeFormatter.format(new Date(token.createdAt))}</span>
-        <span aria-hidden="true">·</span>
-        <span>
-          {token.lastUsedAt == null
-            ? "Never used"
-            : `Last used ${dateTimeFormatter.format(new Date(token.lastUsedAt))}`}
+      <ListRowMeta className="gap-x-3 text-[11px] text-muted-foreground">
+        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          <span>Created {dateTimeFormatter.format(new Date(token.createdAt))}</span>
+          <span aria-hidden="true">·</span>
+          <span>
+            {token.lastUsedAt == null
+              ? "Never used"
+              : `Last used ${dateTimeFormatter.format(new Date(token.lastUsedAt))}`}
+          </span>
         </span>
-      </div>
 
-      {token.revokedAt != null ? (
-        <StatusBadge tone="danger">
-          Revoked {dateTimeFormatter.format(new Date(token.revokedAt))}
-        </StatusBadge>
-      ) : (
-        administers && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button size="sm" type="button" variant="outline">
-                Revoke
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Revoke “{token.name}”?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Anything still reporting with this token stops being accepted immediately. This
-                  cannot be undone — issue a new token to replace it.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep</AlertDialogCancel>
-                <AlertDialogAction
-                  disabled={revoking}
-                  onClick={() => void revoke()}
-                  variant="destructive"
-                >
-                  {revoking && <Spinner />}
-                  Revoke token
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )
-      )}
-    </div>
+        {token.revokedAt != null ? (
+          <StatusBadge tone="danger">
+            Revoked {dateTimeFormatter.format(new Date(token.revokedAt))}
+          </StatusBadge>
+        ) : (
+          administers && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" type="button" variant="outline">
+                  Revoke
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Revoke “{token.name}”?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Anything still reporting with this token stops being accepted immediately. This
+                    cannot be undone — issue a new token to replace it.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={revoking}
+                    onClick={() => void revoke()}
+                    variant="destructive"
+                  >
+                    {revoking && <Spinner />}
+                    Revoke token
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )
+        )}
+      </ListRowMeta>
+    </ListRowLink>
   );
 }
 

@@ -1,5 +1,6 @@
 import { CheckboxPill } from "@dolshoe/ui/components/checkbox-pill";
 import { DataState } from "@dolshoe/ui/components/data-state";
+import { ListRow } from "@dolshoe/ui/components/list-row";
 import {
   Panel,
   PanelBar,
@@ -142,7 +143,7 @@ function Traces() {
         {state.status === "ready" && filteredTraces.length > 0 && (
           <ul>
             {filteredTraces.map((trace) => (
-              <li className="border-b border-border last:border-b-0" key={trace.traceId}>
+              <ListRow key={trace.traceId}>
                 <Link
                   className="grid grid-cols-1 items-start gap-x-4 gap-y-2 px-5 py-4 transition-colors hover:bg-muted sm:grid-cols-[66px_minmax(0,1fr)_auto_auto_16px] sm:items-center"
                   params={{ orgSlug, projectId, traceId: trace.traceId }}
@@ -186,7 +187,7 @@ function Traces() {
 
                   <ChevronRight className="hidden size-4 text-faint sm:block" />
                 </Link>
-              </li>
+              </ListRow>
             ))}
           </ul>
         )}

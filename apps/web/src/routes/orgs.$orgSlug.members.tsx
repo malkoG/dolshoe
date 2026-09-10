@@ -1,4 +1,5 @@
 import { DataState } from "@dolshoe/ui/components/data-state";
+import { ListRowLink, ListRowMain, ListRowMeta } from "@dolshoe/ui/components/list-row";
 import { PageHeading } from "@dolshoe/ui/components/page-heading";
 import { Panel, PanelBar, PanelSummary } from "@dolshoe/ui/components/panel";
 import { SecretField } from "@dolshoe/ui/components/secret-field";
@@ -252,18 +253,15 @@ function Members() {
 
           {state.status === "ready" &&
             members.map((member) => (
-              <div
-                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-4 last:border-b-0"
-                key={member.userId}
-              >
-                <div className="min-w-0">
+              <ListRowLink className="border-b border-border last:border-b-0" key={member.userId}>
+                <ListRowMain>
                   <strong className="block truncate text-[13px] font-bold">{member.name}</strong>
                   <span className="font-mono text-[10px] text-muted-foreground">
                     {member.githubLogin == null ? member.email : `@${member.githubLogin}`}
                   </span>
-                </div>
+                </ListRowMain>
 
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                <ListRowMeta className="gap-2 text-[11px] text-muted-foreground">
                   <span>Joined {dateFormatter.format(new Date(member.joinedAt))}</span>
                   {administers && member.userId !== session.viewer?.id ? (
                     <>
@@ -287,8 +285,8 @@ function Members() {
                   ) : (
                     <StatusBadge>{member.role.toLowerCase()}</StatusBadge>
                   )}
-                </div>
-              </div>
+                </ListRowMeta>
+              </ListRowLink>
             ))}
         </div>
       </Panel>
@@ -302,20 +300,17 @@ function Members() {
           </PanelBar>
 
           {pending.map((invitation) => (
-            <div
-              className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-4 last:border-b-0"
-              key={invitation.id}
-            >
-              <div className="min-w-0">
+            <ListRowLink className="border-b border-border last:border-b-0" key={invitation.id}>
+              <ListRowMain>
                 <strong className="block truncate text-[13px] font-bold">
                   @{invitation.githubLogin}
                 </strong>
                 <span className="font-mono text-[10px] text-muted-foreground">
                   Invited by {invitation.invitedBy}
                 </span>
-              </div>
+              </ListRowMain>
 
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+              <ListRowMeta className="gap-2 text-[11px] text-muted-foreground">
                 <StatusBadge>{invitation.role.toLowerCase()}</StatusBadge>
                 <span>Expires {dateFormatter.format(new Date(invitation.expiresAt))}</span>
                 <Button
@@ -326,8 +321,8 @@ function Members() {
                 >
                   Withdraw
                 </Button>
-              </div>
-            </div>
+              </ListRowMeta>
+            </ListRowLink>
           ))}
         </Panel>
       )}
