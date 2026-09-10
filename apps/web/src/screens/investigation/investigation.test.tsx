@@ -1,8 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
 import { InvestigationView } from "./investigation";
 import { investigationStateNames, investigationStates } from "./investigation.states";
+
+function expectFigmaTrail(current: string) {
+  const nav = screen.getByRole("navigation", { name: "Breadcrumb" });
+  expect(within(nav).getByText("Acme Payments")).toBeTruthy();
+  expect(within(nav).getByText("checkout-api")).toBeTruthy();
+  expect(within(nav).getByText("Traces")).toBeTruthy();
+  expect(within(nav).getByText(current)).toBeTruthy();
+}
 
 /**
  * Constructs the public view from each named state.
@@ -21,6 +29,7 @@ describe("Investigation named states", () => {
     render(<InvestigationView {...investigationStates.incomplete()} />);
 
     expect(screen.getByRole("heading", { name: "Investigation" })).toBeTruthy();
+    expectFigmaTrail("Investigation 4f2a…9c1e");
     expect(screen.getByText("incomplete")).toBeTruthy();
     expect(screen.getByText("1 parent not received")).toBeTruthy();
     expect(screen.getByText("Parent span not received")).toBeTruthy();
@@ -36,6 +45,7 @@ describe("Investigation named states", () => {
   test("truncated names the cap and keeps the tree as spans only", () => {
     render(<InvestigationView {...investigationStates.truncated()} />);
 
+    expectFigmaTrail("Investigation 9c1e…4f2a");
     expect(screen.getByText("2,000 of 2,413 spans")).toBeTruthy();
     expect(
       screen.getByText(
@@ -53,7 +63,15 @@ describe("Investigation named states", () => {
     render(<InvestigationView {...investigationStates.loading()} />);
 
     expect(screen.getByRole("heading", { name: "Investigation" })).toBeTruthy();
+    expectFigmaTrail("Investigation");
     expect(screen.getByText("Loading trace…")).toBeTruthy();
     expect(screen.getByText("Fetching this trace's spans from the API.")).toBeTruthy();
+  });
+
+  test("omitting trail leaves the breadcrumb to PageShell", () => {
+    render(<InvestigationView status="loading" />);
+
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Investigation" })).toBeTruthy();
   });
 });

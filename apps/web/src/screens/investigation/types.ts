@@ -98,12 +98,29 @@ export interface Investigation {
   pendingParents: readonly PendingParentSlot[];
 }
 
+/**
+ * One step of the Investigation location trail.
+ *
+ * @remarks
+ * Named-state factories pass the Figma crumbs so the silhouette photographs
+ * them. The live route omits `trail` — PageShell already paints the same
+ * steps from route staticData.
+ */
+export interface InvestigationCrumb {
+  label: string;
+  current?: boolean;
+}
+
+type InvestigationTrailProp = {
+  trail?: readonly InvestigationCrumb[];
+};
+
 export type InvestigationViewProps =
-  | { status: "loading" }
-  | {
+  | ({ status: "loading" } & InvestigationTrailProp)
+  | ({
       status: "ready";
       investigation: Investigation;
       expandedSpanId: string | null;
       onToggleSpan?: (spanId: string) => void;
       onOpenReport?: (reportId: string) => void;
-    };
+    } & InvestigationTrailProp);

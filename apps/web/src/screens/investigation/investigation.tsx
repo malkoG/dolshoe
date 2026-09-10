@@ -1,15 +1,18 @@
 import { DataState } from "@dolshoe/ui/components/data-state";
 import { PageHeading } from "@dolshoe/ui/components/page-heading";
 import { PanelFooter, PanelFooterNote } from "@dolshoe/ui/components/panel";
+import type { ReactNode } from "react";
 
 import { ErrorAttach } from "./error-attach";
 import { InvestigationHeader } from "./investigation-header";
+import { InvestigationTrail } from "./investigation-trail";
 import { LogAttach } from "./log-attach";
 import { PendingSpanSlot } from "./pending-span-slot";
 import { SpanDetails } from "./span-details";
 import { SpanRow } from "./span-row";
 import type {
   Investigation,
+  InvestigationCrumb,
   InvestigationSpan,
   InvestigationViewProps,
   PendingParentSlot,
@@ -38,6 +41,21 @@ function treeRows(investigation: Investigation): TreeRow[] {
   return rows;
 }
 
+function InvestigationBody({
+  children,
+  trail,
+}: Readonly<{ children: ReactNode; trail?: readonly InvestigationCrumb[] }>) {
+  const stack = <div className="flex flex-col gap-4">{children}</div>;
+  if (trail == null || trail.length === 0) return stack;
+
+  return (
+    <div className="flex flex-col">
+      <InvestigationTrail crumbs={trail} />
+      <div className="p-8">{stack}</div>
+    </div>
+  );
+}
+
 /**
  * The public Investigation view.
  *
@@ -49,26 +67,30 @@ function treeRows(investigation: Investigation): TreeRow[] {
  * The tree walks spans and derived pending-parent slots. Errors and logs are
  * rendered under the span they attached to. There is no `Span | Error | Log`
  * union for a row to switch on.
+ *
+ * `trail` is optional. Named states pass the Figma crumbs so a silhouette
+ * can photograph them. The live route omits it; PageShell already paints
+ * the same steps.
  */
 export function InvestigationView(props: InvestigationViewProps) {
   if (props.status === "loading") {
     return (
-      <div className="flex flex-col gap-4">
+      <InvestigationBody trail={props.trail}>
         <PageHeading className="mb-0">Investigation</PageHeading>
         <DataState
           description="Fetching this trace's spans from the API."
           kind="loading"
           title="Loading trace…"
         />
-      </div>
+      </InvestigationBody>
     );
   }
 
-  const { investigation, expandedSpanId, onOpenReport, onToggleSpan } = props;
+  const { investigation, expandedSpanId, onOpenReport, onToggleSpan, trail } = props;
   const rows = treeRows(investigation);
 
   return (
-    <div className="flex flex-col gap-4">
+    <InvestigationBody trail={trail}>
       <InvestigationHeader investigation={investigation} />
 
       <div className="flex flex-col gap-1">
@@ -117,6 +139,6 @@ export function InvestigationView(props: InvestigationViewProps) {
             : "Nested by parent, oldest first"}
         </PanelFooterNote>
       </PanelFooter>
-    </div>
+    </InvestigationBody>
   );
 }

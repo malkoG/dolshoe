@@ -1,4 +1,19 @@
-import type { Investigation, InvestigationSpan, InvestigationViewProps } from "./types";
+import { formatTraceChip } from "./format";
+import type {
+  Investigation,
+  InvestigationCrumb,
+  InvestigationSpan,
+  InvestigationViewProps,
+} from "./types";
+
+function figmaTrail(currentLabel: string): InvestigationCrumb[] {
+  return [
+    { label: "Acme Payments" },
+    { label: "checkout-api" },
+    { label: "Traces" },
+    { label: currentLabel, current: true },
+  ];
+}
 
 /**
  * Named states for Investigation.
@@ -188,6 +203,7 @@ function incomplete(): InvestigationViewProps {
     status: "ready",
     investigation,
     expandedSpanId: authorize.spanId,
+    trail: figmaTrail(`Investigation ${formatTraceChip(INCOMPLETE_TRACE_ID)}`),
   };
 }
 
@@ -247,11 +263,12 @@ function truncated(): InvestigationViewProps {
       spans: [root, ...items],
     },
     expandedSpanId: null,
+    trail: figmaTrail(`Investigation ${formatTraceChip(TRUNCATED_TRACE_ID)}`),
   };
 }
 
 function loading(): InvestigationViewProps {
-  return { status: "loading" };
+  return { status: "loading", trail: figmaTrail("Investigation") };
 }
 
 export const investigationStates = {
