@@ -31,6 +31,12 @@ import {
   logsScreenStateNames,
   logsScreenStates,
 } from "../screens/logs/logs-screen.states";
+import { OrgSettings } from "../screens/org-settings/org-settings";
+import {
+  isOrgSettingsStateName,
+  orgSettingsStateNames,
+  orgSettingsStates,
+} from "../screens/org-settings/org-settings.states";
 import { ProjectSettingsReview } from "../screens/project-settings/project-settings-chrome";
 import {
   isProjectSettingsStateName,
@@ -129,8 +135,13 @@ function view() {
     return <InvitationView {...invitationStates[state]()} />;
   }
 
+  if (surface === "org-settings") {
+    const state = stateFromSearch(orgSettingsStateNames, isOrgSettingsStateName);
+    return <OrgSettings {...orgSettingsStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", or "invitation".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", or "org-settings".`,
   );
 }
 

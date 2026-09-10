@@ -9,6 +9,7 @@ import { projectDashboardOverviewStateNames } from "../src/components/project-da
 import { investigationStateNames } from "../src/screens/investigation/investigation.states.ts";
 import { invitationStateNames } from "../src/screens/invitation/invitation-view.states.ts";
 import { logsScreenStateNames } from "../src/screens/logs/logs-screen.states.ts";
+import { orgSettingsStateNames } from "../src/screens/org-settings/org-settings.states.ts";
 import { projectSettingsStateNames } from "../src/screens/project-settings/project-settings.states.ts";
 import { reportsViewStateNames } from "../src/screens/reports/reports-view.states.ts";
 import { tracesScreenStateNames } from "../src/screens/traces/traces-screen.states.ts";
@@ -61,6 +62,7 @@ const SURFACES: Surface[] = [
     viewport: { width: 1600, height: 1120 },
   },
   { name: "invitation", states: invitationStateNames },
+  { name: "org-settings", states: orgSettingsStateNames },
 ];
 
 /**
