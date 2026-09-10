@@ -1,6 +1,8 @@
 import { cn } from "@dolshoe/ui/lib/utils";
 import type { ReactNode } from "react";
 
+import type { ReviewPaper } from "./surfaces";
+
 /**
  * The paper a silhouette is photographed on.
  *
@@ -9,24 +11,19 @@ import type { ReactNode } from "react";
  * the application's stylesheet so the tokens in `@dolshoe/ui` are the ones
  * that paint, and it stops there.
  *
- * `framed` is the default because ExceptionTree and the dashboard are a
- * single panel. Investigation already is a stack of cards — wrapping it
- * again would photograph a second border the design does not have. Project
- * settings is a full Sidebar + TopBar + body page; a card around that
- * chrome reads as a panel. Report detail is the same shape.
- *
- * `inset` is the default paper margin. Full-page surfaces drop it so the
- * sidebar and breadcrumb TopBar sit flush the way Figma draws the page.
- *
- * `fit` shrinks the card to the view's width. Traces photographs a 1440×960
- * layout chrome; without it the card stretches to the capture viewport.
+ * `panel` is the default: a padded review card for a single widget, or for
+ * Login / Invitation which have no PageShell. `framed-fit` is that card
+ * shrunk to a 1440×960 private-chrome board. `full-page` drops the card so
+ * Sidebar + TopBar sit flush the way Figma draws those screens.
  */
 export function ReviewFrame({
   children,
-  fit = false,
-  framed = true,
-  inset = true,
-}: Readonly<{ children: ReactNode; fit?: boolean; framed?: boolean; inset?: boolean }>) {
+  paper = "panel",
+}: Readonly<{ children: ReactNode; paper?: ReviewPaper }>) {
+  const inset = paper !== "full-page";
+  const framed = paper !== "full-page";
+  const fit = paper === "framed-fit";
+
   return (
     <div className={inset ? "min-h-screen p-8" : "min-h-screen"} data-review-root>
       {framed ? (

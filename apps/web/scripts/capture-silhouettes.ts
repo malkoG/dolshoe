@@ -4,21 +4,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { createServer } from "vite";
 
-import { exceptionTreeStateNames } from "../src/components/exception-tree.states.ts";
-import { projectDashboardOverviewStateNames } from "../src/components/project-dashboard-overview.states.ts";
-import { alertsStateNames } from "../src/screens/alerts/alerts.states.ts";
-import { investigationStateNames } from "../src/screens/investigation/investigation.states.ts";
-import { invitationStateNames } from "../src/screens/invitation/invitation-view.states.ts";
-import { loginViewStateNames } from "../src/screens/login/login-view.states.ts";
-import { logsScreenStateNames } from "../src/screens/logs/logs-screen.states.ts";
-import { orgProjectsStateNames } from "../src/screens/org-projects/org-projects.states.ts";
-import { orgSettingsStateNames } from "../src/screens/org-settings/org-settings.states.ts";
-import { projectOverviewStateNames } from "../src/screens/overview/project-overview.states.ts";
-import { projectSettingsStateNames } from "../src/screens/project-settings/project-settings.states.ts";
-import { reportDetailStateNames } from "../src/screens/report-detail/report-detail.states.ts";
-import { reportsViewStateNames } from "../src/screens/reports/reports-view.states.ts";
-import { tokensScreenStateNames } from "../src/screens/tokens/tokens-screen.states.ts";
-import { tracesScreenStateNames } from "../src/screens/traces/traces-screen.states.ts";
+import { screenshotOf, SURFACES, viewportFor } from "../src/ui-review/surfaces.ts";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const outputDir = fileURLToPath(new URL("../.silhouettes", import.meta.url));
@@ -28,88 +14,14 @@ function say(message: string): void {
   process.stdout.write(`${message}\n`);
 }
 
-interface Surface {
-  name: string;
-  screenshot?: "root" | "page";
-  states: readonly string[];
-  stateViewports?: Record<string, { width: number; height: number }>;
-  viewport?: { width: number; height: number };
-}
-
-const DEFAULT_VIEWPORT = { width: 1100, height: 720 };
-
-const SURFACES: Surface[] = [
-  { name: "exception-tree", states: exceptionTreeStateNames },
-  { name: "project-dashboard-overview", states: projectDashboardOverviewStateNames },
-  {
-    name: "investigation",
-    states: investigationStateNames,
-    viewport: { width: 1440, height: 1106 },
-  },
-  {
-    name: "traces",
-    states: tracesScreenStateNames,
-    // Wide enough for Figma 1440×960 plus the review frame's padding.
-    viewport: { width: 1600, height: 1120 },
-  },
-  {
-    name: "project-settings",
-    states: projectSettingsStateNames,
-    viewport: { width: 1440, height: 960 },
-  },
-  {
-    name: "reports",
-    states: reportsViewStateNames,
-    // Wide enough for Figma 1440×960 plus the review frame's padding.
-    viewport: { width: 1600, height: 1120 },
-  },
-  {
-    name: "logs",
-    states: logsScreenStateNames,
-    // Wide enough for Figma 1440×960 plus the review frame's padding.
-    viewport: { width: 1600, height: 1120 },
-  },
-  { name: "invitation", states: invitationStateNames },
-  { name: "login", states: loginViewStateNames },
-  {
-    name: "org-settings",
-    states: orgSettingsStateNames,
-    viewport: { width: 1440, height: 960 },
-  },
-  {
-    name: "overview",
-    states: projectOverviewStateNames,
-    // Wide enough for Figma 1440×960 plus the review frame's padding.
-    viewport: { width: 1600, height: 1120 },
-  },
-  { name: "alerts", states: alertsStateNames, viewport: { width: 1440, height: 960 } },
-  {
-    name: "report-detail",
-    states: reportDetailStateNames,
-    viewport: { width: 1440, height: 1132 },
-  },
-  {
-    name: "org-projects",
-    states: orgProjectsStateNames,
-    viewport: { width: 1440, height: 960 },
-    stateViewports: {
-      compact: { width: 1024, height: 960 },
-    },
-  },
-  {
-    name: "tokens",
-    screenshot: "page",
-    states: tokensScreenStateNames,
-    viewport: { width: 1440, height: 1006 },
-  },
-];
-
 /**
  * Photograph each named state of every registered surface.
  *
  * @remarks
  * This is a generator, not a pixel oracle. It writes gitignored PNGs for a
  * reviewer to attach; it does not compare them to a committed golden.
+ * Viewports come from `surfaces.ts` so they stay locked to the same paper
+ * the harness mounts.
  */
 async function main(): Promise<void> {
   await mkdir(outputDir, { recursive: true });
@@ -135,22 +47,20 @@ async function main(): Promise<void> {
 
   try {
     const page = await browser.newPage({
-      viewport: DEFAULT_VIEWPORT,
+      viewport: { width: 1100, height: 720 },
       deviceScaleFactor: 1,
     });
 
     for (const surface of SURFACES) {
       for (const name of surface.states) {
-        await page.setViewportSize(
-          surface.stateViewports?.[name] ?? surface.viewport ?? DEFAULT_VIEWPORT,
-        );
+        await page.setViewportSize(viewportFor(surface, name));
         await page.goto(new URL(`/?surface=${surface.name}&state=${name}`, address).href, {
           waitUntil: "networkidle",
         });
         const root = page.locator("[data-review-root]");
         await root.waitFor({ state: "visible" });
         const dest = `${outputDir}/${surface.name}.${name}.png`;
-        if (surface.screenshot === "page") {
+        if (screenshotOf(surface) === "page") {
           await page.screenshot({ path: dest, animations: "disabled" });
         } else {
           await root.screenshot({ path: dest, animations: "disabled" });
