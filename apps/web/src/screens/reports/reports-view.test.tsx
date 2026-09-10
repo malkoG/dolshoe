@@ -12,7 +12,7 @@ import { reportsViewStateNames, reportsViewStates } from "./reports-view.states"
  * session, no API. If a factory and the view drift apart, the silhouette
  * would photograph a state the test no longer describes.
  */
-function figmaChrome(): void {
+function figmaChrome(): HTMLElement {
   expect(screen.getAllByText("Acme Payments").length).toBeGreaterThan(0);
   expect(screen.getAllByText("checkout-api").length).toBeGreaterThan(0);
   expect(screen.getByText("Koding Warrior")).toBeTruthy();
@@ -25,6 +25,7 @@ function figmaChrome(): void {
   expect(reportsNav?.textContent).toMatch(/Reports/);
   const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
   expect(trail.textContent).toMatch(/Acme Payments\s*\/\s*checkout-api\s*\/\s*Reports/);
+  return trail;
 }
 
 describe("ReportsView named states", () => {
@@ -35,7 +36,7 @@ describe("ReportsView named states", () => {
   test("every named state photographs the Figma sidebar, trail, and body", () => {
     for (const name of reportsViewStateNames) {
       const { unmount } = render(<ReportsNamedState {...reportsViewStates[name]()} />);
-      figmaChrome();
+      expect(figmaChrome()).toBeTruthy();
       unmount();
     }
   });
