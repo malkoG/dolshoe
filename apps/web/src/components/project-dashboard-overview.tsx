@@ -29,9 +29,16 @@ export interface ProjectDashboardOverviewProps {
   summary: ProjectDashboardSummary;
 }
 
+/** Figma's window line ("Sep 4, 2026") — `dateStyle: "medium"` varies by ICU. */
+const windowDateFormatter = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
 function formatWindowRange(summary: ProjectDashboardSummary): string {
-  const since = dateFormatter.format(new Date(summary.window.since));
-  const until = dateFormatter.format(new Date(summary.window.until));
+  const since = windowDateFormatter.format(new Date(summary.window.since));
+  const until = windowDateFormatter.format(new Date(summary.window.until));
   return `${since} – ${until}`;
 }
 

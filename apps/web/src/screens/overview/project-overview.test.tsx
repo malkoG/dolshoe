@@ -17,6 +17,7 @@ describe("ProjectOverview named states", () => {
     expect(screen.getAllByText("checkout-api").length).toBeGreaterThan(0);
     expect(screen.getByText("Koding Warrior")).toBeTruthy();
     expect(screen.getByText("@kodingwarrior")).toBeTruthy();
+    expect(screen.getByText("Sep 4, 2026 – Sep 10, 2026")).toBeTruthy();
     expect(screen.getByText("1,284")).toBeTruthy();
     expect(screen.getByText("48,910")).toBeTruthy();
     expect(screen.getByText("3,207")).toBeTruthy();

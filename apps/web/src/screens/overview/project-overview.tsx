@@ -30,6 +30,7 @@ export function ProjectOverviewBody({ body }: Readonly<{ body: ProjectOverviewBo
   if (body.status === "loading") {
     return (
       <DataState
+        className="flex-none"
         description="Fetching this project's recent activity."
         kind="loading"
         title="Loading dashboard…"
@@ -40,6 +41,7 @@ export function ProjectOverviewBody({ body }: Readonly<{ body: ProjectOverviewBo
   if (body.status === "error") {
     return (
       <DataState
+        className="flex-none"
         description={body.description}
         kind="error"
         onRetry={body.onRetry}
@@ -66,9 +68,11 @@ export function ProjectOverview({ body, chrome }: ProjectOverviewProps) {
       <OverviewSidebar chrome={chrome} />
       <div className="flex min-w-0 flex-1 flex-col">
         <OverviewTopBar chrome={chrome} />
-        <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-9 pt-[52px] pb-[52px]">
-          <PageHeading className="mb-0">Overview</PageHeading>
-          <ProjectOverviewBody body={body} />
+        <main className="min-h-0 flex-1 overflow-auto px-9 pt-[52px] pb-[52px]">
+          <div className="flex flex-col gap-4">
+            <PageHeading className="mb-0">Overview</PageHeading>
+            <ProjectOverviewBody body={body} />
+          </div>
         </main>
       </div>
     </div>
