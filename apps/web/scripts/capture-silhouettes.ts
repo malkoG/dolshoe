@@ -10,6 +10,7 @@ import { investigationStateNames } from "../src/screens/investigation/investigat
 import { invitationStateNames } from "../src/screens/invitation/invitation-view.states.ts";
 import { logsScreenStateNames } from "../src/screens/logs/logs-screen.states.ts";
 import { orgSettingsStateNames } from "../src/screens/org-settings/org-settings.states.ts";
+import { projectOverviewStateNames } from "../src/screens/overview/project-overview.states.ts";
 import { projectSettingsStateNames } from "../src/screens/project-settings/project-settings.states.ts";
 import { reportsViewStateNames } from "../src/screens/reports/reports-view.states.ts";
 import { tracesScreenStateNames } from "../src/screens/traces/traces-screen.states.ts";
@@ -66,6 +67,12 @@ const SURFACES: Surface[] = [
     name: "org-settings",
     states: orgSettingsStateNames,
     viewport: { width: 1440, height: 960 },
+  },
+  {
+    name: "overview",
+    states: projectOverviewStateNames,
+    // Wide enough for Figma 1440×960 plus the review frame's padding.
+    viewport: { width: 1600, height: 1120 },
   },
 ];
 
