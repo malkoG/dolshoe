@@ -7,6 +7,7 @@ import { createServer } from "vite";
 import { exceptionTreeStateNames } from "../src/components/exception-tree.states.ts";
 import { projectDashboardOverviewStateNames } from "../src/components/project-dashboard-overview.states.ts";
 import { investigationStateNames } from "../src/screens/investigation/investigation.states.ts";
+import { tracesScreenStateNames } from "../src/screens/traces/traces-screen.states.ts";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const outputDir = fileURLToPath(new URL("../.silhouettes", import.meta.url));
@@ -25,6 +26,7 @@ const SURFACES: Surface[] = [
   { name: "exception-tree", states: exceptionTreeStateNames },
   { name: "project-dashboard-overview", states: projectDashboardOverviewStateNames },
   { name: "investigation", states: investigationStateNames },
+  { name: "traces", states: tracesScreenStateNames },
 ];
 
 /**

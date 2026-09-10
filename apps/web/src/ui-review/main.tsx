@@ -19,6 +19,12 @@ import {
   investigationStates,
   isInvestigationStateName,
 } from "../screens/investigation/investigation.states";
+import { TracesScreen } from "../screens/traces/traces-screen";
+import {
+  isTracesScreenStateName,
+  tracesScreenStateNames,
+  tracesScreenStates,
+} from "../screens/traces/traces-screen.states";
 import "../styles.css";
 import { ReviewFrame } from "./frame";
 
@@ -29,8 +35,8 @@ import { ReviewFrame } from "./frame";
  * Playwright opens this page with `?surface=&state=`, the named factory of
  * that surface runs, and the matching public view is the only thing that
  * paints. `surface` defaults to `exception-tree` so the first surface's URLs
- * keep working unchanged. A third surface is another `if` branch — do not
- * grow a registry until a fourth caller has made the duplication obvious.
+ * keep working unchanged. A further surface is another `if` branch — do not
+ * grow a registry until the duplication is obvious.
  */
 function stateFromSearch<Name extends string>(
   names: readonly Name[],
@@ -72,14 +78,22 @@ function view() {
     return <InvestigationView {...investigationStates[state]()} />;
   }
 
+  if (surface === "traces") {
+    const state = stateFromSearch(tracesScreenStateNames, isTracesScreenStateName);
+    return <TracesScreen {...tracesScreenStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", or "investigation".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", or "traces".`,
   );
 }
 
 createRoot(root).render(
   <StrictMode>
-    <ReviewFrame framed={surface !== "investigation"} inset={surface !== "investigation"}>
+    <ReviewFrame
+      framed={surface !== "investigation" && surface !== "traces"}
+      inset={surface !== "investigation"}
+    >
       {view()}
     </ReviewFrame>
   </StrictMode>,
