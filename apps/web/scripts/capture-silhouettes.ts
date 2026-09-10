@@ -10,6 +10,7 @@ import { alertsStateNames } from "../src/screens/alerts/alerts.states.ts";
 import { investigationStateNames } from "../src/screens/investigation/investigation.states.ts";
 import { invitationStateNames } from "../src/screens/invitation/invitation-view.states.ts";
 import { logsScreenStateNames } from "../src/screens/logs/logs-screen.states.ts";
+import { orgProjectsStateNames } from "../src/screens/org-projects/org-projects.states.ts";
 import { orgSettingsStateNames } from "../src/screens/org-settings/org-settings.states.ts";
 import { projectOverviewStateNames } from "../src/screens/overview/project-overview.states.ts";
 import { projectSettingsStateNames } from "../src/screens/project-settings/project-settings.states.ts";
@@ -28,6 +29,7 @@ function say(message: string): void {
 interface Surface {
   name: string;
   states: readonly string[];
+  stateViewports?: Record<string, { width: number; height: number }>;
   viewport?: { width: number; height: number };
 }
 
@@ -82,6 +84,14 @@ const SURFACES: Surface[] = [
     states: reportDetailStateNames,
     viewport: { width: 1440, height: 1132 },
   },
+  {
+    name: "org-projects",
+    states: orgProjectsStateNames,
+    viewport: { width: 1440, height: 960 },
+    stateViewports: {
+      compact: { width: 1024, height: 960 },
+    },
+  },
 ];
 
 /**
@@ -120,8 +130,10 @@ async function main(): Promise<void> {
     });
 
     for (const surface of SURFACES) {
-      await page.setViewportSize(surface.viewport ?? DEFAULT_VIEWPORT);
       for (const name of surface.states) {
+        await page.setViewportSize(
+          surface.stateViewports?.[name] ?? surface.viewport ?? DEFAULT_VIEWPORT,
+        );
         await page.goto(new URL(`/?surface=${surface.name}&state=${name}`, address).href, {
           waitUntil: "networkidle",
         });
