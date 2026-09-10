@@ -31,7 +31,7 @@ describe("MembersScreen named states", () => {
     expect(screen.getByText("4 members")).toBeTruthy();
     expect(screen.getByText("Koding Warrior")).toBeTruthy();
     expect(screen.getByText("@kodingwarrior")).toBeTruthy();
-    expect(screen.getByText("owner")).toBeTruthy();
+    expect(document.querySelector("[data-slot=status-badge]")?.textContent).toBe("owner");
     expect(screen.getByText("Mina Park")).toBeTruthy();
     expect(screen.getByText("ops-bot@acme.example")).toBeTruthy();
     expect(
