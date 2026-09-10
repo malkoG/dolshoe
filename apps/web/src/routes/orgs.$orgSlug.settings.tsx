@@ -11,7 +11,10 @@ import { PageShell } from "../components/page-shell";
 import { ApiError, describeError } from "../lib/api-request";
 import { canAdminister, leaveOrganization, updateOrganization } from "../lib/organizations";
 
-export const Route = createFileRoute("/orgs/$orgSlug/settings")({ component: Settings });
+export const Route = createFileRoute("/orgs/$orgSlug/settings")({
+  staticData: { breadcrumb: "Settings" },
+  component: Settings,
+});
 
 function Settings() {
   const { orgSlug } = Route.useParams();

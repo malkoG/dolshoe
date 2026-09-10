@@ -20,6 +20,12 @@ export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId")({
       return { projects: [] };
     }
   },
+  staticData: {
+    breadcrumb: ({ loaderData, params }) => {
+      const { projects } = loaderData as { projects: Project[] };
+      return projects.find((candidate) => candidate.id === params.projectId)?.name ?? "…";
+    },
+  },
   component: ProjectLayout,
 });
 

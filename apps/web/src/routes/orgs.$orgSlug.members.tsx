@@ -42,7 +42,10 @@ import {
 import type { IssuedInvitation, MembershipRole } from "../lib/organizations";
 import { useResource } from "../lib/use-resource";
 
-export const Route = createFileRoute("/orgs/$orgSlug/members")({ component: Members });
+export const Route = createFileRoute("/orgs/$orgSlug/members")({
+  staticData: { breadcrumb: "Members" },
+  component: Members,
+});
 
 const ROLES: MembershipRole[] = ["OWNER", "ADMIN", "MEMBER"];
 
