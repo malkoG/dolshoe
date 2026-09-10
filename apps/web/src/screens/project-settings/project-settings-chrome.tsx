@@ -97,8 +97,11 @@ export function ProjectSettingsChrome({
   projectName?: string;
 }>) {
   return (
-    <div className="flex min-h-[720px] w-full">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
+    <div className="flex min-h-screen w-full">
+      <aside
+        aria-label="Sidebar"
+        className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar"
+      >
         <div className="flex flex-col gap-4 p-4">
           <div className="flex items-center gap-2 overflow-hidden">
             <OrgSwitcher>

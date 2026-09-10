@@ -10,6 +10,7 @@ function expectSettingsChrome(): void {
   expect(within(trail).getByText("checkout-api")).toBeTruthy();
   expect(within(trail).getByText("Settings")).toBeTruthy();
 
+  expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
   const sidebar = screen.getByRole("navigation", { name: "Sidebar" });
   expect(within(sidebar).getByText("Overview")).toBeTruthy();
   expect(within(sidebar).getByText("All projects")).toBeTruthy();
