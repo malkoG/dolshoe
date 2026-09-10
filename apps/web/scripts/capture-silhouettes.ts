@@ -8,6 +8,7 @@ import { exceptionTreeStateNames } from "../src/components/exception-tree.states
 import { projectDashboardOverviewStateNames } from "../src/components/project-dashboard-overview.states.ts";
 import { investigationStateNames } from "../src/screens/investigation/investigation.states.ts";
 import { projectSettingsStateNames } from "../src/screens/project-settings/project-settings.states.ts";
+import { reportsViewStateNames } from "../src/screens/reports/reports-view.states.ts";
 import { tracesScreenStateNames } from "../src/screens/traces/traces-screen.states.ts";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -44,6 +45,12 @@ const SURFACES: Surface[] = [
     name: "project-settings",
     states: projectSettingsStateNames,
     viewport: { width: 1440, height: 960 },
+  },
+  {
+    name: "reports",
+    states: reportsViewStateNames,
+    // Wide enough for Figma 1440×960 plus the review frame's padding.
+    viewport: { width: 1600, height: 1120 },
   },
 ];
 

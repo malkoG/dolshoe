@@ -25,6 +25,12 @@ import {
   projectSettingsStateNames,
   projectSettingsStates,
 } from "../screens/project-settings/project-settings.states";
+import { ReportsNamedState } from "../screens/reports/reports-chrome";
+import {
+  isReportsViewStateName,
+  reportsViewStateNames,
+  reportsViewStates,
+} from "../screens/reports/reports-view.states";
 import { TracesReviewSurface } from "../screens/traces/traces-chrome";
 import {
   isTracesScreenStateName,
@@ -96,8 +102,13 @@ function view() {
     return <ProjectSettingsReview {...projectSettingsStates[state]()} />;
   }
 
+  if (surface === "reports") {
+    const state = stateFromSearch(reportsViewStateNames, isReportsViewStateName);
+    return <ReportsNamedState {...reportsViewStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", or "project-settings".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", or "reports".`,
   );
 }
 
@@ -105,7 +116,11 @@ const fullPage = surface === "investigation" || surface === "project-settings";
 
 createRoot(root).render(
   <StrictMode>
-    <ReviewFrame fit={surface === "traces"} framed={!fullPage} inset={!fullPage}>
+    <ReviewFrame
+      fit={surface === "traces" || surface === "reports"}
+      framed={!fullPage}
+      inset={!fullPage}
+    >
       {view()}
     </ReviewFrame>
   </StrictMode>,
