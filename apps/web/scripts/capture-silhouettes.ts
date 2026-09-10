@@ -7,6 +7,7 @@ import { createServer } from "vite";
 import { exceptionTreeStateNames } from "../src/components/exception-tree.states.ts";
 import { projectDashboardOverviewStateNames } from "../src/components/project-dashboard-overview.states.ts";
 import { investigationStateNames } from "../src/screens/investigation/investigation.states.ts";
+import { projectSettingsStateNames } from "../src/screens/project-settings/project-settings.states.ts";
 import { tracesScreenStateNames } from "../src/screens/traces/traces-screen.states.ts";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -39,6 +40,7 @@ const SURFACES: Surface[] = [
     // Wide enough for Figma 1440×960 plus the review frame's padding.
     viewport: { width: 1600, height: 1120 },
   },
+  { name: "project-settings", states: projectSettingsStateNames },
 ];
 
 /**
