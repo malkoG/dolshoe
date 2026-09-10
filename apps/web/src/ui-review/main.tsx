@@ -13,6 +13,8 @@ import {
   projectDashboardOverviewStateNames,
   projectDashboardOverviewStates,
 } from "../components/project-dashboard-overview.states";
+import { Alerts } from "../screens/alerts/alerts";
+import { alertsStateNames, alertsStates, isAlertsStateName } from "../screens/alerts/alerts.states";
 import { InvestigationView } from "../screens/investigation/investigation";
 import {
   investigationStateNames,
@@ -74,8 +76,8 @@ import { ReviewFrame } from "./frame";
  * keep working unchanged. A further surface is another `if` branch — do not
  * grow a registry until the duplication is obvious. Investigation,
  * project settings, and org settings drop the review card so the sidebar
- * and trail sit on the page edge. Overview keeps the framed card its
- * designer pass was locked against.
+ * and trail sit on the page edge. Overview and Alerts keep the framed card
+ * their designer passes were locked against.
  */
 function stateFromSearch<Name extends string>(
   names: readonly Name[],
@@ -152,8 +154,13 @@ function view() {
     return <ProjectOverview {...projectOverviewStates[state]()} />;
   }
 
+  if (surface === "alerts") {
+    const state = stateFromSearch(alertsStateNames, isAlertsStateName);
+    return <Alerts {...alertsStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", "org-settings", or "overview".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", "org-settings", "overview", or "alerts".`,
   );
 }
 
