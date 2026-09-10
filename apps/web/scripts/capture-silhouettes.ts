@@ -46,7 +46,12 @@ const SURFACES: Surface[] = [
     states: projectSettingsStateNames,
     viewport: { width: 1440, height: 960 },
   },
-  { name: "reports", states: reportsViewStateNames },
+  {
+    name: "reports",
+    states: reportsViewStateNames,
+    // Wide enough for Figma 1440×960 plus the review frame's padding.
+    viewport: { width: 1600, height: 1120 },
+  },
 ];
 
 /**

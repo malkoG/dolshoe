@@ -117,7 +117,11 @@ const fullPage = surface === "investigation" || surface === "project-settings";
 
 createRoot(root).render(
   <StrictMode>
-    <ReviewFrame fit={surface === "traces"} framed={!fullPage} inset={!fullPage}>
+    <ReviewFrame
+      fit={surface === "traces" || surface === "reports"}
+      framed={!fullPage}
+      inset={!fullPage}
+    >
       {view()}
     </ReviewFrame>
   </StrictMode>,

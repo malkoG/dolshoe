@@ -12,10 +12,19 @@ import { reportsViewStateNames, reportsViewStates } from "./reports-view.states"
  * session, no API. If a factory and the view drift apart, the silhouette
  * would photograph a state the test no longer describes.
  */
-function breadcrumbTrail(): HTMLElement {
+function figmaChrome(): void {
+  expect(screen.getAllByText("Acme Payments").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("checkout-api").length).toBeGreaterThan(0);
+  expect(screen.getByText("Koding Warrior")).toBeTruthy();
+  expect(screen.getByText("@kodingwarrior")).toBeTruthy();
+  expect(screen.getByRole("navigation", { name: "This project" })).toBeTruthy();
+  expect(screen.getByRole("navigation", { name: "Organization" })).toBeTruthy();
+  const reportsNav = screen
+    .getByRole("navigation", { name: "This project" })
+    .querySelector("[aria-current='page']");
+  expect(reportsNav?.textContent).toMatch(/Reports/);
   const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
   expect(trail.textContent).toMatch(/Acme Payments\s*\/\s*checkout-api\s*\/\s*Reports/);
-  return trail;
 }
 
 describe("ReportsView named states", () => {
@@ -23,10 +32,10 @@ describe("ReportsView named states", () => {
     expect(Object.keys(reportsViewStates)).toEqual([...reportsViewStateNames]);
   });
 
-  test("every named state photographs the Figma breadcrumb trail", () => {
+  test("every named state photographs the Figma sidebar, trail, and body", () => {
     for (const name of reportsViewStateNames) {
       const { unmount } = render(<ReportsNamedState {...reportsViewStates[name]()} />);
-      expect(breadcrumbTrail()).toBeTruthy();
+      figmaChrome();
       unmount();
     }
   });
@@ -34,7 +43,7 @@ describe("ReportsView named states", () => {
   test("empty is the setup panel, not an empty table", () => {
     render(<ReportsNamedState {...reportsViewStates.empty()} />);
 
-    expect(breadcrumbTrail()).toBeTruthy();
+    figmaChrome();
     expect(screen.getByRole("heading", { name: "Reports" })).toBeTruthy();
     expect(screen.getByText("Set up reporting")).toBeTruthy();
     expect(screen.getByText("Watching for the first event")).toBeTruthy();
@@ -49,7 +58,7 @@ describe("ReportsView named states", () => {
   test("populated lists the Figma issues, services, and footer count", () => {
     render(<ReportsNamedState {...reportsViewStates.populated()} />);
 
-    expect(breadcrumbTrail()).toBeTruthy();
+    figmaChrome();
     expect(screen.getByRole("heading", { name: "Reports" })).toBeTruthy();
     expect(screen.getByText("5 reports")).toBeTruthy();
     expect(screen.getByRole("link", { name: "TypeError" })).toBeTruthy();
@@ -70,7 +79,7 @@ describe("ReportsView named states", () => {
   test("error names the failed load and offers a retry", () => {
     render(<ReportsNamedState {...reportsViewStates.error()} />);
 
-    expect(breadcrumbTrail()).toBeTruthy();
+    figmaChrome();
     expect(screen.getByRole("heading", { name: "Reports" })).toBeTruthy();
     expect(screen.getByText("Couldn't load error reports")).toBeTruthy();
     expect(screen.getByText("Something went wrong while loading error reports.")).toBeTruthy();
