@@ -37,6 +37,16 @@ Validate environment variables at startup and external input at the transport
 boundary. Internal code should be able to rely on valid values rather than
 repeating defensive checks everywhere.
 
+### Make mutations idempotent
+
+Treat a retried request, a redelivered event, or a double click as the normal
+case, not an edge case. Key a write on the request's own identifier — an event
+id, a trace and span id pair — and let a `@id`/`@unique` constraint absorb the
+repeat instead of trusting the caller not to resend. Apply the same idea to a
+queue consumer (dedupe on message id) or a batch job (a `WHERE NOT EXISTS`
+guard): the storage-layer guarantee is what holds under concurrent or repeated
+delivery, not caller discipline.
+
 ### Preserve error context
 
 Do not silently swallow errors. Add useful operation and identity context, then
@@ -59,6 +69,25 @@ suite.
 The reporter packages must not open a socket in their unit tests either. Inject
 a transport instead — every one of them takes one, which is what that seam is
 for.
+
+### Specify wire-contract API docs for frontend hand-off
+
+An `@ApiTags` decorator groups a route in the generated Swagger UI for a human
+browsing it; it documents no contract a frontend caller can act on. Pair it
+with `@ApiOperation`/`@ApiResponse`/`@ApiProperty` — status codes, shape,
+auth — for every endpoint `apps/web` depends on. Keep internal implementation
+rationale out of a client-facing description; an external caller has no
+context to use it, and it is just noise in the generated document.
+
+### Document the non-obvious why, not the what
+
+An LSP hover shows a comment before anyone opens the file body, so write one
+only for what the type signature does not already say — most exported members
+need none. Reserve a why-sentence for the rare case a reader would still be
+surprised after reading the code as written, and state the external cause
+alone, in one plain sentence. Do not restate the mechanism the signature
+already shows, and do not reach for a new document for a local implementation
+choice a sentence already settles.
 
 ### Style belongs to the design system
 
@@ -89,6 +118,24 @@ Two consequences worth knowing:
 - The CLI writes `@/…` imports, which would resolve against `apps/web` at the
   call site. After running `shadcn add`, rewrite them to relative paths and run
   `pnpm format`.
+
+### Place a file where its reuse actually lives
+
+A route-only helper and a shared primitive look identical until a second
+caller appears. Keep a route-local file flat next to the route it belongs to,
+prefixed with `-`, until a second route needs it — promote it to
+`apps/web/src/components/` (no prefix) the moment it does. Default every
+`.ts`/`.tsx` file name to kebab-case; a hook's exported identifier still
+starts with `use` and stays camelCase — only the file name changes. TanStack
+Router's own file-based route naming (`$param` segments, `__root`, the
+generated route tree) is a separate, mandatory convention — leave it exactly
+as the router generates it.
+
+A public view that has grown past one screen's worth of state, handlers, or
+markup splits into more public views before it splits into a shared
+component — reuse and readability are different reasons to split, and only
+one of them requires a second caller. Do not let "nothing else uses this yet"
+excuse a route component carrying every concern of the screen.
 
 ### UI that paints pixels
 
