@@ -7,6 +7,7 @@ import { createServer } from "vite";
 import { exceptionTreeStateNames } from "../src/components/exception-tree.states.ts";
 import { projectDashboardOverviewStateNames } from "../src/components/project-dashboard-overview.states.ts";
 import { investigationStateNames } from "../src/screens/investigation/investigation.states.ts";
+import { tracesScreenStateNames } from "../src/screens/traces/traces-screen.states.ts";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const outputDir = fileURLToPath(new URL("../.silhouettes", import.meta.url));
@@ -19,12 +20,25 @@ function say(message: string): void {
 interface Surface {
   name: string;
   states: readonly string[];
+  viewport?: { width: number; height: number };
 }
+
+const DEFAULT_VIEWPORT = { width: 1100, height: 720 };
 
 const SURFACES: Surface[] = [
   { name: "exception-tree", states: exceptionTreeStateNames },
   { name: "project-dashboard-overview", states: projectDashboardOverviewStateNames },
-  { name: "investigation", states: investigationStateNames },
+  {
+    name: "investigation",
+    states: investigationStateNames,
+    viewport: { width: 1440, height: 1106 },
+  },
+  {
+    name: "traces",
+    states: tracesScreenStateNames,
+    // Wide enough for Figma 1440×960 plus the review frame's padding.
+    viewport: { width: 1600, height: 1120 },
+  },
 ];
 
 /**
@@ -58,17 +72,12 @@ async function main(): Promise<void> {
 
   try {
     const page = await browser.newPage({
-      viewport: { width: 1100, height: 720 },
+      viewport: DEFAULT_VIEWPORT,
       deviceScaleFactor: 1,
     });
 
     for (const surface of SURFACES) {
-      if (surface.name === "investigation") {
-        await page.setViewportSize({ width: 1440, height: 1106 });
-      } else {
-        await page.setViewportSize({ width: 1100, height: 720 });
-      }
-
+      await page.setViewportSize(surface.viewport ?? DEFAULT_VIEWPORT);
       for (const name of surface.states) {
         await page.goto(new URL(`/?surface=${surface.name}&state=${name}`, address).href, {
           waitUntil: "networkidle",
