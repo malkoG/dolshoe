@@ -6,6 +6,7 @@ import { createServer } from "vite";
 
 import { exceptionTreeStateNames } from "../src/components/exception-tree.states.ts";
 import { projectDashboardOverviewStateNames } from "../src/components/project-dashboard-overview.states.ts";
+import { alertsStateNames } from "../src/screens/alerts/alerts.states.ts";
 import { investigationStateNames } from "../src/screens/investigation/investigation.states.ts";
 import { invitationStateNames } from "../src/screens/invitation/invitation-view.states.ts";
 import { logsScreenStateNames } from "../src/screens/logs/logs-screen.states.ts";
@@ -74,6 +75,7 @@ const SURFACES: Surface[] = [
     // Wide enough for Figma 1440×960 plus the review frame's padding.
     viewport: { width: 1600, height: 1120 },
   },
+  { name: "alerts", states: alertsStateNames, viewport: { width: 1440, height: 960 } },
 ];
 
 /**
