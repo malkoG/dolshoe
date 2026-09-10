@@ -29,6 +29,19 @@ export const dateTimeFormatter = new Intl.DateTimeFormat("en", {
 
 export const dateFormatter = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
 
+const clockTimeFormatter = new Intl.DateTimeFormat("en", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  fractionalSecondDigits: 3,
+  hour12: false,
+});
+
+/** Time-of-day with milliseconds — a console row cares which record came first, not which day. */
+export function formatClockTime(isoTimestamp: string): string {
+  return clockTimeFormatter.format(new Date(isoTimestamp));
+}
+
 export function formatShortId(id: string): string {
   return id.slice(0, 8);
 }
