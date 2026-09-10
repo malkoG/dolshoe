@@ -51,6 +51,12 @@ import {
   projectSettingsStateNames,
   projectSettingsStates,
 } from "../screens/project-settings/project-settings.states";
+import { ReportDetail } from "../screens/report-detail/report-detail";
+import {
+  isReportDetailStateName,
+  reportDetailStateNames,
+  reportDetailStates,
+} from "../screens/report-detail/report-detail.states";
 import { ReportsNamedState } from "../screens/reports/reports-chrome";
 import {
   isReportsViewStateName,
@@ -75,9 +81,9 @@ import { ReviewFrame } from "./frame";
  * paints. `surface` defaults to `exception-tree` so the first surface's URLs
  * keep working unchanged. A further surface is another `if` branch — do not
  * grow a registry until the duplication is obvious. Investigation,
- * project settings, and org settings drop the review card so the sidebar
- * and trail sit on the page edge. Overview and Alerts keep the framed card
- * their designer passes were locked against.
+ * project settings, org settings, and report detail drop the review card so
+ * the sidebar and trail sit on the page edge. Overview and Alerts keep the
+ * framed card their designer passes were locked against.
  */
 function stateFromSearch<Name extends string>(
   names: readonly Name[],
@@ -159,13 +165,21 @@ function view() {
     return <Alerts {...alertsStates[state]()} />;
   }
 
+  if (surface === "report-detail") {
+    const state = stateFromSearch(reportDetailStateNames, isReportDetailStateName);
+    return <ReportDetail {...reportDetailStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", "org-settings", "overview", or "alerts".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", "logs", "invitation", "org-settings", "overview", "alerts", or "report-detail".`,
   );
 }
 
 const fullPage =
-  surface === "investigation" || surface === "project-settings" || surface === "org-settings";
+  surface === "investigation" ||
+  surface === "project-settings" ||
+  surface === "org-settings" ||
+  surface === "report-detail";
 
 createRoot(root).render(
   <StrictMode>

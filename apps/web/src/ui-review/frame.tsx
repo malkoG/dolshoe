@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
  * single panel. Investigation already is a stack of cards — wrapping it
  * again would photograph a second border the design does not have. Project
  * settings is a full Sidebar + TopBar + body page; a card around that
- * chrome reads as a panel.
+ * chrome reads as a panel. Report detail is the same shape.
  *
  * `inset` is the default paper margin. Full-page surfaces drop it so the
  * sidebar and breadcrumb TopBar sit flush the way Figma draws the page.
