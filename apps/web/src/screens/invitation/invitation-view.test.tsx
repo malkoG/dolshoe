@@ -6,7 +6,6 @@ import {
   InvitationView,
   INVITATION_TITLE,
   MISMATCHED_INVITATION_MESSAGE,
-  SIGNED_IN_NOTE,
   SIGNED_OUT_BODY,
   SIGNED_OUT_NOTE,
 } from "./invitation-view";
@@ -41,7 +40,8 @@ describe("InvitationView named states", () => {
     expect(screen.getByRole("heading", { name: INVITATION_TITLE })).toBeTruthy();
     expect(screen.getByText("@kodingwarrior")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Accept invitation" })).toBeTruthy();
-    expect(screen.getByText(SIGNED_IN_NOTE)).toBeTruthy();
+    expect(screen.getByText(INVALID_INVITATION_MESSAGE, { exact: false })).toBeTruthy();
+    expect(screen.getByText(MISMATCHED_INVITATION_MESSAGE, { exact: false })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Continue with GitHub" })).toBeNull();
   });
 
