@@ -19,6 +19,12 @@ import {
   investigationStates,
   isInvestigationStateName,
 } from "../screens/investigation/investigation.states";
+import { LogsScreen } from "../screens/logs/logs-screen";
+import {
+  isLogsScreenStateName,
+  logsScreenStateNames,
+  logsScreenStates,
+} from "../screens/logs/logs-screen.states";
 import { ProjectSettingsReview } from "../screens/project-settings/project-settings-chrome";
 import {
   isProjectSettingsStateName,
@@ -107,8 +113,13 @@ function view() {
     return <ReportsNamedState {...reportsViewStates[state]()} />;
   }
 
+  if (surface === "logs") {
+    const state = stateFromSearch(logsScreenStateNames, isLogsScreenStateName);
+    return <LogsScreen {...logsScreenStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", or "reports".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", "reports", or "logs".`,
   );
 }
 

@@ -27,8 +27,11 @@ const LEVEL_TONES: Record<LogLevel, "neutral" | "info" | "warning" | "danger"> =
  * Nothing above this needs to know which rows are open — a shared "which
  * ids are expanded" set would only exist to serve this one component.
  */
-export function LogRecordRow({ record }: Readonly<{ record: LogRecordSummary }>) {
-  const [expanded, setExpanded] = useState(false);
+export function LogRecordRow({
+  defaultExpanded = false,
+  record,
+}: Readonly<{ defaultExpanded?: boolean; record: LogRecordSummary }>) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const tone = LEVEL_TONES[record.level];
   const attrs = attributeEntries(record.attributes);
 
@@ -53,7 +56,7 @@ export function LogRecordRow({ record }: Readonly<{ record: LogRecordSummary }>)
   return (
     <li>
       <button
-        className="grid w-full grid-cols-1 gap-x-4 gap-y-2 border-b border-border px-5 py-4 text-left last:border-b-0 hover:bg-muted sm:grid-cols-[64px_minmax(0,1fr)_auto] sm:items-start"
+        className="grid w-full grid-cols-1 gap-x-4 gap-y-2 border-b border-border bg-muted px-5 py-4 text-left last:border-b-0 hover:bg-muted sm:grid-cols-[64px_minmax(0,1fr)_auto] sm:items-start"
         onClick={() => setExpanded(false)}
         type="button"
       >

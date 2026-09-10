@@ -1,42 +1,22 @@
-import { DataState } from "@dolshoe/ui/components/data-state";
-import {
-  Panel,
-  PanelBar,
-  PanelControls,
-  PanelFooter,
-  PanelFooterNote,
-  PanelSummary,
-} from "@dolshoe/ui/components/panel";
-import { SearchField } from "@dolshoe/ui/components/search-field";
 import { Button } from "@dolshoe/ui/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@dolshoe/ui/components/ui/select";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { KeyRound, ScrollText, Search } from "lucide-react";
-import { useMemo } from "react";
+import { KeyRound } from "lucide-react";
+import { useMemo, useState } from "react";
 
-import { LogRecordRow } from "../components/log-record-row";
-import { RefreshButton } from "../components/refresh-button";
 import { describeError } from "../lib/api-request";
-import { pluralize } from "../lib/format";
 import { optionParam, textParam } from "../lib/list-filters";
 import { fetchLogRecords } from "../lib/log-records";
 import type { LogLevel } from "../lib/log-records";
 import { useResource } from "../lib/use-resource";
 import { useUrlTextFilter } from "../lib/use-url-text-filter";
-
-const LEVELS: LogLevel[] = ["trace", "debug", "info", "warning", "error", "fatal"];
+import { type LogVolumeRange, volumeFromRecords } from "../screens/logs/log-volume-chart";
+import { LOG_LEVELS, LogsScreen, type LogsDensity } from "../screens/logs/logs-screen";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/logs")({
   staticData: { breadcrumb: "Logs" },
   validateSearch: (search: Record<string, unknown>): { q?: string; level?: LogLevel } => ({
     q: textParam(search.q),
-    level: optionParam(search.level, LEVELS),
+    level: optionParam(search.level, LOG_LEVELS),
   }),
   component: Logs,
 });
@@ -47,6 +27,8 @@ function Logs() {
   const navigate = useNavigate({ from: Route.fullPath });
   const query = search.q ?? "";
   const level = search.level ?? "all";
+  const [density, setDensity] = useState<LogsDensity>("compact");
+  const [range, setRange] = useState<LogVolumeRange>("24h");
 
   function setFilters(next: { q?: string; level?: LogLevel }): void {
     void navigate({ replace: true, search: (previous) => ({ ...previous, ...next }) });
@@ -78,119 +60,37 @@ function Logs() {
     );
   }, [records, query]);
 
+  const volume = useMemo(() => volumeFromRecords(records, range), [records, range]);
+
   return (
-    <Panel>
-      <PanelBar>
-        <PanelSummary>
-          {state.status === "ready" ? pluralize(filteredRecords.length, "record") : "Logs"}
-        </PanelSummary>
-
-        <PanelControls>
-          <SearchField
-            label="Search log records"
-            onValueChange={setDraft}
-            placeholder="Search messages, categories…"
-            value={draft}
-          />
-
-          <Select
-            onValueChange={(value) =>
-              setFilters({ level: value === "all" ? undefined : (value as LogLevel) })
-            }
-            value={level}
-          >
-            <SelectTrigger aria-label="Filter by severity" className="w-[160px]">
-              <ScrollText className="size-4 text-muted-foreground" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All levels</SelectItem>
-              {LEVELS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <RefreshButton label="Check for new records" onRefresh={reload} refreshing={refreshing} />
-        </PanelControls>
-      </PanelBar>
-
-      <div aria-live="polite">
-        {state.status === "loading" && (
-          <DataState
-            kind="loading"
-            title="Loading log records…"
-            description="Fetching the newest records from the API."
-          />
-        )}
-
-        {state.status === "error" && (
-          <DataState
-            kind="error"
-            title="Couldn't load log records"
-            description={describeError(
-              state.error,
-              "Something went wrong while loading log records.",
-            )}
-            onRetry={reload}
-          />
-        )}
-
-        {state.status === "ready" && records.length === 0 && (
-          <DataState
-            kind="empty"
-            icon={ScrollText}
-            title={level === "all" ? "No log records yet" : `No ${level} records`}
-            description={
-              level === "all"
-                ? "Structured logs travel over the same DSN a reporter already uses. Nothing has sent one to this project yet."
-                : "Try a different severity."
-            }
-            action={
-              level === "all" && (
-                <Button asChild size="sm" variant="outline">
-                  <Link
-                    params={{ orgSlug, projectId }}
-                    to="/orgs/$orgSlug/projects/$projectId/tokens"
-                  >
-                    <KeyRound />
-                    Set up reporting
-                  </Link>
-                </Button>
-              )
-            }
-          />
-        )}
-
-        {state.status === "ready" && records.length > 0 && filteredRecords.length === 0 && (
-          <DataState
-            kind="empty"
-            icon={Search}
-            title="No matching records"
-            description="Try another search."
-          />
-        )}
-
-        {state.status === "ready" && filteredRecords.length > 0 && (
-          <ul>
-            {filteredRecords.map((record) => (
-              <LogRecordRow key={record.id} record={record} />
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {state.status === "ready" && (
-        <PanelFooter>
-          <span>
-            Showing <strong className="font-bold text-foreground">{filteredRecords.length}</strong>{" "}
-            of {records.length} records
-          </span>
-          <PanelFooterNote>Sorted newest first</PanelFooterNote>
-        </PanelFooter>
-      )}
-    </Panel>
+    <LogsScreen
+      density={density}
+      emptyAction={
+        <Button asChild size="sm" variant="outline">
+          <Link params={{ orgSlug, projectId }} to="/orgs/$orgSlug/projects/$projectId/tokens">
+            <KeyRound />
+            Set up reporting
+          </Link>
+        </Button>
+      }
+      errorDescription={
+        state.status === "error"
+          ? describeError(state.error, "Something went wrong while loading log records.")
+          : undefined
+      }
+      filteredRecords={filteredRecords}
+      level={level}
+      onClearLevelFilter={() => setFilters({ level: undefined })}
+      onDensityChange={setDensity}
+      onLevelChange={(next) => setFilters({ level: next === "all" ? undefined : next })}
+      onQueryChange={setDraft}
+      onRangeChange={setRange}
+      onRefresh={reload}
+      query={draft}
+      records={records}
+      refreshing={refreshing}
+      status={state.status}
+      volume={volume}
+    />
   );
 }
