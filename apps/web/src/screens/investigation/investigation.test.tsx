@@ -14,11 +14,13 @@ function expectFigmaTrail(current: string) {
 
 function expectFigmaChrome(current: string) {
   expectFigmaTrail(current);
-  const sidebar = screen.getByRole("navigation", { name: "Sidebar" });
-  expect(within(sidebar).getByText("checkout-api")).toBeTruthy();
+  const sidebar = screen.getByRole("navigation", { name: "This project" });
+  expect(screen.getByLabelText("Switch project").textContent).toContain("checkout-api");
   expect(within(sidebar).getByText("Overview")).toBeTruthy();
   expect(within(sidebar).getByText("Traces")).toBeTruthy();
-  expect(within(sidebar).getByText("All projects")).toBeTruthy();
+  expect(
+    within(screen.getByRole("navigation", { name: "Organization" })).getByText("All projects"),
+  ).toBeTruthy();
 }
 
 /**
@@ -82,7 +84,7 @@ describe("Investigation named states", () => {
     render(<InvestigationView status="loading" />);
 
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
-    expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "This project" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Investigation" })).toBeTruthy();
   });
 });

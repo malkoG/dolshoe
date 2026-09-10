@@ -113,6 +113,7 @@ function chrome(current: string): ReportDetailChrome {
     projectInitial: "C",
     viewerName: "Koding Warrior",
     viewerHandle: "@kodingwarrior",
+    viewerInitials: "KW",
     trail: [
       { label: "Acme Payments" },
       { label: "checkout-api" },

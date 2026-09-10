@@ -11,9 +11,11 @@ function expectSettingsChrome(): void {
   expect(within(trail).getByText("Settings")).toBeTruthy();
 
   expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
-  const sidebar = screen.getByRole("navigation", { name: "Sidebar" });
+  const sidebar = screen.getByRole("navigation", { name: "This project" });
   expect(within(sidebar).getByText("Overview")).toBeTruthy();
-  expect(within(sidebar).getByText("All projects")).toBeTruthy();
+  expect(
+    within(screen.getByRole("navigation", { name: "Organization" })).getByText("All projects"),
+  ).toBeTruthy();
   expect(sidebar.querySelector("[aria-current='page']")?.textContent).toContain("Settings");
   expect(screen.getByText("Koding Warrior")).toBeTruthy();
 }

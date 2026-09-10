@@ -3,7 +3,7 @@ import { PageHeading } from "@dolshoe/ui/components/page-heading";
 
 import { ProjectDashboardOverview } from "../../components/project-dashboard-overview";
 import type { ProjectDashboardSummary } from "../../lib/dashboard-summary";
-import { OverviewSidebar, OverviewTopBar } from "./chrome";
+import { ReviewChrome, projectChromeCrumbs } from "../_chrome/review-chrome";
 import type { OverviewChrome } from "./chrome";
 
 export type { OverviewChrome };
@@ -64,17 +64,16 @@ export function ProjectOverviewBody({ body }: Readonly<{ body: ProjectOverviewBo
  */
 export function ProjectOverview({ body, chrome }: ProjectOverviewProps) {
   return (
-    <div className="flex h-[960px] w-[1440px] overflow-hidden bg-background">
-      <OverviewSidebar chrome={chrome} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <OverviewTopBar chrome={chrome} />
-        <main className="min-h-0 flex-1 overflow-auto px-9 pt-[52px] pb-[52px]">
-          <div className="flex flex-col gap-4">
-            <PageHeading className="mb-0">Overview</PageHeading>
-            <ProjectOverviewBody body={body} />
-          </div>
-        </main>
+    <ReviewChrome
+      currentProject="Overview"
+      labels={chrome}
+      scope="project"
+      trail={projectChromeCrumbs(chrome, "Overview")}
+    >
+      <div className="flex flex-col gap-4">
+        <PageHeading className="mb-0">Overview</PageHeading>
+        <ProjectOverviewBody body={body} />
       </div>
-    </div>
+    </ReviewChrome>
   );
 }
