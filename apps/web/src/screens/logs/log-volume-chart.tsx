@@ -134,8 +134,8 @@ export function LogVolumeChart({
 }>) {
   const filtered = levelFilter !== "all";
   const buckets = volume.buckets;
-  const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.logs + bucket.errors));
-  const [topTick, midTick, baseTick] = yTicks(maxValue);
+  const rawMax = Math.max(0, ...buckets.map((bucket) => bucket.logs + bucket.errors));
+  const [topTick, midTick, baseTick] = yTicks(rawMax);
   const scaleMax = topTick === 0 ? 1 : topTick;
   const groupWidth = buckets.length === 0 ? 0 : CHART_WIDTH / buckets.length;
   const barWidth = Math.max(4, Math.min(22, groupWidth - 8));
@@ -190,9 +190,15 @@ export function LogVolumeChart({
             aria-hidden="true"
             className="relative h-[108px] w-8 shrink-0 font-mono text-[12px] text-faint"
           >
-            <span className="absolute top-[-9px] right-0">{topTick}</span>
-            <span className="absolute top-[45px] right-0">{midTick}</span>
-            <span className="absolute top-[99px] right-0">{baseTick}</span>
+            {rawMax === 0 ? (
+              <span className="absolute top-[99px] right-0">0</span>
+            ) : (
+              <>
+                <span className="absolute top-[-9px] right-0">{topTick}</span>
+                <span className="absolute top-[45px] right-0">{midTick}</span>
+                <span className="absolute top-[99px] right-0">{baseTick}</span>
+              </>
+            )}
           </div>
 
           <svg
@@ -313,16 +319,7 @@ export function LogVolumeChart({
   );
 }
 
-export function emptyLogVolume(range: LogVolumeRange = "24h"): LogVolume {
-  return {
-    buckets: hourlyLabels().map((label) => ({ errors: 0, label, logs: 0 })),
-    range,
-    subtitle: subtitleFor(range),
-    totals: { errors: 0, logs: 0 },
-  };
-}
-
-export function subtitleFor(range: LogVolumeRange): string {
+function subtitleFor(range: LogVolumeRange): string {
   if (range === "1h") return "Last 1 hour · 5-min buckets";
   if (range === "7d") return "Last 7 days · 1d buckets";
   return "Last 24 hours · 1h buckets";

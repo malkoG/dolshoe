@@ -1,6 +1,5 @@
 import type { LogRecordSummary } from "../../lib/log-records";
 import type { LogVolume } from "./log-volume-chart";
-import { emptyLogVolume } from "./log-volume-chart";
 import type { LogsConsoleRow, LogsConsoleState } from "./logs-console";
 import type { LogsListProps, LogsLiveProps, LogsScreenProps } from "./logs-screen";
 
@@ -165,7 +164,16 @@ function listDefaults(): Omit<LogsListProps, "filteredRecords" | "records" | "st
     onRefresh: noop,
     query: "",
     refreshing: false,
-    volume: emptyLogVolume(),
+    volume: {
+      buckets: Array.from({ length: 24 }, (_, hour) => ({
+        errors: 0,
+        label: `${String(hour).padStart(2, "0")}:00`,
+        logs: 0,
+      })),
+      range: "24h",
+      subtitle: "Last 24 hours · 1h buckets",
+      totals: { errors: 0, logs: 0 },
+    },
   };
 }
 
