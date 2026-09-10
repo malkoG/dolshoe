@@ -1,4 +1,5 @@
 import { DataState } from "@dolshoe/ui/components/data-state";
+import { ListRow, ListRowLink, ListRowMain, ListRowMeta } from "@dolshoe/ui/components/list-row";
 import { PageHeading } from "@dolshoe/ui/components/page-heading";
 import { Panel, PanelBar, PanelControls, PanelSummary } from "@dolshoe/ui/components/panel";
 import { Button } from "@dolshoe/ui/components/ui/button";
@@ -159,26 +160,29 @@ function Projects() {
           {state.status === "ready" && projects.length > 0 && (
             <ul>
               {projects.map((project) => (
-                <li className="border-b border-border last:border-b-0" key={project.id}>
-                  <Link
-                    className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-4 transition-colors hover:bg-muted"
-                    params={{ orgSlug, projectId: project.id }}
-                    to="/orgs/$orgSlug/projects/$projectId/reports"
-                  >
-                    <div className="min-w-0">
-                      <strong className="block truncate text-[13px] font-bold">
-                        {project.name}
-                      </strong>
-                      <span className="font-mono text-[10px] text-muted-foreground">
-                        {project.slug}
-                      </span>
-                    </div>
-                    <span className="ml-auto text-[11px] text-muted-foreground">
-                      Created {dateFormatter.format(new Date(project.createdAt))}
-                    </span>
-                    <ChevronRight className="size-4 shrink-0 text-faint" />
-                  </Link>
-                </li>
+                <ListRow key={project.id}>
+                  <ListRowLink asChild>
+                    <Link
+                      params={{ orgSlug, projectId: project.id }}
+                      to="/orgs/$orgSlug/projects/$projectId/reports"
+                    >
+                      <ListRowMain>
+                        <strong className="block truncate text-[13px] font-bold">
+                          {project.name}
+                        </strong>
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {project.slug}
+                        </span>
+                      </ListRowMain>
+                      <ListRowMeta>
+                        <span className="text-[11px] text-muted-foreground">
+                          Created {dateFormatter.format(new Date(project.createdAt))}
+                        </span>
+                        <ChevronRight className="size-4 shrink-0 text-faint" />
+                      </ListRowMeta>
+                    </Link>
+                  </ListRowLink>
+                </ListRow>
               ))}
             </ul>
           )}

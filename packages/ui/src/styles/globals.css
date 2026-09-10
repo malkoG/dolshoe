@@ -34,6 +34,9 @@
  * warning [/soft]         --warning, --warning-soft
  * info [/soft]            --info, --info-soft
  * violet [/soft]          --violet, --violet-soft
+ * chart/logs              --chart-logs
+ * chart/error             --chart-error
+ * chart/grid              --chart-grid
  * sidebar                 --sidebar
  * sidebar/fg              --sidebar-foreground
  * sidebar/muted           --sidebar-muted-foreground
@@ -42,8 +45,10 @@
  * sidebar/brand           --sidebar-primary, --sidebar-ring
  * radius/xs…full          --radius-xs … --radius-full
  * space/1…8               --space-1 … --space-8
- * Display / Title / Body  --text-display / --text-title / --text-body
- * Meta / Mono             --text-meta / --text-mono
+ * Heading / Display        --text-heading / --text-display
+ * Title / Body / Body Strong --text-title / --text-body / --text-body-strong
+ * Meta / Meta Strong       --text-meta / --text-meta-strong
+ * Mono / Badge             --text-mono / --text-badge
  *
  * Figma "on" tokens are the colour that sits on a fill. The consumed
  * shadcn names stay --*-foreground so existing call sites do not break;
@@ -94,6 +99,9 @@
   --space-8: 64px;
 
   /* Type ramp. Size / line-height / weight; faces stay Manrope and DM Mono. */
+  --text-heading: 2.25rem;
+  --text-heading--line-height: 2.5rem;
+  --text-heading--font-weight: 800;
   --text-display: 2rem;
   --text-display--line-height: 2.5rem;
   --text-display--font-weight: 700;
@@ -103,12 +111,22 @@
   --text-body: 0.875rem;
   --text-body--line-height: 1.375rem;
   --text-body--font-weight: 400;
+  --text-body-strong: 0.875rem;
+  --text-body-strong--line-height: 1.375rem;
+  --text-body-strong--font-weight: 600;
   --text-meta: 0.75rem;
   --text-meta--line-height: 1.125rem;
   --text-meta--font-weight: 500;
+  --text-meta-strong: 0.75rem;
+  --text-meta-strong--line-height: 1.125rem;
+  --text-meta-strong--font-weight: 600;
   --text-mono: 0.75rem;
   --text-mono--line-height: 1.125rem;
   --text-mono--font-weight: 400;
+  --text-badge: 0.5625rem;
+  --text-badge--line-height: 0.75rem;
+  --text-badge--font-weight: 500;
+  --text-badge--letter-spacing: 0.0375rem;
 
   /*
    * Surface three-tier, then the shadcn names the primitives already read.
@@ -174,6 +192,15 @@
   --info-soft: #d9eaf6;
   --violet: #7c64c9;
   --violet-soft: #e8e0f8;
+
+  /*
+   * Chart series colours. logs/grid alias existing tokens so a chart cannot
+   * drift from the palette it is drawn on; error is brand because the two
+   * are visually the same signal in this design (see --destructive above).
+   */
+  --chart-logs: var(--info);
+  --chart-error: var(--brand);
+  --chart-grid: var(--border);
 
   /* Third-rank text: timestamps and ids that should recede below muted. */
   --faint: var(--ink-faint);
@@ -272,6 +299,14 @@
   --violet: #9682d5;
   --violet-soft: #1d182c;
 
+  /*
+   * chart-error diverges from --brand here: #ff4d59 against the dark chart
+   * surface fails the palette validator's lightness band, so this value was
+   * stepped separately rather than reused. logs/grid keep aliasing --info
+   * and --border, which already have their own dark values above.
+   */
+  --chart-error: #ee4552;
+
   --faint: var(--ink-faint);
   --grid-line: #1f1e19;
 
@@ -325,6 +360,10 @@
   --color-faint: var(--faint);
   --color-grid-line: var(--grid-line);
 
+  --color-chart-logs: var(--chart-logs);
+  --color-chart-error: var(--chart-error);
+  --color-chart-grid: var(--chart-grid);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-muted-foreground: var(--sidebar-muted-foreground);
@@ -358,6 +397,9 @@
   --spacing-space-7: var(--space-7);
   --spacing-space-8: var(--space-8);
 
+  --text-heading: var(--text-heading);
+  --text-heading--line-height: var(--text-heading--line-height);
+  --text-heading--font-weight: var(--text-heading--font-weight);
   --text-display: var(--text-display);
   --text-display--line-height: var(--text-display--line-height);
   --text-display--font-weight: var(--text-display--font-weight);
@@ -367,12 +409,22 @@
   --text-body: var(--text-body);
   --text-body--line-height: var(--text-body--line-height);
   --text-body--font-weight: var(--text-body--font-weight);
+  --text-body-strong: var(--text-body-strong);
+  --text-body-strong--line-height: var(--text-body-strong--line-height);
+  --text-body-strong--font-weight: var(--text-body-strong--font-weight);
   --text-meta: var(--text-meta);
   --text-meta--line-height: var(--text-meta--line-height);
   --text-meta--font-weight: var(--text-meta--font-weight);
+  --text-meta-strong: var(--text-meta-strong);
+  --text-meta-strong--line-height: var(--text-meta-strong--line-height);
+  --text-meta-strong--font-weight: var(--text-meta-strong--font-weight);
   --text-mono: var(--text-mono);
   --text-mono--line-height: var(--text-mono--line-height);
   --text-mono--font-weight: var(--text-mono--font-weight);
+  --text-badge: var(--text-badge);
+  --text-badge--line-height: var(--text-badge--line-height);
+  --text-badge--font-weight: var(--text-badge--font-weight);
+  --text-badge--letter-spacing: var(--text-badge--letter-spacing);
 
   --shadow-panel: var(--shadow-panel);
 }

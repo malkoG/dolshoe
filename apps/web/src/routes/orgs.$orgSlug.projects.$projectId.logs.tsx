@@ -1,4 +1,3 @@
-import { AttributeList, attributeEntries } from "@dolshoe/ui/components/attribute-list";
 import { DataState } from "@dolshoe/ui/components/data-state";
 import {
   Panel,
@@ -9,7 +8,6 @@ import {
   PanelSummary,
 } from "@dolshoe/ui/components/panel";
 import { SearchField } from "@dolshoe/ui/components/search-field";
-import { StatusBadge } from "@dolshoe/ui/components/status-badge";
 import { Button } from "@dolshoe/ui/components/ui/button";
 import {
   Select,
@@ -19,12 +17,13 @@ import {
   SelectValue,
 } from "@dolshoe/ui/components/ui/select";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Clock3, KeyRound, ScrollText, Search } from "lucide-react";
+import { KeyRound, ScrollText, Search } from "lucide-react";
 import { useMemo } from "react";
 
+import { LogRecordRow } from "../components/log-record-row";
 import { RefreshButton } from "../components/refresh-button";
 import { describeError } from "../lib/api-request";
-import { formatRelativeTime, pluralize } from "../lib/format";
+import { pluralize } from "../lib/format";
 import { optionParam, textParam } from "../lib/list-filters";
 import { fetchLogRecords } from "../lib/log-records";
 import type { LogLevel } from "../lib/log-records";
@@ -40,16 +39,6 @@ export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/logs")(
   }),
   component: Logs,
 });
-
-/** How loudly each severity is allowed to shout. */
-const LEVEL_TONES: Record<LogLevel, "neutral" | "info" | "warning" | "danger"> = {
-  trace: "neutral",
-  debug: "neutral",
-  info: "info",
-  warning: "warning",
-  error: "danger",
-  fatal: "danger",
-};
 
 function Logs() {
   const { orgSlug, projectId } = Route.useParams();
@@ -186,47 +175,7 @@ function Logs() {
         {state.status === "ready" && filteredRecords.length > 0 && (
           <ul>
             {filteredRecords.map((record) => (
-              <li
-                className="grid grid-cols-1 gap-x-4 gap-y-2 border-b border-border px-5 py-4 last:border-b-0 sm:grid-cols-[64px_minmax(0,1fr)_auto] sm:items-start"
-                key={record.id}
-              >
-                <StatusBadge className="w-full sm:w-16" tone={LEVEL_TONES[record.level]}>
-                  {record.level}
-                </StatusBadge>
-
-                <div className="min-w-0">
-                  <p className="text-[13px] break-words">{record.message}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <strong className="font-bold text-foreground">{record.service.name}</strong>
-                    {record.category.length > 0 && (
-                      <>
-                        <span aria-hidden="true">·</span>
-                        <code className="font-mono text-[10px]">{record.category.join(".")}</code>
-                      </>
-                    )}
-                    {record.service.environment && (
-                      <>
-                        <span aria-hidden="true">·</span>
-                        {record.service.environment}
-                      </>
-                    )}
-                  </div>
-                  {attributeEntries(record.attributes).length > 0 && (
-                    <AttributeList
-                      background="muted"
-                      className="mt-2"
-                      entries={attributeEntries(record.attributes)}
-                    />
-                  )}
-                </div>
-
-                <span className="flex items-center gap-1.5 font-mono text-[10px] whitespace-nowrap text-muted-foreground">
-                  <Clock3 className="size-3.5" />
-                  <time dateTime={record.occurredAt} title={record.occurredAt}>
-                    {formatRelativeTime(record.occurredAt)}
-                  </time>
-                </span>
-              </li>
+              <LogRecordRow key={record.id} record={record} />
             ))}
           </ul>
         )}

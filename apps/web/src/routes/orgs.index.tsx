@@ -1,4 +1,5 @@
 import { DataState } from "@dolshoe/ui/components/data-state";
+import { ListRow, ListRowLink, ListRowMain, ListRowMeta } from "@dolshoe/ui/components/list-row";
 import { PageHeading } from "@dolshoe/ui/components/page-heading";
 import { Panel } from "@dolshoe/ui/components/panel";
 import { StatusBadge } from "@dolshoe/ui/components/status-badge";
@@ -99,26 +100,24 @@ function Organizations() {
         ) : (
           <ul>
             {organizations.map((organization) => (
-              <li className="border-b border-border last:border-b-0" key={organization.id}>
-                <Link
-                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4 transition-colors hover:bg-muted"
-                  params={{ orgSlug: organization.slug }}
-                  to="/orgs/$orgSlug/projects"
-                >
-                  <div className="min-w-0">
-                    <strong className="block truncate text-[13px] font-bold">
-                      {organization.name}
-                    </strong>
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                      {organization.slug}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                    <StatusBadge>{organization.role.toLowerCase()}</StatusBadge>
-                    <span>Created {dateFormatter.format(new Date(organization.createdAt))}</span>
-                  </div>
-                </Link>
-              </li>
+              <ListRow key={organization.id}>
+                <ListRowLink asChild>
+                  <Link params={{ orgSlug: organization.slug }} to="/orgs/$orgSlug/projects">
+                    <ListRowMain>
+                      <strong className="block truncate text-[13px] font-bold">
+                        {organization.name}
+                      </strong>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {organization.slug}
+                      </span>
+                    </ListRowMain>
+                    <ListRowMeta className="text-[11px] text-muted-foreground">
+                      <StatusBadge>{organization.role.toLowerCase()}</StatusBadge>
+                      <span>Created {dateFormatter.format(new Date(organization.createdAt))}</span>
+                    </ListRowMeta>
+                  </Link>
+                </ListRowLink>
+              </ListRow>
             ))}
           </ul>
         )}
