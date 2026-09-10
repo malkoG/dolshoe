@@ -108,7 +108,7 @@ function AuthCard({
           <a href={githubSignInHref}>Continue with GitHub</a>
         </Button>
       )}
-      {note != null && <p className="text-xs font-medium text-faint">{note}</p>}
+      {note != null && <p className="text-meta text-faint">{note}</p>}
     </Card>
   );
 }
