@@ -79,6 +79,6 @@ function view() {
 
 createRoot(root).render(
   <StrictMode>
-    <ReviewFrame>{view()}</ReviewFrame>
+    <ReviewFrame framed={surface !== "investigation"}>{view()}</ReviewFrame>
   </StrictMode>,
 );
