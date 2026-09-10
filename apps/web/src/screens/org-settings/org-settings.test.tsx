@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
+import { OrgSettingsReview } from "./org-settings-chrome";
 import { OrgSettings } from "./org-settings";
 import { orgSettingsStateNames, orgSettingsStates } from "./org-settings.states";
 
@@ -9,17 +10,52 @@ import { orgSettingsStateNames, orgSettingsStates } from "./org-settings.states"
  *
  * @remarks
  * This is the composition root that is not the route: no Vite host, no
- * session, no API. If a factory and the view drift apart, the silhouette
- * would photograph a state the test no longer describes.
+ * session, no API. Named states render through `OrgSettingsReview` so the
+ * photographed Sidebar + TopBar stay tied to the factory. The live route
+ * mounts `OrgSettings` alone under PageShell.
  */
+function expectOrgSettingsChrome(): void {
+  const sidebar = screen.getByRole("navigation", { name: "Organization" });
+  expect(sidebar.textContent).toContain("All projects");
+  expect(sidebar.textContent).toContain("Members");
+  expect(sidebar.textContent).toContain("Organizations");
+  const current = sidebar.querySelector('[aria-current="page"]');
+  expect(current?.textContent).toContain("Settings");
+
+  const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+  expect(trail.textContent).toContain("Acme Payments");
+  expect(trail.textContent).toContain("Settings");
+  expect(screen.getByText("Koding Warrior")).toBeTruthy();
+  expect(screen.getByText("@kodingwarrior")).toBeTruthy();
+}
+
 describe("OrgSettings named states", () => {
   test("exports the states a silhouette can photograph", () => {
     expect(Object.keys(orgSettingsStates)).toEqual([...orgSettingsStateNames]);
   });
 
-  test("admin shows the rename field and the leave action", () => {
+  test("every named state photographs the Figma sidebar and trail", () => {
+    for (const name of orgSettingsStateNames) {
+      const { unmount } = render(<OrgSettingsReview {...orgSettingsStates[name]()} />);
+      expectOrgSettingsChrome();
+      expect(screen.getByRole("navigation", { name: "Organization" })).toBeTruthy();
+      expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
+      unmount();
+    }
+  });
+
+  test("the public view alone does not paint chrome", () => {
     render(<OrgSettings {...orgSettingsStates.admin()} />);
 
+    expect(screen.queryByRole("navigation", { name: "Organization" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "This project" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+  });
+
+  test("admin shows the rename field and the leave action", () => {
+    render(<OrgSettingsReview {...orgSettingsStates.admin()} />);
+
+    expectOrgSettingsChrome();
     expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
     expect(screen.getByText("Rename this organization, or leave it.")).toBeTruthy();
     expect(screen.getByText("Organization name")).toBeTruthy();
@@ -36,8 +72,9 @@ describe("OrgSettings named states", () => {
   });
 
   test("leaveRefused keeps the form and names the only-owner refusal", () => {
-    render(<OrgSettings {...orgSettingsStates.leaveRefused()} />);
+    render(<OrgSettingsReview {...orgSettingsStates.leaveRefused()} />);
 
+    expectOrgSettingsChrome();
     expect(screen.getByLabelText("Name")).toHaveProperty("value", "Acme Payments");
     expect(screen.getByRole("button", { name: "Leave organization" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toBe(
@@ -46,8 +83,9 @@ describe("OrgSettings named states", () => {
   });
 
   test("a member does not see the rename panel", () => {
-    render(<OrgSettings {...orgSettingsStates.admin()} canRename={false} />);
+    render(<OrgSettingsReview {...orgSettingsStates.admin()} canRename={false} />);
 
+    expectOrgSettingsChrome();
     expect(screen.queryByText("Organization name")).toBeNull();
     expect(screen.queryByLabelText("Name")).toBeNull();
     expect(screen.getByRole("button", { name: "Leave organization" })).toBeTruthy();

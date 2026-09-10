@@ -62,7 +62,12 @@ const SURFACES: Surface[] = [
     viewport: { width: 1600, height: 1120 },
   },
   { name: "invitation", states: invitationStateNames },
-  { name: "org-settings", states: orgSettingsStateNames },
+  {
+    name: "org-settings",
+    states: orgSettingsStateNames,
+    // Wide enough for Figma 1440×960 plus the review frame's padding.
+    viewport: { width: 1600, height: 1120 },
+  },
 ];
 
 /**

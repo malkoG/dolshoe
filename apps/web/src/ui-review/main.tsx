@@ -31,7 +31,7 @@ import {
   logsScreenStateNames,
   logsScreenStates,
 } from "../screens/logs/logs-screen.states";
-import { OrgSettings } from "../screens/org-settings/org-settings";
+import { OrgSettingsReview } from "../screens/org-settings/org-settings-chrome";
 import {
   isOrgSettingsStateName,
   orgSettingsStateNames,
@@ -137,7 +137,7 @@ function view() {
 
   if (surface === "org-settings") {
     const state = stateFromSearch(orgSettingsStateNames, isOrgSettingsStateName);
-    return <OrgSettings {...orgSettingsStates[state]()} />;
+    return <OrgSettingsReview {...orgSettingsStates[state]()} />;
   }
 
   throw new Error(
@@ -150,7 +150,12 @@ const fullPage = surface === "investigation" || surface === "project-settings";
 createRoot(root).render(
   <StrictMode>
     <ReviewFrame
-      fit={surface === "traces" || surface === "reports" || surface === "logs"}
+      fit={
+        surface === "traces" ||
+        surface === "reports" ||
+        surface === "logs" ||
+        surface === "org-settings"
+      }
       framed={!fullPage}
       inset={!fullPage}
     >
