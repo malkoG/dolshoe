@@ -30,11 +30,13 @@ describe("Investigation named states", () => {
 
     expect(screen.getByRole("heading", { name: "Investigation" })).toBeTruthy();
     expectFigmaTrail("Investigation 4f2a…9c1e");
-    expect(screen.getByText("incomplete")).toBeTruthy();
-    expect(screen.getByText("1 parent not received")).toBeTruthy();
+    expect(screen.getByText("Incomplete — parents may still arrive")).toBeTruthy();
+    expect(screen.queryByText("1 parent not received")).toBeNull();
+    expect(screen.getByText("Pending span")).toBeTruthy();
+    expect(screen.getByText("missing span")).toBeTruthy();
     expect(screen.getByText("Parent span not received")).toBeTruthy();
     expect(screen.getByText("orphan.handler")).toBeTruthy();
-    expect(screen.getAllByText("parent pending").length).toBeGreaterThan(1);
+    expect(screen.getByText("parent pending")).toBeTruthy();
     expect(
       screen.getByText("CardDeclinedError: card declined by issuer (do_not_honor)"),
     ).toBeTruthy();
@@ -47,15 +49,12 @@ describe("Investigation named states", () => {
 
     expectFigmaTrail("Investigation 9c1e…4f2a");
     expect(screen.getByText("2,000 of 2,413 spans")).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Showing the first 2,000 spans — this trace holds more than are shown. Narrow by service or time to see the rest.",
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText("Showing first 2,000 spans — trace truncated")).toBeTruthy();
     expect(screen.getByText("This trace holds more spans than are shown")).toBeTruthy();
     expect(screen.getByText("POST /api/v1/batch")).toBeTruthy();
     expect(screen.getByText("process.item[2]")).toBeTruthy();
-    expect(screen.queryByText("incomplete")).toBeNull();
+    expect(screen.queryByText("Incomplete — parents may still arrive")).toBeNull();
+    expect(screen.queryByText("Pending span")).toBeNull();
     expect(screen.queryByText("Parent span not received")).toBeNull();
   });
 

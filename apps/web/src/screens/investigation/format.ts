@@ -15,8 +15,8 @@ export function formatFingerprintChip(fingerprint: string): string {
   return `fp ${short}`;
 }
 
-export function formatMissingParents(count: number): string {
-  return count === 1 ? "1 parent not received" : `${count} parents not received`;
+export function formatTruncatedBanner(shown: number): string {
+  return `Showing first ${shown.toLocaleString("en")} spans — trace truncated`;
 }
 
 export function formatSpanCountLabel(shown: number, total: number, truncated: boolean): string {

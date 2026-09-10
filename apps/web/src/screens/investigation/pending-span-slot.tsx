@@ -7,8 +7,10 @@ import type { PendingParentSlot } from "./types";
  *
  * @remarks
  * Kind is parent-missing only on this screen: it sits above the orphan
- * SpanRow that named it. Event-orphan (attaches whose spanId has no span)
- * is a later case — do not invent it here.
+ * SpanRow that named it. Title, body, and the `missing span` chip are this
+ * slot. The orphan row keeps "Parent span not received" / parent pending —
+ * those are not this component. Event-orphan (attaches whose spanId has no
+ * span) is a later case — do not invent it here.
  */
 export function PendingSpanSlot({ slot }: Readonly<{ slot: PendingParentSlot }>) {
   const referenced =
@@ -19,8 +21,8 @@ export function PendingSpanSlot({ slot }: Readonly<{ slot: PendingParentSlot }>)
   return (
     <div className="flex flex-col gap-2 rounded-md border border-dashed border-border bg-surface-inset px-4 py-3">
       <div className="flex items-center gap-2">
-        <p className="text-sm font-semibold text-muted-foreground">Parent span not received</p>
-        <StatusBadge tone="warning">parent pending</StatusBadge>
+        <p className="text-sm font-semibold text-muted-foreground">Pending span</p>
+        <StatusBadge tone="info">missing span</StatusBadge>
         <span className="min-w-0 flex-1" />
         <span className="font-mono text-xs text-faint">{slot.spanId}</span>
       </div>

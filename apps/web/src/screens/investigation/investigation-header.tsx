@@ -1,8 +1,7 @@
-import { StatusBadge } from "@dolshoe/ui/components/status-badge";
 import { useEffect, useRef, useState } from "react";
 
 import { formatDuration } from "../../lib/format";
-import { formatMissingParents, formatSpanCountLabel, formatTraceChip } from "./format";
+import { formatSpanCountLabel, formatTraceChip, formatTruncatedBanner } from "./format";
 import type { Investigation } from "./types";
 
 /**
@@ -22,7 +21,11 @@ export function InvestigationHeader({ investigation }: Readonly<{ investigation:
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-[32px] leading-10 font-bold tracking-[-0.5px]">Investigation</h1>
         <TraceIdChip traceId={investigation.traceId} />
-        {incomplete && <StatusBadge tone="warning">incomplete</StatusBadge>}
+        {incomplete && (
+          <span className="inline-flex items-center rounded-md bg-info-soft px-2 py-1 text-xs font-medium text-info">
+            Incomplete — parents may still arrive
+          </span>
+        )}
       </div>
 
       <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -43,22 +46,11 @@ export function InvestigationHeader({ investigation }: Readonly<{ investigation:
           ·
         </span>
         <span>{investigation.startedLabel}</span>
-        {incomplete && (
-          <>
-            <span aria-hidden="true" className="text-faint">
-              ·
-            </span>
-            <span className="text-warning">
-              {formatMissingParents(investigation.missingParentCount)}
-            </span>
-          </>
-        )}
       </p>
 
       {investigation.truncated && (
         <p className="rounded-md bg-warning-soft px-4 py-3 text-xs text-warning">
-          Showing the first {investigation.shownSpanCount.toLocaleString("en")} spans — this trace
-          holds more than are shown. Narrow by service or time to see the rest.
+          {formatTruncatedBanner(investigation.shownSpanCount)}
         </p>
       )}
     </header>

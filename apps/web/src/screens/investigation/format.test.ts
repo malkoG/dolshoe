@@ -2,9 +2,9 @@ import { describe, expect, test } from "vitest";
 
 import {
   formatFingerprintChip,
-  formatMissingParents,
   formatSpanCountLabel,
   formatTraceChip,
+  formatTruncatedBanner,
 } from "./format";
 
 describe("investigation format helpers", () => {
@@ -17,9 +17,11 @@ describe("investigation format helpers", () => {
     expect(formatSpanCountLabel(2000, 2413, true)).toBe("2,000 of 2,413 spans");
   });
 
-  test("formatMissingParents and fingerprint stay compact", () => {
-    expect(formatMissingParents(1)).toBe("1 parent not received");
-    expect(formatMissingParents(2)).toBe("2 parents not received");
+  test("formatTruncatedBanner is the locked truncated copy", () => {
+    expect(formatTruncatedBanner(2000)).toBe("Showing first 2,000 spans — trace truncated");
+  });
+
+  test("fingerprint stays compact", () => {
     expect(formatFingerprintChip("3e91c0a7deadbeef")).toBe("fp 3e91c0a7");
   });
 });

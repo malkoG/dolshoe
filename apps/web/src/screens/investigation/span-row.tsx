@@ -78,7 +78,12 @@ export function SpanRow({
       </span>
       <SpanKindBadge kind={span.kind} />
       {failed && <StatusBadge tone="danger">error</StatusBadge>}
-      {span.parentMissing && <StatusBadge tone="warning">parent pending</StatusBadge>}
+      {span.parentMissing && (
+        <>
+          <span className="text-xs text-muted-foreground">Parent span not received</span>
+          <StatusBadge tone="warning">parent pending</StatusBadge>
+        </>
+      )}
 
       <span className="min-w-0 flex-1" />
 
