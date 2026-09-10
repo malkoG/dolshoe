@@ -6,18 +6,9 @@ import { Spinner } from "@dolshoe/ui/components/ui/spinner";
 import { KeyRound } from "lucide-react";
 import type { ReactNode } from "react";
 
-/**
- * The snippet Figma paints on the empty Reports screen, using the real Node
- * package rather than the board's `@dolshoe/sdk` stand-in.
- */
-export const REPORTS_SETUP_SNIPPET = `import * as Dolshoe from "@dolshoe/node";
+import { REPORTS_SETUP_SNIPPET } from "./reports-setup-snippet";
 
-Dolshoe.init({
-  dsn: process.env.DOLSHOE_DSN,
-  service: { name: "checkout-api", environment: "production" },
-});
-
-Dolshoe.captureException(new Error("Checkout failed"));`;
+export { REPORTS_SETUP_SNIPPET };
 
 function Step({
   children,

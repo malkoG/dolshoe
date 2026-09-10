@@ -1,6 +1,6 @@
 import type { ReportRowModel } from "./report-row";
 import type { ReportsViewProps } from "./reports-view";
-import { REPORTS_SETUP_SNIPPET } from "./reports-setup";
+import { REPORTS_SETUP_SNIPPET } from "./reports-setup-snippet.ts";
 
 function noop(): void {}
 function noopString(_value: string): void {}
