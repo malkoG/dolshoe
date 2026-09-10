@@ -40,7 +40,11 @@ const SURFACES: Surface[] = [
     // Wide enough for Figma 1440×960 plus the review frame's padding.
     viewport: { width: 1600, height: 1120 },
   },
-  { name: "project-settings", states: projectSettingsStateNames },
+  {
+    name: "project-settings",
+    states: projectSettingsStateNames,
+    viewport: { width: 1440, height: 960 },
+  },
 ];
 
 /**

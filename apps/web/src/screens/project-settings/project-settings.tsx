@@ -12,8 +12,8 @@ import type { FormEvent } from "react";
  * This is a public view. It receives the form's values and paints them. The
  * route that submits the rename is the composition root; a construction test
  * and a silhouette are the other one. Those two wrap this view in the
- * private TopBar stub — the live route does not, because `PageShell`
- * already paints the trail.
+ * private sidebar + TopBar stub — the live route does not, because
+ * `PageShell` already paints that chrome.
  */
 export interface ProjectSettingsProps {
   canAdminister: boolean;

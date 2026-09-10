@@ -7,7 +7,8 @@ import type { ProjectSettingsProps } from "./project-settings";
  * The view is a public view: it receives the form's values and paints them.
  * These factories are the other composition root — the one a construction
  * test and a silhouette use instead of submitting a rename. Both wrap the
- * result in the private TopBar stub so the trail is in the photograph.
+ * result in the private sidebar + TopBar stub so the Figma chrome is in
+ * the photograph.
  *
  * The three frames Figma published are the three states the surface can
  * actually show a reviewer: an admin who just saved, a 409 on the slug, and
