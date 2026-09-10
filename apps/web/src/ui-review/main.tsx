@@ -1,4 +1,4 @@
-import { StrictMode, type ReactNode } from "react";
+import { createElement, StrictMode, type ComponentType, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { ExceptionTree } from "../components/exception-tree";
@@ -113,14 +113,14 @@ function stateFromSearch<Name extends string>(
   );
 }
 
-function namedView<Name extends string, Props>(
+function namedView<Name extends string, Props extends object>(
   names: readonly Name[],
   isName: (value: string | null) => value is Name,
   states: { readonly [K in Name]: () => Props },
-  View: (props: Props) => ReactNode,
+  View: ComponentType<Props>,
 ): ReactNode {
   const name = stateFromSearch(names, isName);
-  return View(states[name]());
+  return createElement(View, states[name]());
 }
 
 function surfaceFromSearch(): string {
