@@ -16,6 +16,7 @@ import { projectOverviewStateNames } from "../src/screens/overview/project-overv
 import { projectSettingsStateNames } from "../src/screens/project-settings/project-settings.states.ts";
 import { reportDetailStateNames } from "../src/screens/report-detail/report-detail.states.ts";
 import { reportsViewStateNames } from "../src/screens/reports/reports-view.states.ts";
+import { tokensScreenStateNames } from "../src/screens/tokens/tokens-screen.states.ts";
 import { tracesScreenStateNames } from "../src/screens/traces/traces-screen.states.ts";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -28,6 +29,7 @@ function say(message: string): void {
 
 interface Surface {
   name: string;
+  screenshot?: "root" | "page";
   states: readonly string[];
   stateViewports?: Record<string, { width: number; height: number }>;
   viewport?: { width: number; height: number };
@@ -92,6 +94,12 @@ const SURFACES: Surface[] = [
       compact: { width: 1024, height: 960 },
     },
   },
+  {
+    name: "tokens",
+    screenshot: "page",
+    states: tokensScreenStateNames,
+    viewport: { width: 1440, height: 1006 },
+  },
 ];
 
 /**
@@ -140,7 +148,11 @@ async function main(): Promise<void> {
         const root = page.locator("[data-review-root]");
         await root.waitFor({ state: "visible" });
         const dest = `${outputDir}/${surface.name}.${name}.png`;
-        await root.screenshot({ path: dest, animations: "disabled" });
+        if (surface.screenshot === "page") {
+          await page.screenshot({ path: dest, animations: "disabled" });
+        } else {
+          await root.screenshot({ path: dest, animations: "disabled" });
+        }
         say(`Wrote ${dest.slice(webRoot.length)}`);
       }
     }
