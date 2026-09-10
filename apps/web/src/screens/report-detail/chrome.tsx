@@ -81,12 +81,14 @@ function ReportDetailSidebar({ chrome }: Readonly<{ chrome: ReportDetailChrome }
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div className="flex flex-col gap-4 overflow-hidden p-4">
-        <OrgSwitcher className="flex w-32 items-center gap-2 overflow-hidden">
-          <OrgSwitcherTrigger initial={chrome.orgInitial} />
+        <div className="flex items-center gap-2 overflow-hidden">
+          <OrgSwitcher>
+            <OrgSwitcherTrigger initial={chrome.orgInitial} />
+          </OrgSwitcher>
           <span className="min-w-0 truncate text-[12px] font-semibold text-sidebar-foreground">
             {chrome.orgName}
           </span>
-        </OrgSwitcher>
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 px-2">

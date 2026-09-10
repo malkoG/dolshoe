@@ -21,6 +21,7 @@ describe("ReportDetail named states", () => {
     render(<ReportDetail {...reportDetailStates.loading()} />);
 
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
+    expect(screen.getAllByText("Acme Payments").length).toBeGreaterThan(0);
     expect(screen.getByText("Reports", { selector: "[aria-current='page']" })).toBeTruthy();
     expect(screen.getByText("Loading the report…")).toBeTruthy();
     expect(screen.getByText("Fetching the stored exception and its frames.")).toBeTruthy();
@@ -50,6 +51,7 @@ describe("ReportDetail named states", () => {
     expect(screen.getByText("code ERR_UNDEFINED_READ")).toBeTruthy();
     expect(screen.getByText("Caused by")).toBeTruthy();
     expect(screen.getByText("CardDeclinedError")).toBeTruthy();
+    expect(screen.getAllByText("Libraries").length).toBeGreaterThan(0);
     expect(screen.getByText("handleCheckout")).toBeTruthy();
 
     expect(screen.getByText("Tags")).toBeTruthy();

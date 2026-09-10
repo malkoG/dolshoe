@@ -66,36 +66,38 @@ export function ReportDetailPanel({
 }: ReportDetailPanelProps) {
   return (
     <Panel>
-      <PanelBar>
-        {back}
+      {(back != null || report != null) && (
+        <PanelBar>
+          {back}
 
-        {report != null && (
-          <PanelControls className="gap-2 text-[12px] text-muted-foreground">
-            <span className="font-semibold">{report.service.name}</span>
-            {report.service.environment != null && (
-              <StatusBadge>{report.service.environment}</StatusBadge>
-            )}
-            <span aria-hidden="true" className="text-faint">
-              ·
-            </span>
-            {formatRuntimeLabel(report.runtime)}
-            {report.user != null && (
-              <>
-                <span aria-hidden="true" className="text-faint">
-                  ·
-                </span>
-                <span className="font-mono">{describeUser(report.user)}</span>
-              </>
-            )}
-            <span className="flex items-center gap-1.5">
-              <Clock3 aria-hidden="true" className="size-3.5" />
-              <time dateTime={report.occurredAt} title={report.occurredAt}>
-                {formatRelativeTime(report.occurredAt)}
-              </time>
-            </span>
-          </PanelControls>
-        )}
-      </PanelBar>
+          {report != null && (
+            <PanelControls className="gap-2 text-[12px] text-muted-foreground">
+              <span className="font-semibold">{report.service.name}</span>
+              {report.service.environment != null && (
+                <StatusBadge>{report.service.environment}</StatusBadge>
+              )}
+              <span aria-hidden="true" className="text-faint">
+                ·
+              </span>
+              {formatRuntimeLabel(report.runtime)}
+              {report.user != null && (
+                <>
+                  <span aria-hidden="true" className="text-faint">
+                    ·
+                  </span>
+                  <span className="font-mono">{describeUser(report.user)}</span>
+                </>
+              )}
+              <span className="flex items-center gap-1.5">
+                <Clock3 aria-hidden="true" className="size-3.5" />
+                <time dateTime={report.occurredAt} title={report.occurredAt}>
+                  {formatRelativeTime(report.occurredAt)}
+                </time>
+              </span>
+            </PanelControls>
+          )}
+        </PanelBar>
+      )}
 
       <div aria-live="polite">
         {status === "loading" && (
