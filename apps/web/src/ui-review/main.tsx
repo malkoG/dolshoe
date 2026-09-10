@@ -19,7 +19,7 @@ import {
   investigationStates,
   isInvestigationStateName,
 } from "../screens/investigation/investigation.states";
-import { ProjectSettings } from "../screens/project-settings/project-settings";
+import { ProjectSettingsReview } from "../screens/project-settings/project-settings-chrome";
 import {
   isProjectSettingsStateName,
   projectSettingsStateNames,
@@ -91,7 +91,7 @@ function view() {
 
   if (surface === "project-settings") {
     const state = stateFromSearch(projectSettingsStateNames, isProjectSettingsStateName);
-    return <ProjectSettings {...projectSettingsStates[state]()} />;
+    return <ProjectSettingsReview {...projectSettingsStates[state]()} />;
   }
 
   throw new Error(
