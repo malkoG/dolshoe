@@ -1,3 +1,4 @@
+import { TopBar } from "@dolshoe/ui/components/breadcrumb";
 import { Avatar, AvatarFallback, AvatarImage } from "@dolshoe/ui/components/ui/avatar";
 import {
   Select,
@@ -39,6 +40,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { RouteBreadcrumbTrail } from "./route-breadcrumb-trail";
 import { initialsOf } from "../lib/format";
 import type { Organization } from "../lib/organizations";
 import type { Project } from "../lib/projects";
@@ -377,14 +379,15 @@ export function PageShell({
         graph-paper backdrop reads through the workspace the way it always has.
       */}
       <SidebarInset className="bg-transparent">
-        {/*
-          The only way back to the navigation once it has slid off-canvas, so it
-          appears exactly where the navigation does not.
-        */}
-        <div className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-border bg-background/85 px-4 backdrop-blur md:hidden">
-          <SidebarTrigger />
-          <span className="text-sm font-bold">dolshoe</span>
-        </div>
+        <TopBar
+          actions={
+            // The only way back to the navigation once it has slid
+            // off-canvas, so it appears exactly where the navigation does not.
+            <SidebarTrigger className="md:hidden" />
+          }
+          className="sticky top-0 z-20 bg-card/85 backdrop-blur"
+          trail={<RouteBreadcrumbTrail />}
+        />
 
         <div className="mx-auto w-full max-w-[1230px] px-5 py-10 md:px-9 md:py-13">{children}</div>
       </SidebarInset>

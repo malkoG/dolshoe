@@ -30,6 +30,7 @@ import { canAdminister } from "../lib/organizations";
 import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/alerts")({
+  staticData: { breadcrumb: "Alerts" },
   component: Alerts,
 });
 

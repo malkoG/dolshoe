@@ -67,6 +67,7 @@ export function validateReportFilters(search: Record<string, unknown>): ReportFi
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/reports/")({
   validateSearch: validateReportFilters,
+  staticData: { breadcrumb: "Reports" },
   component: Reports,
 });
 

@@ -31,6 +31,9 @@ const SECTION_LABEL_CLASS = "mb-2 font-mono text-[9px] tracking-[0.08em] text-fa
  */
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/reports/$reportId")({
   validateSearch: validateReportFilters,
+  staticData: {
+    breadcrumb: ({ params }) => `Report ${formatShortId(params.reportId ?? "")}`,
+  },
   component: Report,
 });
 

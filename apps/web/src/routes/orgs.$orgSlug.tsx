@@ -23,6 +23,9 @@ export const Route = createFileRoute("/orgs/$orgSlug")({
 
     return { organization };
   },
+  staticData: {
+    breadcrumb: ({ context }) => (context as { organization: { name: string } }).organization.name,
+  },
   component: OrganizationLayout,
 });
 

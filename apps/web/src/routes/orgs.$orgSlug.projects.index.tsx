@@ -17,7 +17,10 @@ import { canAdminister } from "../lib/organizations";
 import { createProject, fetchProjects } from "../lib/projects";
 import { useResource } from "../lib/use-resource";
 
-export const Route = createFileRoute("/orgs/$orgSlug/projects/")({ component: Projects });
+export const Route = createFileRoute("/orgs/$orgSlug/projects/")({
+  staticData: { breadcrumb: "Projects" },
+  component: Projects,
+});
 
 function Projects() {
   const { orgSlug } = Route.useParams();
