@@ -13,6 +13,7 @@ import { defineConfig } from "vite";
  */
 export default defineConfig({
   root: fileURLToPath(new URL("./src/ui-review", import.meta.url)),
+  publicDir: fileURLToPath(new URL("./public", import.meta.url)),
   plugins: [tailwindcss(), viteReact()],
   resolve: { tsconfigPaths: true },
   server: {

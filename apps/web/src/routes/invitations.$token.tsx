@@ -1,15 +1,16 @@
-import { Alert, AlertDescription } from "@dolshoe/ui/components/ui/alert";
-import { Button } from "@dolshoe/ui/components/ui/button";
-import { Spinner } from "@dolshoe/ui/components/ui/spinner";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { Github } from "lucide-react";
 import { useState } from "react";
 
-import { AuthCard } from "../components/auth-card";
 import { MockSignIn } from "../components/mock-sign-in";
 import { ApiError, describeError } from "../lib/api-request";
 import { acceptInvitation } from "../lib/organizations";
 import { githubSignInUrl } from "../lib/session";
+import {
+  INVALID_INVITATION_MESSAGE,
+  invitationAccountLabel,
+  InvitationView,
+  MISMATCHED_INVITATION_MESSAGE,
+} from "../screens/invitation/invitation-view";
 
 export const Route = createFileRoute("/invitations/$token")({ component: AcceptInvitation });
 
@@ -19,10 +20,8 @@ export const Route = createFileRoute("/invitations/$token")({ component: AcceptI
  */
 function describeAcceptFailure(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 404) return "That invitation link is not valid, or it has expired.";
-    if (error.status === 403) {
-      return "That invitation was issued for a different GitHub account. Sign in as that account first.";
-    }
+    if (error.status === 404) return INVALID_INVITATION_MESSAGE;
+    if (error.status === 403) return MISMATCHED_INVITATION_MESSAGE;
   }
   return describeError(error, "Something went wrong while accepting the invitation.");
 }
@@ -34,7 +33,7 @@ function AcceptInvitation() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
 
-  async function submit(event: React.FormEvent): Promise<void> {
+  async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (submitting) return;
 
@@ -53,56 +52,19 @@ function AcceptInvitation() {
     }
   }
 
+  // Signed out there is no account to add yet, and only GitHub can say who is
+  // holding this link. Redeeming it is therefore part of signing in rather
+  // than a step after it, which is also what keeps a forwarded link from
+  // adding whoever opened it. Mock sign-in carries the same token so a local
+  // walk-through redeems in one step, the way a GitHub sign-in does.
   return (
-    <AuthCard title="Join the organization">
-      {viewer == null ? (
-        // Signed out there is no account to add yet, and only GitHub can say
-        // who is holding this link. Redeeming it is therefore part of signing
-        // in rather than a step after it, which is also what keeps a forwarded
-        // link from adding whoever opened it.
-        <>
-          <p className="text-[13px] text-muted-foreground">
-            This invitation was issued for a GitHub account. Sign in with it to accept — the link
-            only works for the account it names.
-          </p>
-
-          <Button asChild size="lg">
-            <a href={githubSignInUrl({ invitation: token })}>
-              <Github />
-              Continue with GitHub
-            </a>
-          </Button>
-
-          {/*
-            Carries the link's token, so a mock sign-in redeems the invitation
-            in the same single step a GitHub one does. Which makes the whole
-            invite-and-accept flow something you can walk through locally
-            without two GitHub accounts.
-          */}
-          {mockLoginAvailable && <MockSignIn invitation={token} />}
-        </>
-      ) : (
-        <form className="flex flex-col gap-4" onSubmit={(event) => void submit(event)}>
-          <p className="text-[13px] text-muted-foreground">
-            You are signed in as{" "}
-            <strong className="font-bold text-foreground">
-              {viewer.githubLogin == null ? viewer.email : `@${viewer.githubLogin}`}
-            </strong>
-            . Accepting adds this organization to your account.
-          </p>
-
-          {error != null && (
-            <Alert role="alert" variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <Button disabled={submitting} size="lg" type="submit">
-            {submitting && <Spinner />}
-            Accept invitation
-          </Button>
-        </form>
-      )}
-    </AuthCard>
+    <InvitationView
+      accountLabel={viewer == null ? undefined : invitationAccountLabel(viewer)}
+      error={error}
+      githubHref={githubSignInUrl({ invitation: token })}
+      mockSignIn={mockLoginAvailable ? <MockSignIn invitation={token} /> : undefined}
+      onAccept={(event) => void submit(event)}
+      submitting={submitting}
+    />
   );
 }
