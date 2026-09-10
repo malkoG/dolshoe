@@ -13,6 +13,7 @@ import { logsScreenStateNames } from "../src/screens/logs/logs-screen.states.ts"
 import { orgSettingsStateNames } from "../src/screens/org-settings/org-settings.states.ts";
 import { projectOverviewStateNames } from "../src/screens/overview/project-overview.states.ts";
 import { projectSettingsStateNames } from "../src/screens/project-settings/project-settings.states.ts";
+import { reportDetailStateNames } from "../src/screens/report-detail/report-detail.states.ts";
 import { reportsViewStateNames } from "../src/screens/reports/reports-view.states.ts";
 import { tracesScreenStateNames } from "../src/screens/traces/traces-screen.states.ts";
 
@@ -76,6 +77,11 @@ const SURFACES: Surface[] = [
     viewport: { width: 1600, height: 1120 },
   },
   { name: "alerts", states: alertsStateNames, viewport: { width: 1440, height: 960 } },
+  {
+    name: "report-detail",
+    states: reportDetailStateNames,
+    viewport: { width: 1440, height: 1132 },
+  },
 ];
 
 /**
