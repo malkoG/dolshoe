@@ -25,7 +25,7 @@ import type {
   CreateAlertRuleRequest,
 } from "../../lib/alert-rules";
 import { formatRelativeTime, pluralize } from "../../lib/format";
-import { AlertsSidebar, AlertsTopBar } from "./chrome";
+import { ReviewChrome, projectChromeCrumbs } from "../_chrome/review-chrome";
 import type { AlertsChrome } from "./chrome";
 
 const CONDITION_LABELS: Record<ConditionType, string> = {
@@ -509,12 +509,14 @@ export function Alerts(props: AlertsProps) {
   if (props.chrome == null) return body;
 
   return (
-    <div className="flex min-h-[800px] bg-background">
-      <AlertsSidebar {...props.chrome} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <AlertsTopBar {...props.chrome} />
-        <div className="flex flex-col px-9 py-13">{body}</div>
-      </div>
-    </div>
+    <ReviewChrome
+      currentProject="Alerts"
+      frame="alerts"
+      labels={props.chrome}
+      scope="project"
+      trail={projectChromeCrumbs(props.chrome, "Alerts")}
+    >
+      {body}
+    </ReviewChrome>
   );
 }
