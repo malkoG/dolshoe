@@ -1,4 +1,4 @@
-import { formatTraceChip } from "./format";
+import { formatTraceChip } from "./format.ts";
 import type {
   Investigation,
   InvestigationCrumb,
