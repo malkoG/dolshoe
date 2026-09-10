@@ -53,6 +53,8 @@ export const projectSettingsStateNames = ["saved", "error", "readOnly"] as const
 
 export type ProjectSettingsStateName = (typeof projectSettingsStateNames)[number];
 
-export function isProjectSettingsStateName(value: string | null): value is ProjectSettingsStateName {
+export function isProjectSettingsStateName(
+  value: string | null,
+): value is ProjectSettingsStateName {
   return value != null && (projectSettingsStateNames as readonly string[]).includes(value);
 }
