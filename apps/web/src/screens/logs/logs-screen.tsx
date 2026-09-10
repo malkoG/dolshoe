@@ -1,4 +1,3 @@
-import { Breadcrumb, BreadcrumbSeparator, TopBar } from "@dolshoe/ui/components/breadcrumb";
 import { DataState } from "@dolshoe/ui/components/data-state";
 import { PageHeading } from "@dolshoe/ui/components/page-heading";
 import {
@@ -17,9 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dolshoe/ui/components/ui/select";
-import { cn } from "@dolshoe/ui/lib/utils";
 import { ScrollText, Search } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { LogRecordRow } from "../../components/log-record-row";
 import { RefreshButton } from "../../components/refresh-button";
@@ -34,18 +32,8 @@ export const LOG_LEVELS: LogLevel[] = ["trace", "debug", "info", "warning", "err
 export type LogsDensity = "compact" | "comfortable";
 export type LogsScreenStatus = "error" | "loading" | "ready";
 
-export type LogsTrailCrumb = {
-  label: string;
-};
-
 type LogsScreenBase = {
-  /**
-   * The live route sits inside PageShell, which already paints the trail.
-   * Named states omit this so the silhouette can photograph the Figma bar.
-   */
-  embedded?: boolean;
   onRangeChange: (range: LogVolumeRange) => void;
-  trail: readonly LogsTrailCrumb[];
   volume: LogVolume;
 };
 
@@ -83,53 +71,34 @@ const DENSITY_OPTIONS: ReadonlyArray<{ label: string; value: LogsDensity }> = [
 ];
 
 /**
- * A project's Logs screen: the location trail, the volume chart, and
- * either the record list or the live-console stub.
+ * A project's Logs body: the volume chart and either the record list or
+ * the live-console stub.
  *
  * @remarks
  * Values in, pixels out. The route fetches; a construction test and a
- * silhouette inject a named state. Sidebar and page-shell stay where they
- * are. This view owns the Figma trail (org / project / Logs) so a
- * silhouette can photograph it without booting the shell.
+ * silhouette inject a named state. The Figma trail is a private chrome
+ * stub (`LogsChrome`) — PageShell already paints it live, so this view
+ * must not.
  */
 export function LogsScreen(props: LogsScreenProps) {
   const levelFilter = props.mode === "live" ? "all" : props.level;
-  const last = props.trail.length - 1;
-  const showTrail = props.embedded !== true && props.trail.length > 0;
 
   return (
-    <div>
-      {showTrail && (
-        <TopBar
-          trail={
-            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1">
-              {props.trail.map((crumb, index) => (
-                <Fragment key={`${crumb.label}:${index}`}>
-                  {index > 0 && <BreadcrumbSeparator />}
-                  <Breadcrumb current={index === last}>{crumb.label}</Breadcrumb>
-                </Fragment>
-              ))}
-            </nav>
-          }
-        />
+    <div className="flex flex-col gap-4">
+      <PageHeading className="mb-0">Logs</PageHeading>
+
+      <LogVolumeChart
+        levelFilter={levelFilter}
+        onClearLevelFilter={props.onClearLevelFilter ?? (() => undefined)}
+        onRangeChange={props.onRangeChange}
+        volume={props.volume}
+      />
+
+      {props.mode === "live" ? (
+        <LogsConsole onStopLive={props.onStopLive} state={props.console} />
+      ) : (
+        <LogsListPanel {...props} />
       )}
-
-      <div className={cn("flex flex-col gap-4", showTrail && "px-9 py-8")}>
-        <PageHeading className="mb-0">Logs</PageHeading>
-
-        <LogVolumeChart
-          levelFilter={levelFilter}
-          onClearLevelFilter={props.onClearLevelFilter ?? (() => undefined)}
-          onRangeChange={props.onRangeChange}
-          volume={props.volume}
-        />
-
-        {props.mode === "live" ? (
-          <LogsConsole onStopLive={props.onStopLive} state={props.console} />
-        ) : (
-          <LogsListPanel {...props} />
-        )}
-      </div>
     </div>
   );
 }

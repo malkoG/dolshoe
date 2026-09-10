@@ -26,6 +26,9 @@ const LEVEL_TONES: Record<LogLevel, "neutral" | "info" | "warning" | "danger"> =
  * Owns its own expanded/collapsed state rather than lifting it to the list.
  * Nothing above this needs to know which rows are open — a shared "which
  * ids are expanded" set would only exist to serve this one component.
+ *
+ * The muted fill is the expanded (or defaultExpanded) surface only.
+ * A collapsed console line stays on the card.
  */
 export function LogRecordRow({
   defaultExpanded = false,
@@ -41,6 +44,7 @@ export function LogRecordRow({
         <LogRow
           attrsCount={attrs.length}
           category={record.category.length > 0 ? record.category.join(".") : undefined}
+          className="bg-card"
           environment={record.service.environment}
           level={record.level}
           message={record.message}

@@ -8,8 +8,8 @@ import type { LogsListProps, LogsLiveProps, LogsScreenProps } from "./logs-scree
  *
  * @remarks
  * The view is a public view: it receives records (or a console stub) and
- * paints them. These factories are the other composition root — the one a
- * construction test and a silhouette use instead of fetching.
+ * paints them. `LogsReviewView` wraps these factories with the private
+ * trail chrome a silhouette photographs; the live route does not.
  *
  * `populated` is the list Figma framed (filtered volume, one row open).
  * `live` is the other frame: console + detail drawer. There is no loading
@@ -17,13 +17,6 @@ import type { LogsListProps, LogsLiveProps, LogsScreenProps } from "./logs-scree
  */
 
 function noop(): void {}
-
-/** The trail Figma framed on both Logs screens — org / project / current page. */
-const FIGMA_TRAIL = [
-  { label: "Acme Payments" },
-  { label: "checkout-api" },
-  { label: "Logs" },
-] as const;
 
 const FILTERED_HEIGHTS = [
   32, 24, 22, 16, 14, 11, 16, 24, 38, 54, 70, 76, 84, 95, 81, 65, 59, 54, 49, 43, 38, 32, 27, 24,
@@ -171,7 +164,6 @@ function listDefaults(): Omit<LogsListProps, "filteredRecords" | "records" | "st
     onRefresh: noop,
     query: "",
     refreshing: false,
-    trail: FIGMA_TRAIL,
     volume: {
       buckets: Array.from({ length: 24 }, (_, hour) => ({
         errors: 0,
@@ -401,7 +393,6 @@ function live(): LogsLiveProps {
     onClearLevelFilter: noop,
     onRangeChange: noop,
     onStopLive: noop,
-    trail: FIGMA_TRAIL,
     volume: stackedVolume(),
   };
 }

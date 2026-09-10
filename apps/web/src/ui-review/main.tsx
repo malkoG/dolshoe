@@ -19,7 +19,7 @@ import {
   investigationStates,
   isInvestigationStateName,
 } from "../screens/investigation/investigation.states";
-import { LogsScreen } from "../screens/logs/logs-screen";
+import { LogsReviewView } from "../screens/logs/logs-chrome";
 import {
   isLogsScreenStateName,
   logsScreenStateNames,
@@ -115,7 +115,7 @@ function view() {
 
   if (surface === "logs") {
     const state = stateFromSearch(logsScreenStateNames, isLogsScreenStateName);
-    return <LogsScreen {...logsScreenStates[state]()} />;
+    return <LogsReviewView {...logsScreenStates[state]()} />;
   }
 
   throw new Error(
