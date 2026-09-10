@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
 import { describeRefusal } from "../../lib/sign-in-refusals";
+import { LOGIN_PRIVACY_NOTE, LOGIN_TITLE, LOGIN_UNCLAIMED_BODY } from "./login-copy";
 import { LoginView } from "./login-view";
 import { loginViewStateNames, loginViewStates } from "./login-view.states";
 
@@ -19,20 +20,17 @@ describe("LoginView named states", () => {
   });
 
   test("default is the unclaimed instance waiting on GitHub", () => {
-    render(<LoginView {...loginViewStates.default()} />);
+    const props = loginViewStates.default();
+    expect(props.title).toBe(LOGIN_TITLE);
+    expect(props.body).toBe(LOGIN_UNCLAIMED_BODY);
+    expect(props.note).toBe(LOGIN_PRIVACY_NOTE);
 
-    expect(screen.getByRole("heading", { name: "Sign in to Dolshoe" })).toBeTruthy();
-    expect(
-      screen.getByText(
-        "This instance has no accounts yet. The first GitHub account to sign in becomes the owner of its default organization.",
-      ),
-    ).toBeTruthy();
+    render(<LoginView {...props} />);
+
+    expect(screen.getByRole("heading", { name: LOGIN_TITLE })).toBeTruthy();
+    expect(screen.getByText(LOGIN_UNCLAIMED_BODY)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Continue with GitHub" })).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Dolshoe reads your GitHub profile and verified email address. It asks for no access to your repositories.",
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText(LOGIN_PRIVACY_NOTE)).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByText("Development sign-in")).toBeNull();
   });
@@ -42,7 +40,7 @@ describe("LoginView named states", () => {
 
     expect(screen.getByRole("alert")).toBeTruthy();
     expect(screen.getByText(describeRefusal("not_allowed"))).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Sign in to Dolshoe" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: LOGIN_TITLE })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Continue with GitHub" })).toBeTruthy();
     expect(screen.getByText("Development sign-in")).toBeTruthy();
     expect((screen.getByLabelText("GitHub login") as HTMLInputElement).value).toBe("dev");
