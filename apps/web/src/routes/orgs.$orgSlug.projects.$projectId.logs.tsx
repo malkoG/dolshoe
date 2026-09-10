@@ -1,5 +1,5 @@
 import { Button } from "@dolshoe/ui/components/ui/button";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Link, createFileRoute, getRouteApi, useNavigate } from "@tanstack/react-router";
 import { KeyRound } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -21,8 +21,12 @@ export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/logs")(
   component: Logs,
 });
 
+const projectRoute = getRouteApi("/orgs/$orgSlug/projects/$projectId");
+
 function Logs() {
   const { orgSlug, projectId } = Route.useParams();
+  const { session } = Route.useRouteContext();
+  const { projects } = projectRoute.useLoaderData();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const query = search.q ?? "";
@@ -61,10 +65,18 @@ function Logs() {
   }, [records, query]);
 
   const volume = useMemo(() => volumeFromRecords(records, range), [records, range]);
+  const organization = session.organizations.find((candidate) => candidate.slug === orgSlug);
+  const project = projects.find((candidate) => candidate.id === projectId);
 
   return (
     <LogsScreen
       density={density}
+      embedded
+      trail={[
+        { label: organization?.name ?? orgSlug },
+        { label: project?.name ?? "…" },
+        { label: "Logs" },
+      ]}
       emptyAction={
         <Button asChild size="sm" variant="outline">
           <Link params={{ orgSlug, projectId }} to="/orgs/$orgSlug/projects/$projectId/tokens">

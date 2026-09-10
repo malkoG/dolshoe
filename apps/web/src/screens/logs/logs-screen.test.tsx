@@ -17,6 +17,24 @@ describe("LogsScreen named states", () => {
     expect(Object.keys(logsScreenStates)).toEqual([...logsScreenStateNames]);
   });
 
+  test("every named state paints the Figma trail", () => {
+    for (const name of logsScreenStateNames) {
+      const { unmount } = render(<LogsScreen {...logsScreenStates[name]()} />);
+
+      const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+      expect(trail.textContent).toContain("Acme Payments");
+      expect(trail.textContent).toContain("checkout-api");
+      expect(trail.textContent).toContain("Logs");
+      unmount();
+    }
+  });
+
+  test("the live route's embedded view does not paint a second trail", () => {
+    render(<LogsScreen {...logsScreenStates.populated()} embedded />);
+
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+  });
+
   test("empty says nothing has been sent yet", () => {
     render(<LogsScreen {...logsScreenStates.empty()} />);
 
