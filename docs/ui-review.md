@@ -154,9 +154,40 @@ Don't:
 - Add Storybook, a visual-regression service, or a screenshot comparison
   gate. The PNG is attached to the PR; it is not a CI oracle.
 
-## Adding a second surface
+## Paper and viewport
+
+Fifteen screens share one harness. Paper and capture viewport live in
+`apps/web/src/ui-review/surfaces.ts` so a new surface is a registry row
+plus a mount, not another `if` and a second viewport list.
+
+| Paper        | ReviewFrame                     | Default viewport | Use                                                   |
+| ------------ | ------------------------------- | ---------------- | ----------------------------------------------------- |
+| `panel`      | padded card                     | 1100×720         | A widget, or a shell-outside page (Login, Invitation) |
+| `framed-fit` | padded card, `w-fit`            | 1600×1120        | Private 1440×960 Sidebar + TopBar + body              |
+| `full-page`  | no card, flush to the page edge | 1440×960         | The same chrome when the PASS photographed it flush   |
+
+Override `viewport` only when the PASS locked a different height (Investigation
+1106, Report detail 1132, Tokens 1006) or a framed panel at flush size
+(Alerts 1440×960). Org Projects' `compact` state is 1024×960 via
+`stateViewports`. Tokens uses `screenshot: "page"` because the issued and
+revoke dialogs portal outside `[data-review-root]`.
+
+`overview` is Figma 20's full board — private chrome around the dashboard.
+`project-dashboard-overview` is only that dashboard widget. The live overview
+route still mounts the widget in the body slot under PageShell; it does not
+mount the private chrome.
+
+Login and Invitation are shell-outside: no Sidebar, no TopBar. They stay on
+`panel` paper. Every other photographed screen is Sidebar + TopBar + body.
+
+Live routes stay body-only under PageShell where that was the contract. The
+harness is allowed to wrap a named state in private chrome so the PNG matches
+the board. Do not "fix" that by editing `packages/ui` or `PageShell`.
+
+## Adding a surface
 
 Copy the `ExceptionTree` pattern: factories next to the view, a construction
-test that imports them, and a line in `apps/web/src/ui-review/main.tsx` that
-mounts the new states. Do not grow a registry framework until a third
-surface has made the duplication obvious.
+test that imports them, a row in `apps/web/src/ui-review/surfaces.ts` (paper,
+viewport, states), and a mount in `apps/web/src/ui-review/main.tsx`. Pick the
+paper the design PASS locked — do not invent a fourth kind until a screen
+cannot sit on these three.
