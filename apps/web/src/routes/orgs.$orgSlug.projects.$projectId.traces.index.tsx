@@ -1,3 +1,4 @@
+import { CheckboxPill } from "@dolshoe/ui/components/checkbox-pill";
 import { DataState } from "@dolshoe/ui/components/data-state";
 import {
   Panel,
@@ -9,8 +10,6 @@ import {
 } from "@dolshoe/ui/components/panel";
 import { SearchField } from "@dolshoe/ui/components/search-field";
 import { Button } from "@dolshoe/ui/components/ui/button";
-import { Checkbox } from "@dolshoe/ui/components/ui/checkbox";
-import { Label } from "@dolshoe/ui/components/ui/label";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Clock3, KeyRound, Search, Waypoints } from "lucide-react";
 import { useMemo } from "react";
@@ -83,20 +82,11 @@ function Traces() {
             value={draft}
           />
 
-          <Label className="h-9 gap-2 rounded-md border border-input bg-muted px-3 text-[11px] font-semibold text-muted-foreground">
-            {/*
-              Named explicitly. This renders as a button rather than a real
-              checkbox input, and a wrapping label does not name a button the
-              way it names a form control — without this the toggle reaches
-              assistive technology as an unlabelled checkbox.
-            */}
-            <Checkbox
-              aria-label="Errors only"
-              checked={errorsOnly}
-              onCheckedChange={(checked) => setFilters({ errors: checked === true || undefined })}
-            />
-            Errors only
-          </Label>
+          <CheckboxPill
+            checked={errorsOnly}
+            label="Errors only"
+            onCheckedChange={(checked) => setFilters({ errors: checked || undefined })}
+          />
 
           <RefreshButton label="Check for new traces" onRefresh={reload} refreshing={refreshing} />
         </PanelControls>
