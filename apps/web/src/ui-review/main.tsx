@@ -13,6 +13,12 @@ import {
   projectDashboardOverviewStateNames,
   projectDashboardOverviewStates,
 } from "../components/project-dashboard-overview.states";
+import { InvestigationView } from "../screens/investigation/investigation";
+import {
+  investigationStateNames,
+  investigationStates,
+  isInvestigationStateName,
+} from "../screens/investigation/investigation.states";
 import "../styles.css";
 import { ReviewFrame } from "./frame";
 
@@ -23,9 +29,8 @@ import { ReviewFrame } from "./frame";
  * Playwright opens this page with `?surface=&state=`, the named factory of
  * that surface runs, and the matching public view is the only thing that
  * paints. `surface` defaults to `exception-tree` so the first surface's URLs
- * keep working unchanged. Add a third surface as another `if` branch here —
- * do not grow a registry until a third caller has made the duplication
- * obvious.
+ * keep working unchanged. A third surface is another `if` branch — do not
+ * grow a registry until a fourth caller has made the duplication obvious.
  */
 function stateFromSearch<Name extends string>(
   names: readonly Name[],
@@ -62,8 +67,13 @@ function view() {
     return <ProjectDashboardOverview {...projectDashboardOverviewStates[state]()} />;
   }
 
+  if (surface === "investigation") {
+    const state = stateFromSearch(investigationStateNames, isInvestigationStateName);
+    return <InvestigationView {...investigationStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree" or "project-dashboard-overview".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", or "investigation".`,
   );
 }
 
