@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
-import { ReportsNamedState } from "./reports-chrome";
+import { ReportsNamedState, reportsChromeTrail } from "./reports-chrome";
 import { reportsViewStateNames, reportsViewStates } from "./reports-view.states";
 
 /**
@@ -13,18 +13,24 @@ import { reportsViewStateNames, reportsViewStates } from "./reports-view.states"
  * would photograph a state the test no longer describes.
  */
 function figmaChrome(): HTMLElement {
-  expect(screen.getAllByText("Acme Payments").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("checkout-api").length).toBeGreaterThan(0);
-  expect(screen.getByText("Koding Warrior")).toBeTruthy();
-  expect(screen.getByText("@kodingwarrior")).toBeTruthy();
+  expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
   expect(screen.getByRole("navigation", { name: "This project" })).toBeTruthy();
   expect(screen.getByRole("navigation", { name: "Organization" })).toBeTruthy();
+  expect(screen.getByLabelText("Switch project")).toBeTruthy();
+  expect(screen.getAllByText(reportsChromeTrail[0]).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(reportsChromeTrail[1]).length).toBeGreaterThan(0);
+  expect(screen.getByText("Koding Warrior")).toBeTruthy();
+  expect(screen.getByText("@kodingwarrior")).toBeTruthy();
   const reportsNav = screen
     .getByRole("navigation", { name: "This project" })
     .querySelector("[aria-current='page']");
-  expect(reportsNav?.textContent).toMatch(/Reports/);
+  expect(reportsNav?.textContent?.trim()).toBe("Reports");
   const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
-  expect(trail.textContent).toMatch(/Acme Payments\s*\/\s*checkout-api\s*\/\s*Reports/);
+  expect(trail.textContent).toMatch(
+    new RegExp(
+      `${reportsChromeTrail[0]}\\s*/\\s*${reportsChromeTrail[1]}\\s*/\\s*${reportsChromeTrail[2]}`,
+    ),
+  );
   return trail;
 }
 

@@ -49,6 +49,12 @@ export const REPORTS_FIGMA_CHROME: ReportsChromeLabels = {
   viewerInitials: "KW",
 };
 
+export const reportsChromeTrail = [
+  REPORTS_FIGMA_CHROME.orgName,
+  REPORTS_FIGMA_CHROME.projectName,
+  "Reports",
+] as const;
+
 function ViewerAvatar({
   avatarUrl,
   className,
