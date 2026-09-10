@@ -4,6 +4,15 @@ import { describe, expect, test } from "vitest";
 import { tracesChromeTrail, TracesReviewSurface } from "./traces-chrome";
 import { tracesScreenStateNames, tracesScreenStates } from "./traces-screen.states";
 
+function expectFullLayoutChrome(): void {
+  expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
+  expect(screen.getByRole("navigation", { name: "This project" })).toBeTruthy();
+  expect(screen.getByLabelText("Switch project")).toBeTruthy();
+  expect(screen.getAllByText(tracesChromeTrail[0]).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(tracesChromeTrail[1]).length).toBeGreaterThan(0);
+  expect(screen.getByText("Traces", { selector: "[aria-current=page]" })).toBeTruthy();
+}
+
 /**
  * Constructs the public view from each named state.
  *
@@ -20,9 +29,7 @@ describe("TracesScreen named states", () => {
   test("empty offers setup when nothing has been exported", () => {
     render(<TracesReviewSurface {...tracesScreenStates.empty()} />);
 
-    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
-    expect(screen.getByText(tracesChromeTrail[0])).toBeTruthy();
-    expect(screen.getByText(tracesChromeTrail[1])).toBeTruthy();
+    expectFullLayoutChrome();
     expect(screen.getByRole("heading", { name: "Traces" })).toBeTruthy();
     expect(screen.getByText("No traces yet")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Set up reporting" })).toBeTruthy();
@@ -32,6 +39,7 @@ describe("TracesScreen named states", () => {
   test("populated lists every designed kind and the failing pair", () => {
     render(<TracesReviewSurface {...tracesScreenStates.populated()} />);
 
+    expectFullLayoutChrome();
     expect(screen.getByText("6 traces")).toBeTruthy();
     expect(screen.getByText("GET /checkout")).toBeTruthy();
     expect(screen.getByText("POST /api/v1/payments/authorize")).toBeTruthy();
@@ -53,6 +61,7 @@ describe("TracesScreen named states", () => {
   test("error names the failure and offers a retry", () => {
     render(<TracesReviewSurface {...tracesScreenStates.error()} />);
 
+    expectFullLayoutChrome();
     expect(screen.getByText("Couldn't load traces")).toBeTruthy();
     expect(screen.getByText("The API did not answer.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
@@ -61,6 +70,7 @@ describe("TracesScreen named states", () => {
   test("inProgress says the list is still loading", () => {
     render(<TracesReviewSurface {...tracesScreenStates.inProgress()} />);
 
+    expectFullLayoutChrome();
     expect(screen.getByText("Loading traces…")).toBeTruthy();
     expect(screen.getByText("Fetching the newest traces from the API.")).toBeTruthy();
   });

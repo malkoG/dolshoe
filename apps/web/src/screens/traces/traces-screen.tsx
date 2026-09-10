@@ -101,9 +101,9 @@ function panelSummary(
  *
  * @remarks
  * The heading and the panel are this screen's. The live route mounts this
- * body under PageShell, which already paints the breadcrumb TopBar. The
+ * body under PageShell, which already paints Sidebar + TopBar. The
  * silhouette uses `TracesReviewChrome` so the photograph can show that
- * trail without nesting a second bar on the route.
+ * chrome without nesting a second shell on the route.
  */
 export function TracesScreen({
   errorDescription,

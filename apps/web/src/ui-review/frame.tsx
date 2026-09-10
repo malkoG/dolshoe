@@ -1,3 +1,4 @@
+import { cn } from "@dolshoe/ui/lib/utils";
 import type { ReactNode } from "react";
 
 /**
@@ -15,16 +16,25 @@ import type { ReactNode } from "react";
  * `inset` is the default paper margin. Investigation drops it so the
  * breadcrumb TopBar can sit flush the way Figma draws the page; the view
  * pads its own cards when it is given a trail.
+ *
+ * `fit` shrinks the card to the view's width. Traces photographs a 1440×960
+ * layout chrome; without it the card stretches to the capture viewport.
  */
 export function ReviewFrame({
   children,
+  fit = false,
   framed = true,
   inset = true,
-}: Readonly<{ children: ReactNode; framed?: boolean; inset?: boolean }>) {
+}: Readonly<{ children: ReactNode; fit?: boolean; framed?: boolean; inset?: boolean }>) {
   return (
     <div className={inset ? "min-h-screen p-8" : "min-h-screen"} data-review-root>
       {framed ? (
-        <div className="overflow-hidden rounded-xl border border-input bg-card shadow-panel">
+        <div
+          className={cn(
+            "overflow-hidden rounded-xl border border-input bg-card shadow-panel",
+            fit && "w-fit",
+          )}
+        >
           {children}
         </div>
       ) : (

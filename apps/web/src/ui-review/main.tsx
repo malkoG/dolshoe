@@ -91,8 +91,9 @@ function view() {
 createRoot(root).render(
   <StrictMode>
     <ReviewFrame
-      framed={surface !== "investigation" && surface !== "traces"}
-      inset={surface !== "investigation" && surface !== "traces"}
+      fit={surface === "traces"}
+      framed={surface !== "investigation"}
+      inset={surface !== "investigation"}
     >
       {view()}
     </ReviewFrame>
