@@ -109,7 +109,6 @@ function view() {
 
   throw new Error(
     `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", "project-settings", or "reports".`,
-
   );
 }
 
