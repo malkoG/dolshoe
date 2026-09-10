@@ -4,12 +4,11 @@ import { Fragment } from "react";
 import type { InvestigationCrumb } from "./types";
 
 /**
- * The Figma location trail above Investigation — TopBar plus crumbs, no
- * search, sidebar trigger, or avatar.
+ * The Figma location trail — TopBar plus crumbs.
  *
  * @remarks
- * Private to this screen. PageShell owns the live trail; this stub exists so
- * a named state can photograph the same crumbs without opening the shell.
+ * Private to this screen. InvestigationChrome sits this bar beside the
+ * sidebar. PageShell owns the live trail.
  */
 export function InvestigationTrail({
   crumbs,

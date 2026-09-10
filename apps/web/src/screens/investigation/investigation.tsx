@@ -4,8 +4,8 @@ import { PanelFooter, PanelFooterNote } from "@dolshoe/ui/components/panel";
 import type { ReactNode } from "react";
 
 import { ErrorAttach } from "./error-attach";
+import { InvestigationChrome } from "./investigation-chrome";
 import { InvestigationHeader } from "./investigation-header";
-import { InvestigationTrail } from "./investigation-trail";
 import { LogAttach } from "./log-attach";
 import { PendingSpanSlot } from "./pending-span-slot";
 import { SpanDetails } from "./span-details";
@@ -48,12 +48,7 @@ function InvestigationBody({
   const stack = <div className="flex flex-col gap-4">{children}</div>;
   if (trail == null || trail.length === 0) return stack;
 
-  return (
-    <div className="flex flex-col">
-      <InvestigationTrail crumbs={trail} />
-      <div className="p-8">{stack}</div>
-    </div>
-  );
+  return <InvestigationChrome trail={trail}>{stack}</InvestigationChrome>;
 }
 
 /**
@@ -69,8 +64,8 @@ function InvestigationBody({
  * union for a row to switch on.
  *
  * `trail` is optional. Named states pass the Figma crumbs so a silhouette
- * can photograph them. The live route omits it; PageShell already paints
- * the same steps.
+ * can photograph Sidebar + TopBar + body. The live route omits it;
+ * PageShell already paints that chrome.
  */
 export function InvestigationView(props: InvestigationViewProps) {
   if (props.status === "loading") {

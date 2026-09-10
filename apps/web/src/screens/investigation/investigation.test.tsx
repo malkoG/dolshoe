@@ -12,6 +12,15 @@ function expectFigmaTrail(current: string) {
   expect(within(nav).getByText(current)).toBeTruthy();
 }
 
+function expectFigmaChrome(current: string) {
+  expectFigmaTrail(current);
+  const sidebar = screen.getByRole("navigation", { name: "Sidebar" });
+  expect(within(sidebar).getByText("checkout-api")).toBeTruthy();
+  expect(within(sidebar).getByText("Overview")).toBeTruthy();
+  expect(within(sidebar).getByText("Traces")).toBeTruthy();
+  expect(within(sidebar).getByText("All projects")).toBeTruthy();
+}
+
 /**
  * Constructs the public view from each named state.
  *
@@ -29,7 +38,7 @@ describe("Investigation named states", () => {
     render(<InvestigationView {...investigationStates.incomplete()} />);
 
     expect(screen.getByRole("heading", { name: "Investigation" })).toBeTruthy();
-    expectFigmaTrail("Investigation 4f2a…9c1e");
+    expectFigmaChrome("Investigation 4f2a…9c1e");
     expect(screen.getByText("Incomplete — parents may still arrive")).toBeTruthy();
     expect(screen.queryByText("1 parent not received")).toBeNull();
     expect(screen.getByText("Pending span")).toBeTruthy();
@@ -48,7 +57,7 @@ describe("Investigation named states", () => {
   test("truncated names the cap and keeps the tree as spans only", () => {
     render(<InvestigationView {...investigationStates.truncated()} />);
 
-    expectFigmaTrail("Investigation 9c1e…4f2a");
+    expectFigmaChrome("Investigation 9c1e…4f2a");
     expect(screen.getByText("2,000 of 2,413 spans")).toBeTruthy();
     expect(screen.getByText("Showing first 2,000 spans — trace truncated")).toBeTruthy();
     expect(screen.getByText("This trace holds more spans than are shown")).toBeTruthy();
@@ -64,7 +73,7 @@ describe("Investigation named states", () => {
     render(<InvestigationView {...investigationStates.loading()} />);
 
     expect(screen.getByRole("heading", { name: "Investigation" })).toBeTruthy();
-    expectFigmaTrail("Investigation");
+    expectFigmaChrome("Investigation");
     expect(screen.getByText("Loading trace…")).toBeTruthy();
     expect(screen.getByText("Fetching this trace's spans from the API.")).toBeTruthy();
   });
@@ -73,6 +82,7 @@ describe("Investigation named states", () => {
     render(<InvestigationView status="loading" />);
 
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Investigation" })).toBeTruthy();
   });
 });

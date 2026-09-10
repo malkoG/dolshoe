@@ -103,8 +103,8 @@ export interface Investigation {
  *
  * @remarks
  * Named-state factories pass the Figma crumbs so the silhouette photographs
- * them. The live route omits `trail` — PageShell already paints the same
- * steps from route staticData.
+ * Sidebar + TopBar + body. The live route omits `trail` — PageShell already
+ * paints that chrome from route staticData.
  */
 export interface InvestigationCrumb {
   label: string;

@@ -63,6 +63,12 @@ async function main(): Promise<void> {
     });
 
     for (const surface of SURFACES) {
+      if (surface.name === "investigation") {
+        await page.setViewportSize({ width: 1440, height: 1106 });
+      } else {
+        await page.setViewportSize({ width: 1100, height: 720 });
+      }
+
       for (const name of surface.states) {
         await page.goto(new URL(`/?surface=${surface.name}&state=${name}`, address).href, {
           waitUntil: "networkidle",
