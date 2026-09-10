@@ -29,6 +29,7 @@ export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/traces/
     q: textParam(search.q),
     errors: flagParam(search.errors),
   }),
+  staticData: { breadcrumb: "Traces" },
   component: Traces,
 });
 

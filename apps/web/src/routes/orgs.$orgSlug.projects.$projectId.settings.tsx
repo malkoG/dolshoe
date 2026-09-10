@@ -11,6 +11,7 @@ import { canAdminister } from "../lib/organizations";
 import { updateProject } from "../lib/projects";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/settings")({
+  staticData: { breadcrumb: "Settings" },
   component: ProjectSettings,
 });
 

@@ -7,6 +7,7 @@ import { fetchProjectDashboardSummary } from "../lib/dashboard-summary";
 import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/")({
+  staticData: { breadcrumb: "Overview" },
   component: ProjectOverview,
 });
 

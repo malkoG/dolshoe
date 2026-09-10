@@ -40,6 +40,7 @@ import type { IssuedProjectToken, ProjectToken } from "../lib/projects";
 import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/tokens")({
+  staticData: { breadcrumb: "Tokens" },
   component: Tokens,
 });
 

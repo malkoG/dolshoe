@@ -15,12 +15,15 @@ import { useState } from "react";
 
 import { SpanKindBadge } from "../components/span-kind-badge";
 import { describeError } from "../lib/api-request";
-import { formatDuration, formatRelativeTime, pluralize } from "../lib/format";
+import { formatDuration, formatRelativeTime, formatShortId, pluralize } from "../lib/format";
 import { fetchTrace } from "../lib/traces";
 import type { TraceSpan } from "../lib/traces";
 import { useResource } from "../lib/use-resource";
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/traces/$traceId")({
+  staticData: {
+    breadcrumb: ({ params }) => `Trace ${formatShortId(params.traceId ?? "")}`,
+  },
   component: Trace,
 });
 

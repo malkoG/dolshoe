@@ -33,6 +33,7 @@ import { useUrlTextFilter } from "../lib/use-url-text-filter";
 const LEVELS: LogLevel[] = ["trace", "debug", "info", "warning", "error", "fatal"];
 
 export const Route = createFileRoute("/orgs/$orgSlug/projects/$projectId/logs")({
+  staticData: { breadcrumb: "Logs" },
   validateSearch: (search: Record<string, unknown>): { q?: string; level?: LogLevel } => ({
     q: textParam(search.q),
     level: optionParam(search.level, LEVELS),
