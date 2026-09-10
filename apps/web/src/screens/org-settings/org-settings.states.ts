@@ -1,4 +1,4 @@
-import { ONLY_OWNER_LEAVE_REFUSAL, type OrgSettingsProps } from "./org-settings";
+import type { OrgSettingsProps } from "./org-settings";
 
 /**
  * Named states for organization settings.
@@ -42,7 +42,7 @@ function admin(): OrgSettingsProps {
 function leaveRefused(): OrgSettingsProps {
   return {
     ...admin(),
-    leaveError: ONLY_OWNER_LEAVE_REFUSAL,
+    leaveError: "You're the only owner — promote another member first.",
   };
 }
 
