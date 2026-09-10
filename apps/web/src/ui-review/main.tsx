@@ -45,6 +45,12 @@ import {
   orgProjectsStateNames,
   orgProjectsStates,
 } from "../screens/org-projects/org-projects.states";
+import { OrganizationsScreen } from "../screens/organizations/organizations-screen";
+import {
+  isOrganizationsScreenStateName,
+  organizationsScreenStateNames,
+  organizationsScreenStates,
+} from "../screens/organizations/organizations-screen.states";
 import { OrgSettingsReview } from "../screens/org-settings/org-settings-chrome";
 import {
   isOrgSettingsStateName,
@@ -186,6 +192,13 @@ const mounts = {
     namedView(orgProjectsStateNames, isOrgProjectsStateName, orgProjectsStates, OrgProjectsReview),
   tokens: () =>
     namedView(tokensScreenStateNames, isTokensScreenStateName, tokensScreenStates, TokensScreen),
+  organizations: () =>
+    namedView(
+      organizationsScreenStateNames,
+      isOrganizationsScreenStateName,
+      organizationsScreenStates,
+      OrganizationsScreen,
+    ),
 } satisfies Record<SurfaceName, () => ReactNode>;
 
 const root = document.getElementById("root");
