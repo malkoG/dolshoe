@@ -10,7 +10,10 @@ function expectFullLayoutChrome(): void {
   expect(screen.getByLabelText("Switch project")).toBeTruthy();
   expect(screen.getAllByText(tracesChromeTrail[0]).length).toBeGreaterThan(0);
   expect(screen.getAllByText(tracesChromeTrail[1]).length).toBeGreaterThan(0);
-  expect(screen.getByText("Traces", { selector: "[aria-current=page]" })).toBeTruthy();
+  const activeNav = screen
+    .getByRole("navigation", { name: "This project" })
+    .querySelector("[aria-current=page]");
+  expect(activeNav?.textContent?.trim()).toBe("Traces");
 }
 
 /**
