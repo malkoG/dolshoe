@@ -19,6 +19,12 @@ import {
   investigationStates,
   isInvestigationStateName,
 } from "../screens/investigation/investigation.states";
+import { ProjectSettingsReview } from "../screens/project-settings/project-settings-chrome";
+import {
+  isProjectSettingsStateName,
+  projectSettingsStateNames,
+  projectSettingsStates,
+} from "../screens/project-settings/project-settings.states";
 import { TracesReviewSurface } from "../screens/traces/traces-chrome";
 import {
   isTracesScreenStateName,
@@ -36,7 +42,9 @@ import { ReviewFrame } from "./frame";
  * that surface runs, and the matching public view is the only thing that
  * paints. `surface` defaults to `exception-tree` so the first surface's URLs
  * keep working unchanged. A further surface is another `if` branch — do not
- * grow a registry until the duplication is obvious.
+ * grow a registry until the duplication is obvious. Investigation and
+ * project settings drop the review card so the sidebar and trail sit on
+ * the page edge.
  */
 function stateFromSearch<Name extends string>(
   names: readonly Name[],
@@ -83,18 +91,21 @@ function view() {
     return <TracesReviewSurface {...tracesScreenStates[state]()} />;
   }
 
+  if (surface === "project-settings") {
+    const state = stateFromSearch(projectSettingsStateNames, isProjectSettingsStateName);
+    return <ProjectSettingsReview {...projectSettingsStates[state]()} />;
+  }
+
   throw new Error(
-    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", or "traces".`,
+    `Unknown surface ${JSON.stringify(surface)}. Expected "exception-tree", "project-dashboard-overview", "investigation", "traces", or "project-settings".`,
   );
 }
 
+const fullPage = surface === "investigation" || surface === "project-settings";
+
 createRoot(root).render(
   <StrictMode>
-    <ReviewFrame
-      fit={surface === "traces"}
-      framed={surface !== "investigation"}
-      inset={surface !== "investigation"}
-    >
+    <ReviewFrame fit={surface === "traces"} framed={!fullPage} inset={!fullPage}>
       {view()}
     </ReviewFrame>
   </StrictMode>,

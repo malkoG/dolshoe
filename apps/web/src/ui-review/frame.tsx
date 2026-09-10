@@ -11,11 +11,12 @@ import type { ReactNode } from "react";
  *
  * `framed` is the default because ExceptionTree and the dashboard are a
  * single panel. Investigation already is a stack of cards — wrapping it
- * again would photograph a second border the design does not have.
+ * again would photograph a second border the design does not have. Project
+ * settings is a full Sidebar + TopBar + body page; a card around that
+ * chrome reads as a panel.
  *
- * `inset` is the default paper margin. Investigation drops it so the
- * breadcrumb TopBar can sit flush the way Figma draws the page; the view
- * pads its own cards when it is given a trail.
+ * `inset` is the default paper margin. Full-page surfaces drop it so the
+ * sidebar and breadcrumb TopBar sit flush the way Figma draws the page.
  *
  * `fit` shrinks the card to the view's width. Traces photographs a 1440×960
  * layout chrome; without it the card stretches to the capture viewport.
