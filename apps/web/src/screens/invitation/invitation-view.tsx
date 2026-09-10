@@ -10,11 +10,8 @@ export const INVITATION_TITLE = "Join the organization";
 export const SIGNED_OUT_BODY =
   "This invitation was issued for a GitHub account. Sign in with it to accept — the link only works for the account it names.";
 
-export const SIGNED_OUT_NOTE =
+export const PRIVACY_NOTE =
   "Dolshoe reads your GitHub profile and verified email address. It asks for no access to your repositories.";
-
-export const SIGNED_IN_NOTE =
-  '404 → "That invitation link is not valid, or it has expired."  ·  403 → "That invitation was issued for a different GitHub account. Sign in as that account first."';
 
 export const INVALID_INVITATION_MESSAGE = "That invitation link is not valid, or it has expired.";
 
@@ -77,7 +74,7 @@ export function InvitationView({
           SIGNED_OUT_BODY
         )
       }
-      note={signedIn ? SIGNED_IN_NOTE : SIGNED_OUT_NOTE}
+      note={PRIVACY_NOTE}
     >
       {error != null && (
         <Alert role="alert" variant="destructive">

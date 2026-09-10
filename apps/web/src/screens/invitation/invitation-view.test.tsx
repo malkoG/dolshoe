@@ -6,8 +6,8 @@ import {
   InvitationView,
   INVITATION_TITLE,
   MISMATCHED_INVITATION_MESSAGE,
+  PRIVACY_NOTE,
   SIGNED_OUT_BODY,
-  SIGNED_OUT_NOTE,
 } from "./invitation-view";
 import { invitationStateNames, invitationStates } from "./invitation-view.states";
 
@@ -30,7 +30,7 @@ describe("InvitationView named states", () => {
     expect(screen.getByRole("heading", { name: INVITATION_TITLE })).toBeTruthy();
     expect(screen.getByText(SIGNED_OUT_BODY)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Continue with GitHub" })).toBeTruthy();
-    expect(screen.getByText(SIGNED_OUT_NOTE)).toBeTruthy();
+    expect(screen.getByText(PRIVACY_NOTE)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Accept invitation" })).toBeNull();
   });
 
@@ -40,8 +40,9 @@ describe("InvitationView named states", () => {
     expect(screen.getByRole("heading", { name: INVITATION_TITLE })).toBeTruthy();
     expect(screen.getByText("@kodingwarrior")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Accept invitation" })).toBeTruthy();
-    expect(screen.getByText(INVALID_INVITATION_MESSAGE, { exact: false })).toBeTruthy();
-    expect(screen.getByText(MISMATCHED_INVITATION_MESSAGE, { exact: false })).toBeTruthy();
+    expect(screen.getByText(PRIVACY_NOTE)).toBeTruthy();
+    expect(screen.queryByText(INVALID_INVITATION_MESSAGE, { exact: false })).toBeNull();
+    expect(screen.queryByText(MISMATCHED_INVITATION_MESSAGE, { exact: false })).toBeNull();
     expect(screen.queryByRole("link", { name: "Continue with GitHub" })).toBeNull();
   });
 
@@ -53,10 +54,19 @@ describe("InvitationView named states", () => {
     expect(screen.getByRole("heading", { name: INVITATION_TITLE })).toBeTruthy();
   });
 
-  test("a refused accept is an alert, not a second silhouette", () => {
+  test("a refused accept is an alert, not a footer note", () => {
     render(<InvitationView {...invitationStates.signedIn()} error={INVALID_INVITATION_MESSAGE} />);
 
     expect(screen.getByRole("alert").textContent).toBe(INVALID_INVITATION_MESSAGE);
-    expect(screen.getByText(MISMATCHED_INVITATION_MESSAGE, { exact: false })).toBeTruthy();
+    expect(screen.getByText(PRIVACY_NOTE)).toBeTruthy();
+  });
+
+  test("a mismatched account is the other alert, still not a footer note", () => {
+    render(
+      <InvitationView {...invitationStates.signedIn()} error={MISMATCHED_INVITATION_MESSAGE} />,
+    );
+
+    expect(screen.getByRole("alert").textContent).toBe(MISMATCHED_INVITATION_MESSAGE);
+    expect(screen.queryByText(INVALID_INVITATION_MESSAGE, { exact: false })).toBeNull();
   });
 });
