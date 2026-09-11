@@ -6,6 +6,7 @@ import { invitationStateNames } from "../screens/invitation/invitation-view.stat
 import { loginViewStateNames } from "../screens/login/login-view.states.ts";
 import { logsScreenStateNames } from "../screens/logs/logs-screen.states.ts";
 import { orgProjectsStateNames } from "../screens/org-projects/org-projects.states.ts";
+import { organizationsScreenStateNames } from "../screens/organizations/organizations-screen.states.ts";
 import { orgSettingsStateNames } from "../screens/org-settings/org-settings.states.ts";
 import { projectOverviewStateNames } from "../screens/overview/project-overview.states.ts";
 import { projectSettingsStateNames } from "../screens/project-settings/project-settings.states.ts";
@@ -96,6 +97,7 @@ export const SURFACES = [
     states: tokensScreenStateNames,
     viewport: { width: 1440, height: 1006 },
   },
+  { name: "organizations", paper: "panel", states: organizationsScreenStateNames },
 ] as const satisfies readonly Surface[];
 
 export type SurfaceName = (typeof SURFACES)[number]["name"];
