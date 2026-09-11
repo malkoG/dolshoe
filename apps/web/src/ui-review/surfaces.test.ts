@@ -23,6 +23,7 @@ describe("UI review surface registry", () => {
       logs: "framed-fit",
       invitation: "panel",
       login: "panel",
+      organizations: "panel",
       "org-settings": "full-page",
       overview: "framed-fit",
       alerts: "panel",
