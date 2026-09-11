@@ -5,6 +5,7 @@ import { investigationStateNames } from "../screens/investigation/investigation.
 import { invitationStateNames } from "../screens/invitation/invitation-view.states.ts";
 import { loginViewStateNames } from "../screens/login/login-view.states.ts";
 import { logsScreenStateNames } from "../screens/logs/logs-screen.states.ts";
+import { membersScreenStateNames } from "../screens/members/members-screen.states.ts";
 import { orgProjectsStateNames } from "../screens/org-projects/org-projects.states.ts";
 import { organizationsScreenStateNames } from "../screens/organizations/organizations-screen.states.ts";
 import { orgSettingsStateNames } from "../screens/org-settings/org-settings.states.ts";
@@ -98,6 +99,17 @@ export const SURFACES = [
     viewport: { width: 1440, height: 1006 },
   },
   { name: "organizations", paper: "panel", states: organizationsScreenStateNames },
+  {
+    name: "members",
+    paper: "full-page",
+    screenshot: "page",
+    states: membersScreenStateNames,
+    viewport: { width: 1440, height: 960 },
+    stateViewports: {
+      compact: { width: 1024, height: 960 },
+      mobile: { width: 400, height: 940 },
+    },
+  },
 ] as const satisfies readonly Surface[];
 
 export type SurfaceName = (typeof SURFACES)[number]["name"];

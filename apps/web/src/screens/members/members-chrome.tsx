@@ -1,25 +1,28 @@
 import { Breadcrumb, BreadcrumbSeparator, TopBar } from "@dolshoe/ui/components/breadcrumb";
 import { Avatar, AvatarFallback } from "@dolshoe/ui/components/ui/avatar";
-import { cn } from "@dolshoe/ui/lib/utils";
 import type { ReactNode } from "react";
+
+import {
+  FIGMA_REVIEW_CHROME,
+  ReviewChrome,
+  orgChromeCrumbs,
+  type ReviewChromeFrame,
+} from "../_chrome/review-chrome";
+import { MembersScreen, type MembersScreenProps } from "./members-screen";
 
 /**
  * Org chrome the silhouettes photograph — not the live route.
  *
  * @remarks
- * PageShell already paints the TopBar on `/orgs/$orgSlug/members`. This stub
- * exists so a named state can show the same Figma trail (org / Members)
- * without booting the router or editing shared layout. Desktop matches the
- * 56px bar; mobile adds the sidebar trigger Figma puts on the 400 viewport.
+ * PageShell already paints Sidebar + TopBar on `/orgs/$orgSlug/members`.
+ * Named states mount shared `ReviewChrome` (org scope, Acme Payments /
+ * Members) so a silhouette is Sidebar + TopBar + body. The 400 viewport is
+ * the Figma shell-outside: no rail, hamburger + trail only.
  */
-export type MembersChromeVariant = "desktop" | "mobile";
+export type MembersChromeFrame = Extract<ReviewChromeFrame, "org-1440" | "org-1024"> | "mobile";
 
-export interface MembersChromeProps {
-  children: ReactNode;
-  className?: string;
-  orgName?: string;
-  variant?: MembersChromeVariant;
-  viewerInitials?: string;
+export interface MembersReviewProps extends MembersScreenProps {
+  chromeFrame?: MembersChromeFrame;
 }
 
 function SidebarTriggerStub() {
@@ -36,36 +39,64 @@ function SidebarTriggerStub() {
   );
 }
 
-export function MembersChrome({
-  children,
-  className,
-  orgName = "Acme Payments",
-  variant = "desktop",
-  viewerInitials = "KW",
-}: MembersChromeProps) {
-  const mobile = variant === "mobile";
-
+function MembersMobileShell({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <div className={cn("bg-background", className)}>
+    <div className="flex h-[940px] w-[400px] flex-col overflow-hidden bg-background">
       <TopBar
-        className={cn("sticky top-0 z-20 bg-card", mobile && "px-4")}
-        trail={
-          <>
-            {mobile && <SidebarTriggerStub />}
-            <Breadcrumb>{orgName}</Breadcrumb>
-            <BreadcrumbSeparator />
-            <Breadcrumb current>Members</Breadcrumb>
-          </>
-        }
+        className="px-4"
         actions={
-          <Avatar className="size-7 rounded-lg">
-            <AvatarFallback className="rounded-lg bg-identity text-[9px] font-medium tracking-[0.06em] text-identity-foreground">
-              {viewerInitials}
+          <Avatar className="size-7 rounded-lg bg-identity">
+            <AvatarFallback className="rounded-lg bg-identity font-mono text-badge tracking-[0.06em] text-identity-on uppercase">
+              {FIGMA_REVIEW_CHROME.viewerInitials}
             </AvatarFallback>
           </Avatar>
         }
+        trail={
+          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1">
+            <SidebarTriggerStub />
+            <Breadcrumb>{FIGMA_REVIEW_CHROME.orgName}</Breadcrumb>
+            <BreadcrumbSeparator />
+            <Breadcrumb current>Members</Breadcrumb>
+          </nav>
+        }
       />
-      <div className={cn(mobile ? "px-5 py-10" : "px-9 py-13")}>{children}</div>
+      <main className="min-h-0 flex-1 overflow-auto px-5 py-10">{children}</main>
     </div>
+  );
+}
+
+export function MembersChrome({
+  children,
+  chromeFrame = "org-1440",
+}: Readonly<{
+  children: ReactNode;
+  chromeFrame?: MembersChromeFrame;
+}>) {
+  if (chromeFrame === "mobile") {
+    return <MembersMobileShell>{children}</MembersMobileShell>;
+  }
+
+  return (
+    <ReviewChrome
+      bodyClassName="min-h-0 flex-1 overflow-auto px-9 py-13"
+      currentOrg="Members"
+      frame={chromeFrame}
+      scope="org"
+      trail={orgChromeCrumbs(FIGMA_REVIEW_CHROME.orgName, "Members")}
+    >
+      {children}
+    </ReviewChrome>
+  );
+}
+
+/**
+ * The composition the silhouette photographs: shared chrome, then the
+ * public members view. The route renders `MembersScreen` alone.
+ */
+export function MembersReview({ chromeFrame = "org-1440", ...screen }: MembersReviewProps) {
+  return (
+    <MembersChrome chromeFrame={chromeFrame}>
+      <MembersScreen {...screen} />
+    </MembersChrome>
   );
 }

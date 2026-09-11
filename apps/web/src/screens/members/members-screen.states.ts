@@ -1,5 +1,5 @@
 import type { Invitation, IssuedInvitation, Member } from "../../lib/organizations";
-import type { MembersReviewState } from "./members-review";
+import type { MembersReviewProps } from "./members-chrome";
 import type { MembersScreenProps } from "./members-screen";
 
 /**
@@ -7,13 +7,9 @@ import type { MembersScreenProps } from "./members-screen";
  *
  * @remarks
  * The four Figma frames on "14 — Screen / Org · Members": populated, the
- * invitation-link dialog, compact at 1024 (long name truncates), and mobile
- * at 400 (invite and rows wrap). Each state wraps the public view in the
- * private TopBar chrome so a silhouette shows Acme Payments / Members.
- *
- * `chrome.className` on compact and mobile is the width those frames
- * constrain to after the sidebar — the harness photographs chrome + view,
- * not PageShell.
+ * invitation-link dialog, compact at 1024, and mobile at 400. Desktop and
+ * compact wrap the public view in shared `ReviewChrome`. Mobile is the
+ * intentional shell-outside (hamburger + trail, no rail).
  */
 const VIEWER_ID = "user-kodingwarrior";
 
@@ -92,12 +88,6 @@ const ISSUED: IssuedInvitation = {
 const POPULATED_MEMBERS = [KODING_WARRIOR, MINA_PARK, JONAH_REYES, OPS_BOT];
 const PENDING = [OCTOCAT_INVITE, HUBOT_INVITE];
 
-const DESKTOP_CHROME = {
-  orgName: "Acme Payments",
-  variant: "desktop",
-  viewerInitials: "KW",
-} as const;
-
 function adminRoster(): MembersScreenProps {
   return {
     administers: true,
@@ -112,45 +102,35 @@ function adminRoster(): MembersScreenProps {
   };
 }
 
-function populated(): MembersReviewState {
-  return { chrome: { ...DESKTOP_CHROME }, screen: adminRoster() };
+function populated(): MembersReviewProps {
+  return { ...adminRoster(), chromeFrame: "org-1440" };
 }
 
 /**
  * The link was just issued. The dialog is the only copy that will ever exist.
  */
-function invitationLink(): MembersReviewState {
-  return { chrome: { ...DESKTOP_CHROME }, screen: { ...adminRoster(), issued: ISSUED } };
+function invitationLink(): MembersReviewProps {
+  return { ...adminRoster(), chromeFrame: "org-1440", issued: ISSUED };
 }
 
 /**
- * 1024 viewport after the sidebar: a long name has to truncate rather than
- * push the role controls off the row.
+ * 1024 viewport: a long name has to truncate rather than push the role
+ * controls off the row.
  */
-function compact(): MembersReviewState {
+function compact(): MembersReviewProps {
   return {
-    chrome: { ...DESKTOP_CHROME, className: "w-[768px]" },
-    screen: {
-      ...adminRoster(),
-      members: [KODING_WARRIOR, MINA_PARK, JONAH_REYES, ALEXANDRA, OPS_BOT],
-    },
+    ...adminRoster(),
+    chromeFrame: "org-1024",
+    members: [KODING_WARRIOR, MINA_PARK, JONAH_REYES, ALEXANDRA, OPS_BOT],
   };
 }
 
 /**
- * 400 viewport: the invite fields stack and each row's Right cluster wraps
- * under the name, the way MemberRow's 240px Left minimum is meant to.
+ * 400 viewport: Figma's shell-outside. Invite fields stack and each row's
+ * Right cluster wraps under the name.
  */
-function mobile(): MembersReviewState {
-  return {
-    chrome: {
-      orgName: "Acme Payments",
-      variant: "mobile",
-      className: "w-[400px]",
-      viewerInitials: "KW",
-    },
-    screen: adminRoster(),
-  };
+function mobile(): MembersReviewProps {
+  return { ...adminRoster(), chromeFrame: "mobile" };
 }
 
 export const membersScreenStates = {

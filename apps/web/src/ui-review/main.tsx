@@ -39,6 +39,12 @@ import {
   logsScreenStateNames,
   logsScreenStates,
 } from "../screens/logs/logs-screen.states";
+import { MembersReview } from "../screens/members/members-chrome";
+import {
+  isMembersScreenStateName,
+  membersScreenStateNames,
+  membersScreenStates,
+} from "../screens/members/members-screen.states";
 import { OrgProjectsReview } from "../screens/org-projects/org-chrome";
 import {
   isOrgProjectsStateName,
@@ -198,6 +204,13 @@ const mounts = {
       isOrganizationsScreenStateName,
       organizationsScreenStates,
       OrganizationsScreen,
+    ),
+  members: () =>
+    namedView(
+      membersScreenStateNames,
+      isMembersScreenStateName,
+      membersScreenStates,
+      MembersReview,
     ),
 } satisfies Record<SurfaceName, () => ReactNode>;
 
