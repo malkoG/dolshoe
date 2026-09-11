@@ -30,6 +30,7 @@ describe("UI review surface registry", () => {
       "report-detail": "full-page",
       "org-projects": "full-page",
       tokens: "full-page",
+      members: "full-page",
     });
   });
 
@@ -48,6 +49,7 @@ describe("UI review surface registry", () => {
     const alerts = surfaceByName("alerts")!;
     const orgProjects = surfaceByName("org-projects")!;
     const tokens = surfaceByName("tokens")!;
+    const members = surfaceByName("members")!;
 
     expect(viewportFor(traces, traces.states[0])).toEqual(DEFAULT_VIEWPORT["framed-fit"]);
     expect(viewportFor(projectSettings, projectSettings.states[0])).toEqual(
@@ -57,9 +59,16 @@ describe("UI review surface registry", () => {
     expect(viewportFor(alerts, alerts.states[0])).toEqual({ width: 1440, height: 960 });
     expect(viewportFor(orgProjects, "compact")).toEqual({ width: 1024, height: 960 });
     expect(viewportFor(tokens, tokens.states[0])).toEqual({ width: 1440, height: 1006 });
+    expect(viewportFor(members, "populated")).toEqual({ width: 1440, height: 960 });
+    expect(viewportFor(members, "compact")).toEqual({ width: 1024, height: 960 });
+    expect(viewportFor(members, "mobile")).toEqual({ width: 400, height: 940 });
   });
 
   test("tokens photographs the page so issued and revoke dialogs are in frame", () => {
     expect(screenshotOf(surfaceByName("tokens")!)).toBe("page");
+  });
+
+  test("members photographs the page so the invitation-link dialog is in frame", () => {
+    expect(screenshotOf(surfaceByName("members")!)).toBe("page");
   });
 });
