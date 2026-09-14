@@ -35,7 +35,7 @@ const CONDITION_LABELS: Record<ConditionType, string> = {
 };
 
 const EMPTY_DESCRIPTION =
-  "A rule watches this project for a new fingerprint, a volume threshold, or a filter match, and notifies Slack or a webhook. Cooldown stops it from firing again for 30 minutes by default.";
+  "A rule watches this project for a new fingerprint, a volume threshold, or a filter match, and notifies Slack, Discord, Telegram, or a webhook. Cooldown stops it from firing again for 30 minutes by default.";
 
 export interface AlertRuleView {
   id: string;
@@ -55,7 +55,7 @@ export interface AlertRuleDraft {
   cooldownMinutes: string;
   environment: string;
   serviceName: string;
-  channelType: "slack" | "webhook";
+  channelType: "slack" | "discord" | "telegram" | "webhook";
   target: string;
   thresholdCount: string;
   thresholdWindowMinutes: string;
@@ -77,6 +77,7 @@ export type AlertsStatus = "ready" | "loading" | "error";
 
 export interface AlertsProps {
   administers: boolean;
+  channelMenuOpen?: boolean;
   chrome?: AlertsChrome;
   creating?: boolean;
   formError?: string;
@@ -106,12 +107,41 @@ function filterEntries(rule: AlertRule): Array<[string, string]> {
 }
 
 function formatChannel(channel: ChannelConfig): string {
-  if (channel.type === "slack") return "slack";
+  switch (channel.type) {
+    case "slack":
+      return "slack";
+    case "discord":
+      return "discord";
+    case "telegram":
+      return `telegram ${channel.chatId}`;
+    case "webhook":
+      try {
+        return `webhook ${new URL(channel.url).hostname}`;
+      } catch {
+        return "webhook";
+      }
+  }
+}
 
-  try {
-    return `webhook ${new URL(channel.url).hostname}`;
-  } catch {
-    return "webhook";
+export function channelTargetCopy(channelType: AlertRuleDraft["channelType"]): {
+  helper?: string;
+  placeholder: string;
+} {
+  switch (channelType) {
+    case "slack":
+      return { placeholder: "#payments-oncall" };
+    case "discord":
+      return {
+        placeholder: "https://discord.com/api/webhooks/…",
+        helper: "Incoming Webhook URL",
+      };
+    case "telegram":
+      return {
+        placeholder: "-1001234567890",
+        helper: "Chat ID. Bot token is server env",
+      };
+    case "webhook":
+      return { placeholder: "https://example.com/hook" };
   }
 }
 
@@ -131,14 +161,26 @@ export function toAlertRuleView(rule: AlertRule): AlertRuleView {
   };
 }
 
+function channelFromDraft(
+  channelType: AlertRuleDraft["channelType"],
+  target: string,
+): ChannelConfig {
+  switch (channelType) {
+    case "slack":
+      return { type: "slack", webhookUrl: target };
+    case "discord":
+      return { type: "discord", webhookUrl: target };
+    case "telegram":
+      return { type: "telegram", chatId: target };
+    case "webhook":
+      return { type: "webhook", url: target };
+  }
+}
+
 /** Turns the form draft into the create payload the API already accepts. */
 export function toCreateAlertRuleRequest(draft: AlertRuleDraft): CreateAlertRuleRequest {
   const target = draft.target.trim();
-  const channels: ChannelConfig[] = [
-    draft.channelType === "slack"
-      ? { type: "slack", webhookUrl: target }
-      : { type: "webhook", url: target },
-  ];
+  const channels: ChannelConfig[] = [channelFromDraft(draft.channelType, target)];
 
   const common = {
     name: draft.name.trim(),
@@ -250,10 +292,12 @@ function AlertRuleRow({
 }
 
 function NewRuleForm({
+  channelMenuOpen,
   creating = false,
   error,
   onCreate,
 }: Readonly<{
+  channelMenuOpen?: boolean;
   creating?: boolean;
   error?: string;
   onCreate?: (draft: AlertRuleDraft) => Promise<void> | void;
@@ -269,6 +313,8 @@ function NewRuleForm({
     if (creating || onCreate == null) return;
     await onCreate(draft);
   }
+
+  const targetCopy = channelTargetCopy(draft.channelType);
 
   return (
     <form className="flex flex-col gap-4 p-6" onSubmit={(event) => void submit(event)}>
@@ -372,6 +418,7 @@ function NewRuleForm({
             onValueChange={(value) =>
               patch({ channelType: value as AlertRuleDraft["channelType"] })
             }
+            open={channelMenuOpen}
             value={draft.channelType}
           >
             <SelectTrigger className="w-[220px]" id="alert-channel">
@@ -379,6 +426,8 @@ function NewRuleForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="slack">Slack</SelectItem>
+              <SelectItem value="discord">Discord</SelectItem>
+              <SelectItem value="telegram">Telegram</SelectItem>
               <SelectItem value="webhook">Webhook</SelectItem>
             </SelectContent>
           </Select>
@@ -388,11 +437,12 @@ function NewRuleForm({
             className="w-[260px]"
             id="alert-target"
             onChange={(event) => patch({ target: event.target.value })}
-            placeholder={
-              draft.channelType === "slack" ? "#payments-oncall" : "https://example.com/hook"
-            }
+            placeholder={targetCopy.placeholder}
             value={draft.target}
           />
+          {targetCopy.helper != null && (
+            <p className="text-xs font-medium text-faint">{targetCopy.helper}</p>
+          )}
         </Field>
       </div>
 
@@ -411,6 +461,7 @@ function NewRuleForm({
 
 function AlertsMain({
   administers,
+  channelMenuOpen,
   creating,
   errorDescription,
   formError,
@@ -489,7 +540,12 @@ function AlertsMain({
           <PanelBar>
             <PanelSummary>New rule</PanelSummary>
           </PanelBar>
-          <NewRuleForm creating={creating} error={formError} onCreate={onCreate} />
+          <NewRuleForm
+            channelMenuOpen={channelMenuOpen}
+            creating={creating}
+            error={formError}
+            onCreate={onCreate}
+          />
         </Panel>
       )}
     </div>
@@ -502,7 +558,8 @@ function AlertsMain({
  * @remarks
  * `chrome` is a private stub of the project shell. The live route omits it
  * and keeps sitting in the existing `PageShell`. The silhouette factory
- * supplies the stub so a reviewer sees screen 26, not a panel on paper.
+ * supplies the stub so a reviewer sees Sidebar + TopBar + body, not a
+ * panel on paper.
  */
 export function Alerts(props: AlertsProps) {
   const body = <AlertsMain {...props} />;
@@ -511,7 +568,7 @@ export function Alerts(props: AlertsProps) {
   return (
     <ReviewChrome
       currentProject="Alerts"
-      frame="alerts"
+      frame="board"
       labels={props.chrome}
       scope="project"
       trail={projectChromeCrumbs(props.chrome, "Alerts")}

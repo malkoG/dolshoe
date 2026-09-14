@@ -33,8 +33,38 @@ export const webhookChannelConfigSchema = z
       "Delivers a firing notification as an unsigned JSON POST to any URL. Signing is not part of this version.",
   });
 
+export const discordChannelConfigSchema = z
+  .object({
+    type: z.literal("discord"),
+    webhookUrl: z.url().max(2_048).meta({ description: "A Discord Incoming Webhook URL." }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "DiscordChannelConfigV1",
+    description: "Delivers a firing notification to a Discord Incoming Webhook.",
+  });
+
+export const telegramChannelConfigSchema = z
+  .object({
+    type: z.literal("telegram"),
+    chatId: nonEmptyText(64).meta({
+      description:
+        "Telegram chat id to notify. The bot token lives in server environment, not on the rule.",
+    }),
+  })
+  .strict()
+  .register(contractRegistry, {
+    id: "TelegramChannelConfigV1",
+    description: "Delivers a firing notification through Telegram Bot API sendMessage.",
+  });
+
 export const channelConfigSchema = z
-  .discriminatedUnion("type", [slackChannelConfigSchema, webhookChannelConfigSchema])
+  .discriminatedUnion("type", [
+    slackChannelConfigSchema,
+    webhookChannelConfigSchema,
+    discordChannelConfigSchema,
+    telegramChannelConfigSchema,
+  ])
   .register(contractRegistry, {
     id: "ChannelConfigV1",
     description: "One delivery channel for a firing alert rule.",
@@ -159,6 +189,8 @@ export const alertRuleIdParamSchema = z.uuid("An alert rule id is a UUID.");
 
 export type SlackChannelConfig = z.infer<typeof slackChannelConfigSchema>;
 export type WebhookChannelConfig = z.infer<typeof webhookChannelConfigSchema>;
+export type DiscordChannelConfig = z.infer<typeof discordChannelConfigSchema>;
+export type TelegramChannelConfig = z.infer<typeof telegramChannelConfigSchema>;
 export type ChannelConfig = z.infer<typeof channelConfigSchema>;
 export type CreateAlertRuleRequest = z.infer<typeof createAlertRuleRequestSchema>;
 export type UpdateAlertRuleRequest = z.infer<typeof updateAlertRuleRequestSchema>;

@@ -305,6 +305,65 @@ describe("Alert rules", () => {
         .send({ enabled: false })
         .expect(404);
     });
+
+    it("creates discord and telegram channels, and never returns a bot token", async () => {
+      const org = await createOrganization(uniqueName("Acme"));
+      const project = await createProject(org.slug, uniqueName("Checkout"));
+      const rulesUrl = `/api/v1/orgs/${org.slug}/projects/${project.id}/alert-rules`;
+
+      const discord = await request(app.getHttpServer())
+        .post(rulesUrl)
+        .set("cookie", ownerCookie)
+        .send({
+          conditionType: "filter_match",
+          name: "Discord",
+          channels: [{ type: "discord", webhookUrl: "https://discord.com/api/webhooks/1/secret" }],
+        })
+        .expect(201);
+      expect(discord.body.channels).toEqual([
+        { type: "discord", webhookUrl: "https://discord.com/api/webhooks/1/secret" },
+      ]);
+
+      const telegram = await request(app.getHttpServer())
+        .post(rulesUrl)
+        .set("cookie", ownerCookie)
+        .send({
+          conditionType: "filter_match",
+          name: "Telegram",
+          channels: [{ type: "telegram", chatId: "-1001234567890" }],
+        })
+        .expect(201);
+      expect(telegram.body.channels).toEqual([{ type: "telegram", chatId: "-1001234567890" }]);
+
+      await request(app.getHttpServer())
+        .post(rulesUrl)
+        .set("cookie", ownerCookie)
+        .send({
+          conditionType: "filter_match",
+          name: "Leaked token",
+          channels: [
+            {
+              type: "telegram",
+              chatId: "-1001234567890",
+              botToken: "123456:AAHideMe",
+            },
+          ],
+        })
+        .expect(400);
+
+      const listed = await request(app.getHttpServer())
+        .get(rulesUrl)
+        .set("cookie", ownerCookie)
+        .expect(200);
+      const serialized = JSON.stringify(listed.body);
+      expect(serialized).not.toContain("botToken");
+      expect(serialized).not.toContain("123456:AAHideMe");
+      expect(serialized).not.toContain("TELEGRAM_BOT_TOKEN");
+      expect(listed.body.rules.map((rule: { name: string }) => rule.name)).toEqual([
+        "Telegram",
+        "Discord",
+      ]);
+    });
   });
 
   describe("evaluation", () => {
@@ -421,6 +480,40 @@ describe("Alert rules", () => {
         }).expect(201);
         await new Promise((resolve) => setTimeout(resolve, 200));
         expect(capture.requests()).toHaveLength(1);
+      } finally {
+        await new Promise((resolve) => capture.server.close(resolve));
+      }
+    });
+
+    it("fires a discord channel as a content POST", async () => {
+      const org = await createOrganization(uniqueName("Acme"));
+      const project = await createProject(org.slug, uniqueName("Checkout"));
+      const token = await issueToken(org.slug, project.id);
+      const capture = captureServer();
+      await new Promise<void>((resolve) => capture.server.listen(0, resolve));
+
+      try {
+        await request(app.getHttpServer())
+          .post(`/api/v1/orgs/${org.slug}/projects/${project.id}/alert-rules`)
+          .set("cookie", ownerCookie)
+          .send({
+            conditionType: "filter_match",
+            name: "Discord",
+            channels: [{ type: "discord", webhookUrl: capture.url() }],
+          })
+          .expect(201);
+
+        await ingest(token, project.id, {
+          ...nodeErrorReportExample,
+          eventId: randomUUID(),
+        }).expect(201);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        expect(capture.requests()).toEqual([
+          expect.objectContaining({
+            content: expect.stringContaining("Discord"),
+          }),
+        ]);
       } finally {
         await new Promise((resolve) => capture.server.close(resolve));
       }

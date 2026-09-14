@@ -72,6 +72,9 @@ const environmentShape = z.object({
     (value) => (value === "" ? undefined : value),
     z.enum(["true", "false"]).optional(),
   ),
+  // Optional: a Telegram rule stores only a chat id. The token is required
+  // at send time, not at startup — an instance without it still boots.
+  TELEGRAM_BOT_TOKEN: optionalText(z.string().min(1)),
 });
 
 /**
@@ -168,4 +171,5 @@ export const appConfig = {
    * schema above refuses to parse that combination at all.
    */
   mockLogin: environment.MOCK_LOGIN === "true",
+  telegramBotToken: environment.TELEGRAM_BOT_TOKEN,
 } as const;

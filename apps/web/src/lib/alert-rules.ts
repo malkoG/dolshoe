@@ -16,9 +16,21 @@ const webhookChannelConfigSchema = z.object({
   url: z.string(),
 });
 
+const discordChannelConfigSchema = z.object({
+  type: z.literal("discord"),
+  webhookUrl: z.string(),
+});
+
+const telegramChannelConfigSchema = z.object({
+  type: z.literal("telegram"),
+  chatId: z.string(),
+});
+
 const channelConfigSchema = z.discriminatedUnion("type", [
   slackChannelConfigSchema,
   webhookChannelConfigSchema,
+  discordChannelConfigSchema,
+  telegramChannelConfigSchema,
 ]);
 
 const conditionTypeSchema = z.enum(["new_fingerprint", "volume_threshold", "filter_match"]);
