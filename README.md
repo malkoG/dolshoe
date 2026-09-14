@@ -148,6 +148,8 @@ examples/
 ├── logtape-runtimes/   Equivalent Node, Deno, and Bun reporting scenarios
 └── python-frameworks/  Dolshoe wired into Django and FastAPI
 docs/
+├── adr/
+│   └── 0001-queue-first-ingestion.md  Target architecture for queue-first error-report ingest
 └── github-sign-in.md  Registering an OAuth app and pointing an instance at it
 ```
 
@@ -784,6 +786,12 @@ Acknowledged messages are deleted. Delivery is therefore at least once, and
 handlers must remain idempotent. The contract lives in
 `apps/api/src/message-queue/message-queue.contract.ts`; consumers should inject
 `MessageQueue` rather than the PostgreSQL implementation.
+
+That contract is generic infrastructure. Error-report ingestion still
+persists the canonical row in the request path. The target architecture —
+queue-first ingress, `202 Accepted`, and the guarantees every provider must
+share — is recorded in
+[Queue-first error-report ingestion](docs/adr/0001-queue-first-ingestion.md).
 
 ## Database workflow
 
