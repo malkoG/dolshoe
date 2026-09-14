@@ -48,8 +48,12 @@ describe("Alerts named states", () => {
     expect(screen.getByText("Error spike")).toBeTruthy();
     expect(screen.getByText("paused")).toBeTruthy();
     expect(screen.getByText("volume_threshold")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Create rule" })).toBeTruthy();
+    expect(screen.getByText("Create rule")).toBeTruthy();
     expect(screen.getByText(/Volume threshold rules also take a count/)).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Slack" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Discord" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Telegram" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Webhook" })).toBeTruthy();
   });
 });
 

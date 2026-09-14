@@ -73,7 +73,8 @@ export const SURFACES = [
   { name: "overview", paper: "framed-fit", states: projectOverviewStateNames },
   {
     name: "alerts",
-    paper: "panel",
+    paper: "full-page",
+    screenshot: "page",
     states: alertsStateNames,
     viewport: { width: 1440, height: 960 },
   },

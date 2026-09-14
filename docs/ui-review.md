@@ -167,10 +167,10 @@ plus a mount, not another `if` and a second viewport list.
 | `full-page`  | no card, flush to the page edge | 1440×960         | The same chrome when the PASS photographed it flush   |
 
 Override `viewport` only when the PASS locked a different height (Investigation
-1106, Report detail 1132, Tokens 1006) or a framed panel at flush size
-(Alerts 1440×960). Org Projects' `compact` state is 1024×960 via
-`stateViewports`. Tokens uses `screenshot: "page"` because the issued and
-revoke dialogs portal outside `[data-review-root]`.
+1106, Report detail 1132, Tokens 1006). Org Projects' `compact` state is
+1024×960 via `stateViewports`. Tokens, Members, and Alerts use
+`screenshot: "page"` because dialogs and the Alerts channel menu portal
+outside `[data-review-root]`.
 
 `overview` is Figma 20's full board — private chrome around the dashboard.
 `project-dashboard-overview` is only that dashboard widget. The live overview

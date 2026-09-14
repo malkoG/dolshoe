@@ -6,9 +6,9 @@ import type { AlertRuleView, AlertsProps } from "./alerts";
  *
  * @remarks
  * The two Figma frames are the ones that change the silhouette: an empty
- * project, and three rules plus the create form. Loading and error stay on
- * the route; inventing goldens for them would photograph a panel the board
- * never drew.
+ * project, and three rules plus the create form with the channel menu open
+ * so Slack / Discord / Telegram / Webhook are photographable. Loading and
+ * error stay on the route.
  */
 const chrome: AlertsChrome = {
   orgInitial: "A",
@@ -72,6 +72,7 @@ function populated(): AlertsProps {
 
   return {
     administers: true,
+    channelMenuOpen: true,
     chrome,
     rules,
     showForm: true,

@@ -26,7 +26,7 @@ describe("UI review surface registry", () => {
       organizations: "panel",
       "org-settings": "full-page",
       overview: "framed-fit",
-      alerts: "panel",
+      alerts: "full-page",
       "report-detail": "full-page",
       "org-projects": "full-page",
       tokens: "full-page",
@@ -70,5 +70,9 @@ describe("UI review surface registry", () => {
 
   test("members photographs the page so the invitation-link dialog is in frame", () => {
     expect(screenshotOf(surfaceByName("members")!)).toBe("page");
+  });
+
+  test("alerts photographs the page so the open channel menu is in frame", () => {
+    expect(screenshotOf(surfaceByName("alerts")!)).toBe("page");
   });
 });

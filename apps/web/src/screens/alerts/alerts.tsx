@@ -77,6 +77,7 @@ export type AlertsStatus = "ready" | "loading" | "error";
 
 export interface AlertsProps {
   administers: boolean;
+  channelMenuOpen?: boolean;
   chrome?: AlertsChrome;
   creating?: boolean;
   formError?: string;
@@ -291,10 +292,12 @@ function AlertRuleRow({
 }
 
 function NewRuleForm({
+  channelMenuOpen,
   creating = false,
   error,
   onCreate,
 }: Readonly<{
+  channelMenuOpen?: boolean;
   creating?: boolean;
   error?: string;
   onCreate?: (draft: AlertRuleDraft) => Promise<void> | void;
@@ -415,6 +418,7 @@ function NewRuleForm({
             onValueChange={(value) =>
               patch({ channelType: value as AlertRuleDraft["channelType"] })
             }
+            open={channelMenuOpen}
             value={draft.channelType}
           >
             <SelectTrigger className="w-[220px]" id="alert-channel">
@@ -457,6 +461,7 @@ function NewRuleForm({
 
 function AlertsMain({
   administers,
+  channelMenuOpen,
   creating,
   errorDescription,
   formError,
@@ -535,7 +540,12 @@ function AlertsMain({
           <PanelBar>
             <PanelSummary>New rule</PanelSummary>
           </PanelBar>
-          <NewRuleForm creating={creating} error={formError} onCreate={onCreate} />
+          <NewRuleForm
+            channelMenuOpen={channelMenuOpen}
+            creating={creating}
+            error={formError}
+            onCreate={onCreate}
+          />
         </Panel>
       )}
     </div>
@@ -548,7 +558,8 @@ function AlertsMain({
  * @remarks
  * `chrome` is a private stub of the project shell. The live route omits it
  * and keeps sitting in the existing `PageShell`. The silhouette factory
- * supplies the stub so a reviewer sees screen 26, not a panel on paper.
+ * supplies the stub so a reviewer sees Sidebar + TopBar + body, not a
+ * panel on paper.
  */
 export function Alerts(props: AlertsProps) {
   const body = <AlertsMain {...props} />;
@@ -557,7 +568,7 @@ export function Alerts(props: AlertsProps) {
   return (
     <ReviewChrome
       currentProject="Alerts"
-      frame="alerts"
+      frame="board"
       labels={props.chrome}
       scope="project"
       trail={projectChromeCrumbs(props.chrome, "Alerts")}
