@@ -91,13 +91,13 @@ PostgreSQL query load. Choosing one changes the durability of `202`
 and the mechanics of worker ack. That is the point of offering them,
 not a defect to hide.
 
-| | PostgreSQL (default) | Redis Streams (optional) | RabbitMQ (optional) |
-| --- | --- | --- | --- |
-| When `202` is allowed | The queue/inbox row has committed. Same crash durability as the rest of the instance. | Redis has acknowledged `XADD`. Durability is the operator's AOF/RDB (and failover) configuration. | A publisher confirm has returned for a persistent publish onto a durable topology. Quorum Queues are the intended default; [#8](https://github.com/malkoG/dolshoe/issues/8) plans that topology. |
-| What a crash can still lose after `202` | Nothing the database itself would not lose. | Recent entries if persistence is off, asynchronous, or behind a failover that did not sync. | An unconfirmed publish never becomes `202`. A confirm the API process died before seeing is not acceptance; the client retries. |
-| Worker ack (only after canonical commit) | The delivery is released from the hot queue. A failed commit leaves it claimable again. How the hold is implemented is [#6](https://github.com/malkoG/dolshoe/issues/6). | The consumer-group entry is acknowledged (`XACK`). Unacked entries stay pending and can be claimed again. Abandoned-pending recovery is [#7](https://github.com/malkoG/dolshoe/issues/7). | The consumer issues a manual ack. Channel or consumer death redelivers unacked messages. Dead-letter topology is [#8](https://github.com/malkoG/dolshoe/issues/8). |
-| Database down | Enqueue fails. `503`. Acceptance and storage share a fate. | `202` can still succeed. The backlog grows until a worker can commit. | Same as Redis Streams: enqueue can succeed while PostgreSQL is down. |
-| Required for default deploy | Yes — already the instance database. | No. Not loaded unless configured. | No. Not loaded unless configured. |
+|                                          | PostgreSQL (default)                                                                                                                                                     | Redis Streams (optional)                                                                                                                                                                  | RabbitMQ (optional)                                                                                                                                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| When `202` is allowed                    | The queue/inbox row has committed. Same crash durability as the rest of the instance.                                                                                    | Redis has acknowledged `XADD`. Durability is the operator's AOF/RDB (and failover) configuration.                                                                                         | A publisher confirm has returned for a persistent publish onto a durable topology. Quorum Queues are the intended default; [#8](https://github.com/malkoG/dolshoe/issues/8) plans that topology. |
+| What a crash can still lose after `202`  | Nothing the database itself would not lose.                                                                                                                              | Recent entries if persistence is off, asynchronous, or behind a failover that did not sync.                                                                                               | An unconfirmed publish never becomes `202`. A confirm the API process died before seeing is not acceptance; the client retries.                                                                  |
+| Worker ack (only after canonical commit) | The delivery is released from the hot queue. A failed commit leaves it claimable again. How the hold is implemented is [#6](https://github.com/malkoG/dolshoe/issues/6). | The consumer-group entry is acknowledged (`XACK`). Unacked entries stay pending and can be claimed again. Abandoned-pending recovery is [#7](https://github.com/malkoG/dolshoe/issues/7). | The consumer issues a manual ack. Channel or consumer death redelivers unacked messages. Dead-letter topology is [#8](https://github.com/malkoG/dolshoe/issues/8).                               |
+| Database down                            | Enqueue fails. `503`. Acceptance and storage share a fate.                                                                                                               | `202` can still succeed. The backlog grows until a worker can commit.                                                                                                                     | Same as Redis Streams: enqueue can succeed while PostgreSQL is down.                                                                                                                             |
+| Required for default deploy              | Yes — already the instance database.                                                                                                                                     | No. Not loaded unless configured.                                                                                                                                                         | No. Not loaded unless configured.                                                                                                                                                                |
 
 Health, docs, and configuration must say which boundary is running and
 what its `202` actually guarantees. Optional isolation — accepting while
@@ -194,11 +194,11 @@ defect.
 
 Three timestamps, three clocks, none rewritten to look like another.
 
-| Timestamp | Who sets it | Meaning |
-| --- | --- | --- |
-| `occurredAt` | Reporter | When the failure happened. Ingress copies it. The worker stores it. Nobody "corrects" it. |
-| `acceptedAt` | Ingress, at provider acceptance | When Dolshoe took responsibility. This is what `202` records. |
-| `storedAt` | Worker, at canonical commit | When the `ErrorReport` row landed. |
+| Timestamp    | Who sets it                     | Meaning                                                                                   |
+| ------------ | ------------------------------- | ----------------------------------------------------------------------------------------- |
+| `occurredAt` | Reporter                        | When the failure happened. Ingress copies it. The worker stores it. Nobody "corrects" it. |
+| `acceptedAt` | Ingress, at provider acceptance | When Dolshoe took responsibility. This is what `202` records.                             |
+| `storedAt`   | Worker, at canonical commit     | When the `ErrorReport` row landed.                                                        |
 
 Today's `receivedAt` is both acceptance and storage because they are the
 same moment. After the cutover they are not. #9 decides how that split
@@ -210,13 +210,13 @@ Provider-internal enqueue times are not substitutes for these three.
 
 ## HTTP responses when the queue cannot accept
 
-| Situation | Status | Event accepted? |
-| --- | --- | --- |
-| Auth failed | `401` | No |
-| Body fails the versioned report contract | `400` | No |
-| JSON body exceeds 1 MiB | `413` | No |
-| Provider unreachable, write failed, or confirm/commit did not succeed | `503` with `Retry-After` | No |
-| Queue overload: depth or oldest-event age exceeds the configured admission limit, or the provider signals resource exhaustion | `503` with `Retry-After` | No |
+| Situation                                                                                                                     | Status                   | Event accepted? |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------------- |
+| Auth failed                                                                                                                   | `401`                    | No              |
+| Body fails the versioned report contract                                                                                      | `400`                    | No              |
+| JSON body exceeds 1 MiB                                                                                                       | `413`                    | No              |
+| Provider unreachable, write failed, or confirm/commit did not succeed                                                         | `503` with `Retry-After` | No              |
+| Queue overload: depth or oldest-event age exceeds the configured admission limit, or the provider signals resource exhaustion | `503` with `Retry-After` | No              |
 
 Overload is server capacity, so it is `503`, not `429`. `429` stays
 available if a later change adds per-token rate limits; that is a
@@ -288,19 +288,19 @@ are provider implementation details, planned in
 
 ## Failure behavior
 
-| Failure | What happens |
-| --- | --- |
-| API crashes after enqueue, before the `202` is written to the socket | The envelope may already be accepted. The client sees a reset or timeout and retries with the same `eventId`. The worker stores the report once. |
-| API crashes before enqueue | Not accepted. The client retries. |
-| Enqueue fails | `503`. Not accepted. No receipt. |
-| Queue accepts, worker has not yet consumed | Envelope waits. Depth and oldest-event age grow. The client already has `202`. |
-| Worker crashes before the canonical commit | The delivery is not acknowledged. Another consume persists the row. |
-| Worker crashes after commit, before ack | Redelivery. Unique `(projectId, eventId)` is treated as success and acknowledged. Alerts are not re-fired. |
-| Database is down, provider is PostgreSQL | Enqueue fails. `503`. Acceptance and storage share a fate. |
-| Database is down, provider is Redis or RabbitMQ | `202` can still succeed. The backlog grows until a worker can commit. Operators watch depth and lag; this is the durability trade-off they chose. |
-| Database transaction fails in the worker | No ack. Retry. |
-| Provider is unreachable at ingest | `503`. Not accepted. |
-| Poison / max attempts exceeded | Envelope leaves the hot queue onto the reject path. It is not a canonical event. |
+| Failure                                                              | What happens                                                                                                                                      |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API crashes after enqueue, before the `202` is written to the socket | The envelope may already be accepted. The client sees a reset or timeout and retries with the same `eventId`. The worker stores the report once.  |
+| API crashes before enqueue                                           | Not accepted. The client retries.                                                                                                                 |
+| Enqueue fails                                                        | `503`. Not accepted. No receipt.                                                                                                                  |
+| Queue accepts, worker has not yet consumed                           | Envelope waits. Depth and oldest-event age grow. The client already has `202`.                                                                    |
+| Worker crashes before the canonical commit                           | The delivery is not acknowledged. Another consume persists the row.                                                                               |
+| Worker crashes after commit, before ack                              | Redelivery. Unique `(projectId, eventId)` is treated as success and acknowledged. Alerts are not re-fired.                                        |
+| Database is down, provider is PostgreSQL                             | Enqueue fails. `503`. Acceptance and storage share a fate.                                                                                        |
+| Database is down, provider is Redis or RabbitMQ                      | `202` can still succeed. The backlog grows until a worker can commit. Operators watch depth and lag; this is the durability trade-off they chose. |
+| Database transaction fails in the worker                             | No ack. Retry.                                                                                                                                    |
+| Provider is unreachable at ingest                                    | `503`. Not accepted.                                                                                                                              |
+| Poison / max attempts exceeded                                       | Envelope leaves the hot queue onto the reject path. It is not a canonical event.                                                                  |
 
 API, queue, worker, and database failures are different events. The table
 is the spec for each.
@@ -406,14 +406,14 @@ ingestion and worker code to vendor APIs. Rejected; keep the port narrow.
 
 ## Follow-on work
 
-| Issue | Owns |
-| --- | --- |
-| [#5](https://github.com/malkoG/dolshoe/issues/5) | Ingest provider port, envelope, shared contract tests — first |
-| [#6](https://github.com/malkoG/dolshoe/issues/6) | PostgreSQL default provider, behind that port |
-| [#7](https://github.com/malkoG/dolshoe/issues/7) | Redis Streams optional-provider plan |
-| [#8](https://github.com/malkoG/dolshoe/issues/8) | RabbitMQ optional-provider plan |
-| [#9](https://github.com/malkoG/dolshoe/issues/9) | Move the error-report endpoint and worker onto this workflow; receipt and OpenAPI — after #5 and #6 |
-| [#10](https://github.com/malkoG/dolshoe/issues/10) | Nested investigation field contract — already a separate freeze; not this document |
+| Issue                                              | Owns                                                                                                |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| [#5](https://github.com/malkoG/dolshoe/issues/5)   | Ingest provider port, envelope, shared contract tests — first                                       |
+| [#6](https://github.com/malkoG/dolshoe/issues/6)   | PostgreSQL default provider, behind that port                                                       |
+| [#7](https://github.com/malkoG/dolshoe/issues/7)   | Redis Streams optional-provider plan                                                                |
+| [#8](https://github.com/malkoG/dolshoe/issues/8)   | RabbitMQ optional-provider plan                                                                     |
+| [#9](https://github.com/malkoG/dolshoe/issues/9)   | Move the error-report endpoint and worker onto this workflow; receipt and OpenAPI — after #5 and #6 |
+| [#10](https://github.com/malkoG/dolshoe/issues/10) | Nested investigation field contract — already a separate freeze; not this document                  |
 
 ## Non-goals
 
