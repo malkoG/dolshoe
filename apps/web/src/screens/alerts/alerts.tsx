@@ -35,7 +35,7 @@ const CONDITION_LABELS: Record<ConditionType, string> = {
 };
 
 const EMPTY_DESCRIPTION =
-  "A rule watches this project for a new fingerprint, a volume threshold, or a filter match, and notifies Slack or a webhook. Cooldown stops it from firing again for 30 minutes by default.";
+  "A rule watches this project for a new fingerprint, a volume threshold, or a filter match, and notifies Slack, Discord, Telegram, or a webhook. Cooldown stops it from firing again for 30 minutes by default.";
 
 export interface AlertRuleView {
   id: string;
@@ -55,7 +55,7 @@ export interface AlertRuleDraft {
   cooldownMinutes: string;
   environment: string;
   serviceName: string;
-  channelType: "slack" | "webhook";
+  channelType: "slack" | "discord" | "telegram" | "webhook";
   target: string;
   thresholdCount: string;
   thresholdWindowMinutes: string;
@@ -106,12 +106,41 @@ function filterEntries(rule: AlertRule): Array<[string, string]> {
 }
 
 function formatChannel(channel: ChannelConfig): string {
-  if (channel.type === "slack") return "slack";
+  switch (channel.type) {
+    case "slack":
+      return "slack";
+    case "discord":
+      return "discord";
+    case "telegram":
+      return `telegram ${channel.chatId}`;
+    case "webhook":
+      try {
+        return `webhook ${new URL(channel.url).hostname}`;
+      } catch {
+        return "webhook";
+      }
+  }
+}
 
-  try {
-    return `webhook ${new URL(channel.url).hostname}`;
-  } catch {
-    return "webhook";
+export function channelTargetCopy(channelType: AlertRuleDraft["channelType"]): {
+  helper?: string;
+  placeholder: string;
+} {
+  switch (channelType) {
+    case "slack":
+      return { placeholder: "#payments-oncall" };
+    case "discord":
+      return {
+        placeholder: "https://discord.com/api/webhooks/…",
+        helper: "Incoming Webhook URL",
+      };
+    case "telegram":
+      return {
+        placeholder: "-1001234567890",
+        helper: "Chat ID. Bot token is server env",
+      };
+    case "webhook":
+      return { placeholder: "https://example.com/hook" };
   }
 }
 
@@ -131,14 +160,26 @@ export function toAlertRuleView(rule: AlertRule): AlertRuleView {
   };
 }
 
+function channelFromDraft(
+  channelType: AlertRuleDraft["channelType"],
+  target: string,
+): ChannelConfig {
+  switch (channelType) {
+    case "slack":
+      return { type: "slack", webhookUrl: target };
+    case "discord":
+      return { type: "discord", webhookUrl: target };
+    case "telegram":
+      return { type: "telegram", chatId: target };
+    case "webhook":
+      return { type: "webhook", url: target };
+  }
+}
+
 /** Turns the form draft into the create payload the API already accepts. */
 export function toCreateAlertRuleRequest(draft: AlertRuleDraft): CreateAlertRuleRequest {
   const target = draft.target.trim();
-  const channels: ChannelConfig[] = [
-    draft.channelType === "slack"
-      ? { type: "slack", webhookUrl: target }
-      : { type: "webhook", url: target },
-  ];
+  const channels: ChannelConfig[] = [channelFromDraft(draft.channelType, target)];
 
   const common = {
     name: draft.name.trim(),
@@ -270,6 +311,8 @@ function NewRuleForm({
     await onCreate(draft);
   }
 
+  const targetCopy = channelTargetCopy(draft.channelType);
+
   return (
     <form className="flex flex-col gap-4 p-6" onSubmit={(event) => void submit(event)}>
       {error != null && (
@@ -379,6 +422,8 @@ function NewRuleForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="slack">Slack</SelectItem>
+              <SelectItem value="discord">Discord</SelectItem>
+              <SelectItem value="telegram">Telegram</SelectItem>
               <SelectItem value="webhook">Webhook</SelectItem>
             </SelectContent>
           </Select>
@@ -388,11 +433,12 @@ function NewRuleForm({
             className="w-[260px]"
             id="alert-target"
             onChange={(event) => patch({ target: event.target.value })}
-            placeholder={
-              draft.channelType === "slack" ? "#payments-oncall" : "https://example.com/hook"
-            }
+            placeholder={targetCopy.placeholder}
             value={draft.target}
           />
+          {targetCopy.helper != null && (
+            <p className="text-xs font-medium text-faint">{targetCopy.helper}</p>
+          )}
         </Field>
       </div>
 

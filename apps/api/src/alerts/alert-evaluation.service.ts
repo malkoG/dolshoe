@@ -4,7 +4,11 @@ import { PrismaService } from "../database/prisma.service";
 import { isRecord } from "../error-reporting/summarize-exception";
 import { Prisma } from "../generated/prisma/client";
 import { ChannelConfig } from "./alert.contract";
-import { AlertNotification, createAdapter } from "./notification-adapter";
+import {
+  AlertNotification,
+  createAdapter,
+  redactNotificationSecrets,
+} from "./notification-adapter";
 
 /**
  * What `ErrorReportService.receive()` already has in hand right after a
@@ -194,7 +198,7 @@ export class AlertEvaluationService {
       const adapter = createAdapter(channelConfig);
       adapter.send(notification).catch((error: unknown) => {
         this.logger.warn(
-          `Alert rule ${rule.id} (${rule.name}) failed to notify its ${adapter.type} channel: ${String(error)}`,
+          `Alert rule ${rule.id} (${rule.name}) failed to notify its ${adapter.type} channel: ${redactNotificationSecrets(error)}`,
         );
       });
     }

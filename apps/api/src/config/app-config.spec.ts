@@ -45,6 +45,10 @@ describe("the shipped .env.example", () => {
   it("ships with the development sign-in mock off", () => {
     expect(environmentSchema.parse(readExampleEnvironment()).MOCK_LOGIN).toBeUndefined();
   });
+
+  it("ships without a Telegram bot token, so a fresh instance still boots", () => {
+    expect(environmentSchema.parse(readExampleEnvironment()).TELEGRAM_BOT_TOKEN).toBeUndefined();
+  });
 });
 
 describe("the development sign-in mock", () => {
