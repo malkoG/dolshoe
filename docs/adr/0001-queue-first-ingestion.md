@@ -1,16 +1,19 @@
 # Queue-first error-report ingestion
 
-**Status:** Accepted target architecture. Implementation follows [#5](https://github.com/malkoG/dolshoe/issues/5)
-(provider contract), [#6](https://github.com/malkoG/dolshoe/issues/6) (PostgreSQL
-provider), and [#9](https://github.com/malkoG/dolshoe/issues/9) (moving ingress).
-This file records the decision; it does not change the running API.
+**Status:** Accepted target architecture. This document is the decision
+only — no ingest port, provider, or endpoint change ships with it.
+Implementation follows later, in order: [#5](https://github.com/malkoG/dolshoe/issues/5)
+(provider contract) → [#6](https://github.com/malkoG/dolshoe/issues/6)
+(PostgreSQL default provider) → [#9](https://github.com/malkoG/dolshoe/issues/9)
+(moving ingress). Optional Redis Streams and RabbitMQ stay behind that
+same contract; their plans are [#7](https://github.com/malkoG/dolshoe/issues/7)
+and [#8](https://github.com/malkoG/dolshoe/issues/8).
 
 On `main` today, `ErrorReportService.receive()` writes the canonical
 `ErrorReport` row in the request path and then evaluates alert rules. A
-successful response means the report is stored. There is a generic
-PostgreSQL `MessageQueue` in `apps/api/src/message-queue/`, but nothing in
-the error-report path uses it. The first durable boundary is the reports
-table.
+successful response means the report is stored. A generic PostgreSQL
+message queue exists in the API, but nothing in the error-report path
+uses it. The first durable boundary is the reports table.
 
 The target is the opposite: the selected queue provider is the first
 durable boundary. Ingress authenticates, validates, enqueues, and answers
@@ -38,12 +41,13 @@ on queue order.
    `(projectId, eventId)`, already on `ErrorReport`.
 4. Acknowledge a queue message only after the worker's database commit
    succeeds.
-5. Keep PostgreSQL as the zero-dependency default provider. Redis Streams
-   and RabbitMQ are optional. The default Compose deployment does not grow
-   a second data store.
+5. PostgreSQL is the default queue provider — the zero-dependency
+   boundary for a small self-hosted install. Redis Streams and RabbitMQ
+   are optional provider boundaries, not extra faces of one pretend-durable
+   queue.
 6. Do not promise exactly-once delivery or global ordering.
-7. Do not hide provider durability differences behind a generic "the queue
-   accepted it" story.
+7. Do not hide provider durability or acknowledgement differences. What
+   `202` means, and what a worker ack does, is part of each boundary.
 
 ## What 202 Accepted means
 
@@ -71,33 +75,40 @@ Ingress work in the request path is only:
 4. Enqueue
 5. `202` after provider acceptance
 
-## Provider-specific durable acceptance
+## Provider boundaries
 
-Every provider must refuse to signal acceptance until its own durability
-step has succeeded. What that step _is_ differs, and the difference stays
-visible to operators.
+Three providers sit behind one ingest contract. The contract is the
+shared operations and guarantees ([forward pointer to #5](#the-ingest-port-forward-pointer-to-5)).
+The **boundary** is what "accepted" and "acknowledged" mean for that
+provider. Those meanings stay visible. They are not flattened into a
+generic "the queue accepted it."
 
-| Provider | `202` is allowed only after | What a crash can still lose |
-| --- | --- | --- |
-| PostgreSQL (default) | The inbox / queue row has committed | Nothing the database itself would not lose. Acceptance has the same durability as the rest of the instance. |
-| Redis Streams | `XADD` has been acknowledged by Redis | Recent entries if persistence (AOF/RDB) is off, asynchronous, or behind a failover that did not sync. A `202` is only as durable as the Redis configuration the operator chose. |
-| RabbitMQ | A publisher confirm returns for a persistent publish onto a durable topology (Quorum Queues are the intended default; [#8](https://github.com/malkoG/dolshoe/issues/8) plans the topology) | An unconfirmed publish, or a confirm the API process died before seeing. Uncertain confirms are not acceptance: the client did not get `202` and may retry. |
+PostgreSQL is the default boundary: the instance already has that
+database, so the default deploy does not grow a second store. Redis
+Streams and RabbitMQ are optional boundaries for installs that want
+lower queue latency or isolation between ingest buffering and
+PostgreSQL query load. Choosing one changes the durability of `202`
+and the mechanics of worker ack. That is the point of offering them,
+not a defect to hide.
 
-The common contract does not flatten these into one "durable enough"
-boolean. Health, docs, and configuration must say which provider is
-running and what its acceptance actually guarantees.
+| | PostgreSQL (default) | Redis Streams (optional) | RabbitMQ (optional) |
+| --- | --- | --- | --- |
+| When `202` is allowed | The queue/inbox row has committed. Same crash durability as the rest of the instance. | Redis has acknowledged `XADD`. Durability is the operator's AOF/RDB (and failover) configuration. | A publisher confirm has returned for a persistent publish onto a durable topology. Quorum Queues are the intended default; [#8](https://github.com/malkoG/dolshoe/issues/8) plans that topology. |
+| What a crash can still lose after `202` | Nothing the database itself would not lose. | Recent entries if persistence is off, asynchronous, or behind a failover that did not sync. | An unconfirmed publish never becomes `202`. A confirm the API process died before seeing is not acceptance; the client retries. |
+| Worker ack (only after canonical commit) | The delivery is released from the hot queue. A failed commit leaves it claimable again. How the hold is implemented is [#6](https://github.com/malkoG/dolshoe/issues/6). | The consumer-group entry is acknowledged (`XACK`). Unacked entries stay pending and can be claimed again. Abandoned-pending recovery is [#7](https://github.com/malkoG/dolshoe/issues/7). | The consumer issues a manual ack. Channel or consumer death redelivers unacked messages. Dead-letter topology is [#8](https://github.com/malkoG/dolshoe/issues/8). |
+| Database down | Enqueue fails. `503`. Acceptance and storage share a fate. | `202` can still succeed. The backlog grows until a worker can commit. | Same as Redis Streams: enqueue can succeed while PostgreSQL is down. |
+| Required for default deploy | Yes — already the instance database. | No. Not loaded unless configured. | No. Not loaded unless configured. |
 
-When the default PostgreSQL provider shares the instance database, a
-database outage takes the queue with it. Optional providers can still
-accept while PostgreSQL is down; the backlog then sits until the worker
-can commit. That isolation is a reason to choose them, not a property
-the default must pretend to have.
+Health, docs, and configuration must say which boundary is running and
+what its `202` actually guarantees. Optional isolation — accepting while
+PostgreSQL is down — is a reason to choose Redis or RabbitMQ, not a
+property the default must pretend to have.
 
 ## At-least-once delivery and duplicate handling
 
 Delivery is at least once. Duplicates are the normal case: the client
 retries after a lost `202`, a worker dies after commit but before ack, a
-lease expires, or a provider redelivers.
+delivery is abandoned, or a provider redelivers.
 
 The source of truth for "this event is already stored" is the existing
 `@@unique([projectId, eventId])` constraint on `ErrorReport`. A worker
@@ -105,21 +116,22 @@ that hits that constraint treats the write as success and acknowledges.
 It must not evaluate alert rules a second time — today's request-path
 service already makes that distinction for the same reason.
 
-Queue-level deduplication (for example the existing
-`deduplicationKey` on `PostgresMessageQueue`) may drop a second enqueue
-of the same `eventId` to keep depth down. It is optional and
-best-effort. A provider that cannot dedupe still satisfies the contract,
-because the database constraint does.
+Queue-level deduplication of a second enqueue of the same `eventId` may
+exist on a provider to keep depth down. It is optional and best-effort,
+and it is a visible provider difference — not a shared guarantee. A
+provider that cannot dedupe still satisfies the contract, because the
+database constraint does.
 
 Exactly-once delivery is a non-goal. There is no two-phase commit between
 the queue and PostgreSQL.
 
 ## Worker acknowledgement only after database commit
 
-The worker claims a lease, persists the canonical event, and acknowledges
-only after that transaction commits. A failed transaction does not
-acknowledge. An expired lease becomes claimable again; the stale lease
-token cannot ack or retry the newer delivery.
+The worker consumes a delivery, persists the canonical event, and
+acknowledges that delivery only after the transaction commits. A failed
+transaction does not acknowledge. What "held" and "acknowledged" look
+like on the wire is a [provider boundary](#provider-boundaries); the
+shared rule is only the order: commit first, then ack.
 
 Ack means "the canonical row exists." It does not mean alerts have fired,
 fingerprints have been grouped, or an investigation has been assembled.
@@ -141,8 +153,10 @@ small self-hosted install.
 bodies over the existing 1 MiB limit stay `413`; missing or invalid ingest
 tokens stay `401`.
 
-**Transient worker or database failures** return the lease for retry with
-optional delay. The envelope stays accepted. The client is not involved.
+**Transient worker or database failures** return the delivery for retry
+with optional delay. The envelope stays accepted. The client is not
+involved. How that return is expressed is a
+[provider boundary](#provider-boundaries).
 
 **Poison messages** — envelopes that fail in a way retry will not fix
 (unwritable payload after a schema change, repeated unexpected errors past
@@ -159,19 +173,17 @@ exists for evolution and bugs, not as a second validation layer.
 refuses the write, or when configured depth / oldest-event-age limits are
 exceeded, ingress does not accept the event. See [HTTP responses](#http-responses-when-the-queue-cannot-accept).
 
-Worker claim batches are bounded. The existing PostgreSQL queue already
-caps a claim at 100; that ceiling is the right order of magnitude for
-ingest as well. #5 sets the exact knobs.
+Worker consume batches are bounded. Exact limits belong in #5 / #6, not
+here.
 
 ## Ordering guarantees and non-guarantees
 
 There is no global ordering. There is no promised per-project or
 per-trace FIFO across providers.
 
-A PostgreSQL inbox claimed by `availableAt` / `enqueuedAt` will often
-look FIFO under light load. That is not a contract. Redis consumer groups
-and RabbitMQ competing consumers will interleave. Concurrent workers will
-interleave on every provider.
+A PostgreSQL inbox will often look FIFO under light load. That is not a
+contract. Redis consumer groups and RabbitMQ competing consumers will
+interleave. Concurrent workers will interleave on every provider.
 
 Investigations reconstruct from identifiers, not arrival order. Parents,
 children, and events may be accepted in any order. Missing spans are
@@ -236,29 +248,27 @@ they must not. The exact payload is #5 / #9.
 
 ## Payload and batch size limits
 
-The HTTP JSON body remains 1 MiB, matching
-`configureApplication()` and the log / trace ingest paths. The versioned
-error-report schema already bounds frames, children, breadcrumbs, and
-attribute keys.
+The HTTP JSON body remains 1 MiB, matching the existing ingest paths.
+The versioned error-report schema already bounds frames, children,
+breadcrumbs, and attribute keys.
 
 Error-report ingest is one report per request today. That stays one
 envelope per enqueue. A later batch endpoint would still share the 1 MiB
 body limit and add a numeric cap; it is not part of this decision.
 
-The worker claims a bounded batch. It does not load an unbounded backlog
-into memory. Queue metadata stays narrow: identity, timestamps, lease,
-attempt count. Payload contents are not indexed.
+The worker consumes a bounded batch. It does not load an unbounded
+backlog into memory. Queue metadata stays narrow: identity, timestamps,
+delivery token, attempt count. Payload contents are not indexed.
 
 Nothing the HTTP layer rejected is written to the queue.
 
 ## Provider migration and configuration
 
 The provider is chosen at process startup, from environment validated
-with the rest of `apps/api/src/config/app-config.ts`. An unknown
-provider, or Redis/RabbitMQ settings that are required by the selected
-provider and missing, refuse to start. PostgreSQL is selected when no
-external provider is configured. Redis and RabbitMQ client libraries are
-not loaded on the default path.
+there. An unknown provider, or Redis/RabbitMQ settings required by the
+selected optional provider and missing, refuse to start. PostgreSQL is
+selected when no external provider is configured. Optional provider
+clients are not loaded on the default path.
 
 Changing provider is an operational cutover, not a live dual-write.
 In-flight envelopes on the old provider are not migrated automatically.
@@ -283,8 +293,8 @@ are provider implementation details, planned in
 | API crashes after enqueue, before the `202` is written to the socket | The envelope may already be accepted. The client sees a reset or timeout and retries with the same `eventId`. The worker stores the report once. |
 | API crashes before enqueue | Not accepted. The client retries. |
 | Enqueue fails | `503`. Not accepted. No receipt. |
-| Queue accepts, worker has not yet claimed | Envelope waits. Depth and oldest-event age grow. The client already has `202`. |
-| Worker crashes before the canonical commit | Lease expires or is retried. Another claim persists the row. |
+| Queue accepts, worker has not yet consumed | Envelope waits. Depth and oldest-event age grow. The client already has `202`. |
+| Worker crashes before the canonical commit | The delivery is not acknowledged. Another consume persists the row. |
 | Worker crashes after commit, before ack | Redelivery. Unique `(projectId, eventId)` is treated as success and acknowledged. Alerts are not re-fired. |
 | Database is down, provider is PostgreSQL | Enqueue fails. `503`. Acceptance and storage share a fate. |
 | Database is down, provider is Redis or RabbitMQ | `202` can still succeed. The backlog grows until a worker can commit. Operators watch depth and lag; this is the durability trade-off they chose. |
@@ -307,24 +317,25 @@ Every provider, including the default, must:
 - Honor payload bounds already enforced at the HTTP boundary.
 - Avoid global ordering promises.
 
-Providers may differ in:
+Providers may differ in — and must keep visible — the
+[provider boundaries](#provider-boundaries):
 
-- What "accepted" means for a crash in the next millisecond (see
-  [durable acceptance](#provider-specific-durable-acceptance)).
+- What "accepted" means for a crash in the next millisecond.
+- What a worker ack, retry, or reject does on that provider.
 - Whether enqueue can succeed while PostgreSQL is down.
 - Deduplication of a second enqueue of the same `eventId`.
-- How leases, pending entries, or publisher confirms are implemented.
 - How dead-lettering is stored.
 
 ## The ingest port (forward pointer to #5)
 
 [#5](https://github.com/malkoG/dolshoe/issues/5) defines the TypeScript
 port and its contract tests. This ADR only names the operations that port
-must cover, so #5 does not have to invent the architecture while writing
-the interface:
+must cover, so #5 does not invent the architecture while writing the
+interface — and does not pretend the three providers share one
+durability story:
 
 - **Enqueue** an immutable envelope.
-- **Consume** with an explicit lease / delivery token.
+- **Consume** with an explicit delivery token.
 - **Acknowledge** after canonical commit.
 - **Retry** a failed attempt, with optional delay.
 - **Reject** a poison message.
@@ -334,14 +345,13 @@ the interface:
 
 The envelope needs stable identity and the three timestamps above
 (`eventId`, `projectId`, `occurredAt`, `acceptedAt`, payload). Attempt
-count and lease expiry are delivery metadata, not part of the payload.
+count and delivery-token expiry are provider metadata, not part of the
+payload.
 
-The existing `MessageQueue` abstract class is close — enqueue, claim,
-acknowledge, retry, leases — and #6 may grow the PostgreSQL provider from
-that pattern. It is not the ingest port: it has no health or lag, no
-ingestion envelope, and no reject/shutdown surface. Whether #5 extends it
-or introduces a narrower sibling is #5's call. Application services
-depend on the ingest port, not on Redis or RabbitMQ types.
+Today's generic message-queue type is not that port. How #5 is shaped,
+and how #6 implements the PostgreSQL default behind it, is later work.
+Application services depend on the ingest port, not on Redis or
+RabbitMQ types.
 
 ## Nested investigations
 
@@ -398,11 +408,11 @@ ingestion and worker code to vendor APIs. Rejected; keep the port narrow.
 
 | Issue | Owns |
 | --- | --- |
-| [#5](https://github.com/malkoG/dolshoe/issues/5) | Ingest provider port, envelope, shared contract tests |
-| [#6](https://github.com/malkoG/dolshoe/issues/6) | PostgreSQL provider — default production queue |
-| [#7](https://github.com/malkoG/dolshoe/issues/7) | Redis Streams implementation plan |
-| [#8](https://github.com/malkoG/dolshoe/issues/8) | RabbitMQ implementation plan |
-| [#9](https://github.com/malkoG/dolshoe/issues/9) | Move the error-report endpoint and worker onto this workflow; receipt and OpenAPI |
+| [#5](https://github.com/malkoG/dolshoe/issues/5) | Ingest provider port, envelope, shared contract tests — first |
+| [#6](https://github.com/malkoG/dolshoe/issues/6) | PostgreSQL default provider, behind that port |
+| [#7](https://github.com/malkoG/dolshoe/issues/7) | Redis Streams optional-provider plan |
+| [#8](https://github.com/malkoG/dolshoe/issues/8) | RabbitMQ optional-provider plan |
+| [#9](https://github.com/malkoG/dolshoe/issues/9) | Move the error-report endpoint and worker onto this workflow; receipt and OpenAPI — after #5 and #6 |
 | [#10](https://github.com/malkoG/dolshoe/issues/10) | Nested investigation field contract — already a separate freeze; not this document |
 
 ## Non-goals
@@ -412,6 +422,7 @@ ingestion and worker code to vendor APIs. Rejected; keep the port narrow.
 - Hiding provider-specific durability differences
 - Requiring an external queue for the default deployment
 - Exposing RabbitMQ- or Redis-specific routing through the common contract
+- Any implementation in this change — port, provider, or endpoint
 - The TypeScript ingest port (that is #5)
 - Redesigning investigation identity or queries (that is #10)
 - Moving log or trace ingest onto the queue

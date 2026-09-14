@@ -789,9 +789,11 @@ handlers must remain idempotent. The contract lives in
 
 That contract is generic infrastructure. Error-report ingestion still
 persists the canonical row in the request path. The target architecture —
-queue-first ingress, `202 Accepted`, and the guarantees every provider must
-share — is recorded in
+PostgreSQL as the default queue-provider boundary, Redis Streams and
+RabbitMQ as optional boundaries with their own durability and ack
+semantics — is the decision in
 [Queue-first error-report ingestion](docs/adr/0001-queue-first-ingestion.md).
+Implementation follows later (#5 → #6 → #9).
 
 ## Database workflow
 
