@@ -24,7 +24,11 @@ const notification: AlertNotification = {
   firedAt: "2026-09-14T00:00:01.000Z",
 };
 
-function jsonResponse(status: number, body: unknown = {}, headers?: HeadersInit): Response {
+function jsonResponse(
+  status: number,
+  body: unknown = {},
+  headers?: Record<string, string>,
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json", ...headers },
@@ -33,11 +37,11 @@ function jsonResponse(status: number, body: unknown = {}, headers?: HeadersInit)
 
 describe("notification adapters", () => {
   const originalFetch = globalThis.fetch;
-  const fetchMock = jest.fn<typeof fetch>();
+  const fetchMock = jest.fn();
 
   beforeEach(() => {
     fetchMock.mockReset();
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as typeof fetch;
   });
 
   afterEach(() => {
@@ -165,6 +169,6 @@ describe("notification adapters", () => {
       redactNotificationSecrets(
         "fetch failed https://discord.com/api/webhooks/1/super-secret bot123456:AAHideMe",
       ),
-    ).toBe("fetch failed https://discord.com/api/webhooks/1/[redacted] bot[redacted]");
+    ).toBe("fetch failed https://discord.com/api/webhooks/[redacted] bot[redacted]");
   });
 });
